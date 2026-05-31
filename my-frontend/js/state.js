@@ -22,7 +22,10 @@ const availableModels = [
 
 const APP_VERSION = 1.0;
 
-const DEFAULT_API_URL = "https://openrouter.ai/api/v1/chat/completions";
+// Default endpoint = local FastAPI backend (this fork runs against a local
+// server). Models with an empty "Other provider URL" fall back to this, so
+// chat works out of the box without per-model configuration.
+const DEFAULT_API_URL = "http://127.0.0.1:8000/v1/chat/completions";
 
 const defaultSettings = {
     fontSize: '18',
