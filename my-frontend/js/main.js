@@ -1,21 +1,23 @@
-﻿// === Refactor step 0: DOMContentLoaded wrapper removed (scripts now load at end of <body>) ===
-// Shared namespace for cross-file access (variant A: bare top-level names stay shared across <script> tags).
+﻿// =============================================================
+// main.js — app core / entry point.
+// Holds the DOM element references, all event-listener wiring,
+// the in-page feature logic (particles, music, TTS, reply
+// suggestions, AI generation, quick-swap, archive, ...), and the
+// bootstrap (initializeApp). Loaded LAST, after every js/ module.
+//
+// Domain logic lives in the themed modules under js/:
+//   state, ui-helpers, utils, storage, dialogs, cards, characters,
+//   personas, groups, chat, settings, editor, tutorial, io.
+// All top-level names are shared across <script> tags; window.App
+// is a thin namespace placeholder.
+// =============================================================
 window.App = window.App || {};
 document.body.style.opacity = '1';
 
-// db -> declared in js/state.js (openDB below assigns the global)
-
-// openDB -> moved to js/storage.js
 
 
 
-// availableModels, APP_VERSION, DEFAULT_API_URL, defaultSettings -> moved to js/state.js
 
-    // audioCtx, soundEnabled, thinkEnabled, replyOptionsEnabled, ttsEnabled,
-    // ttsCurrentVoiceURI, replyLength, replyOptionsLoading, pendingReplyOptions,
-    // replyOptionsReqId, suggestionModelId, characters, currentCharacterId,
-    // tempUploadedImages, currentChatId, worldCharSelectedIds, activeGroupParticipantId,
-    // personas, appSettings, currentStreamController -> moved to js/state.js
     const stopStreamBtn = document.getElementById('stop-stream-btn');
 
     
@@ -212,50 +214,38 @@ document.body.style.opacity = '1';
 
     // --- FUNCTIONS ---
 
-// freezeLayout, unfreezeLayout, __freezeScrollY -> moved to js/utils.js
-
-
-
-// showCustomAlert, showCustomPrompt, showCustomLargePrompt, showCustomConfirm, showChoiceDialog -> moved to js/dialogs.js
-
-
-
-// extractDataFromPng, sanitizeCardNotes, convertExternalCardToCCC -> moved to js/cards.js
-
-
-
-// generic UI/DOM helpers (adjustFontSizeToFit, getImageUrl, enforceResponsiveSettingLimits, autoResizeTextarea, handleTextareaEnter, createAvatarWithEffect) -> moved to js/ui-helpers.js
-
-
-
-// handleExport, handleFileImport -> moved to js/io.js
 
 
 
 
 
-// saveCharactersToDB, saveSingleCharacterToDB, deleteSingleCharacterFromDB,
-// deleteMultipleCharactersFromDB, loadCharactersFromDB, savePersonasToDB -> moved to js/storage.js
 
 
 
-// populateModelSelector -> moved to js/settings.js
 
 
 
-// loadPersonasFromDB -> moved to js/storage.js
 
 
 
-// renderCharacterList -> moved to js/characters.js
 
 
 
-// CHAT core (list nav, memories, start/create chat, message render, send/regenerate/continue + streaming) -> moved to js/chat.js
 
 
 
-// CHARACTER/WORLD editor + message-editor save -> moved to js/editor.js
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -2859,7 +2849,6 @@ helpBtn.addEventListener('click', () => {
 });
 
 
-// TUTORIAL TOUR module -> moved to js/tutorial.js
 
 // ── Setting info icon tooltip (position:fixed to escape overflow clipping) ──
 {
