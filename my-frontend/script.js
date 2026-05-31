@@ -3,7 +3,7 @@
 window.App = window.App || {};
 document.body.style.opacity = '1';
 
-let db;
+// db -> declared in js/state.js (openDB below assigns the global)
 
 function openDB() {
     return new Promise((resolve, reject) => {
@@ -36,68 +36,13 @@ function openDB() {
 
 
 
-const availableModels = [
-  { id: "z-ai/glm-4.5-air:free", name: "Z.AI: GLM 4.5 Air (free)" }
-];
+// availableModels, APP_VERSION, DEFAULT_API_URL, defaultSettings -> moved to js/state.js
 
-
-
-const APP_VERSION = 1.0;
-
-
-
-const DEFAULT_API_URL = "https://openrouter.ai/api/v1/chat/completions";
-
-
-
-const defaultSettings = {
-        fontSize: '18',
-        temperature: '0.70',
-        model: availableModels[0].id,
-        mainTextColor: '#FFFFFF',
-        dialogueColor: '#ffd952',
-        userBubbleColor: '#141414',
-        userBubbleOpacity: '0.7',
-        aiBubbleColor: '#141414',
-        aiBubbleOpacity: '0.7',
-        messageSpacing: '50',
-        soundEnabled: 'true',
-        thinkEnabled: 'true',
-        replyOptionsEnabled: 'true',
-        blur: '5',
-        avatarSize: '200',
-        ttsEnabled: 'false',
-        ttsVoiceURI: '',
-        replyLength: 'default',
-    };
-
-    let audioCtx;
-    let soundEnabled = true;
-    let thinkEnabled = true;
-    let replyOptionsEnabled = true;
-    let ttsEnabled = false;
-    let ttsCurrentVoiceURI = '';
-    let replyLength = 'default';
-    let replyOptionsLoading = false;
-    let pendingReplyOptions = null;
-    let replyOptionsReqId = 0;
-    let suggestionModelId = null;
-    let characters = {};
-    let currentCharacterId = null;
-    let tempUploadedImages = {
-  avatar: null,
-  avatarOriginal: null, 
-  background: null,
-  backgroundOriginal: null, 
-  personaAvatar: null,
-  personaAvatarOriginal: null 
-};
-    let currentChatId = null;
-    let worldCharSelectedIds = new Set();
-    let activeGroupParticipantId = null;
-    let personas = {};
-    let appSettings = {};
-    let currentStreamController = null; 
+    // audioCtx, soundEnabled, thinkEnabled, replyOptionsEnabled, ttsEnabled,
+    // ttsCurrentVoiceURI, replyLength, replyOptionsLoading, pendingReplyOptions,
+    // replyOptionsReqId, suggestionModelId, characters, currentCharacterId,
+    // tempUploadedImages, currentChatId, worldCharSelectedIds, activeGroupParticipantId,
+    // personas, appSettings, currentStreamController -> moved to js/state.js
     const stopStreamBtn = document.getElementById('stop-stream-btn');
 
     
