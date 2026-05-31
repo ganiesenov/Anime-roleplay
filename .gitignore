@@ -1,0 +1,14 @@
+# env / secrets
+.env
+
+# python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+
+# uv
+uv.lock
+
+# data (если не хочешь коммитить своих персонажей — раскомментируй)
+# data/characters/*.json

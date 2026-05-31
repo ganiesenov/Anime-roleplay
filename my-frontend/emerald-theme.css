@@ -1,0 +1,154 @@
+/* ═══════════════════════════════════════════════════════════
+   КАСТОМНАЯ ТЕМА: Emerald / Mint Neon
+   Добавь этот блок В КОНЕЦ style.css. Перебивает фиолетовую тему.
+   Логику не трогает — только внешний вид.
+   Чтобы откатить — просто удали всё от этой линии до конца файла.
+   ═══════════════════════════════════════════════════════════ */
+
+:root {
+  --em-bg:        #03110c;   /* почти чёрный изумрудный фон */
+  --em-bg-2:      #061a12;   /* чуть светлее, для панелей */
+  --em-surface:   #0a241a;   /* поверхности, карточки */
+  --em-accent:    #2ee6a0;   /* основной мятный неон */
+  --em-accent-2:  #5cffc4;   /* светлый акцент */
+  --em-accent-dim:#1a9e6e;   /* приглушённый */
+  --em-glow:      rgba(46,230,160,0.45);
+  --em-glow-soft: rgba(46,230,160,0.18);
+  --em-text:      #d7f5e8;   /* основной текст с зеленцой */
+  --em-text-dim:  #6f9686;   /* приглушённый текст */
+}
+
+/* ── Фон приложения ── */
+body,
+#app-loader {
+  background-color: var(--em-bg) !important;
+  background-image:
+    radial-gradient(circle at 12% 8%, rgba(46,230,160,0.08) 0%, transparent 42%),
+    radial-gradient(circle at 88% 92%, rgba(92,255,196,0.06) 0%, transparent 45%) !important;
+  color: var(--em-text);
+}
+
+/* ── Заголовки с анимированным градиентом ── */
+#app-loader-title,
+h1, h2 {
+  background: linear-gradient(120deg,
+    var(--em-accent-2) 0%, var(--em-accent) 30%,
+    #b8ffe6 55%, var(--em-accent) 75%, var(--em-accent-2) 100%) !important;
+  background-size: 200% auto !important;
+  -webkit-background-clip: text !important;
+  background-clip: text !important;
+  -webkit-text-fill-color: transparent !important;
+  animation: em-shimmer 4s linear infinite;
+  filter: drop-shadow(0 0 16px var(--em-glow));
+}
+@keyframes em-shimmer {
+  to { background-position: 200% center; }
+}
+
+/* ── Спиннер загрузки ── */
+#app-loader-spinner {
+  border-color: rgba(46,230,160,0.2) !important;
+  border-top-color: var(--em-accent) !important;
+  box-shadow: 0 0 20px var(--em-glow-soft);
+}
+
+/* ── Перекрашиваем их фиолетовые акценты в мятные ── */
+[style*="#a78bfa"], [style*="#c8b8ff"], [style*="#e0d7ff"] {
+  color: var(--em-accent) !important;
+}
+
+/* ── Кнопки: неоновая обводка + glow при наведении ── */
+button {
+  transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+button:hover {
+  box-shadow: 0 0 16px var(--em-glow-soft), inset 0 0 0 1px var(--em-accent-dim) !important;
+  transform: translateY(-1px);
+}
+
+/* основные/акцентные кнопки — заливка неоном */
+.primary-btn, .send-btn, .create-character-btn,
+button[class*="primary"], button[class*="send"], button[class*="create"] {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent)) !important;
+  color: #04150e !important;
+  font-weight: 600 !important;
+  border: none !important;
+  box-shadow: 0 0 18px var(--em-glow-soft) !important;
+}
+.primary-btn:hover, .send-btn:hover, .create-character-btn:hover,
+button[class*="primary"]:hover, button[class*="send"]:hover {
+  box-shadow: 0 0 26px var(--em-glow) !important;
+  filter: brightness(1.08);
+}
+
+/* ── Аватары персонажей: мятное свечение ── */
+.character-avatar, .char-avatar, [class*="avatar"] img,
+.favorite-character img, .character-card img {
+  box-shadow: 0 0 0 2px var(--em-accent-dim), 0 0 22px var(--em-glow-soft) !important;
+  transition: box-shadow 0.3s ease, transform 0.3s ease !important;
+}
+.character-avatar:hover, .char-avatar:hover,
+.favorite-character:hover img, .character-card:hover img {
+  box-shadow: 0 0 0 2px var(--em-accent), 0 0 32px var(--em-glow) !important;
+  transform: scale(1.04);
+}
+
+/* ── Пузыри сообщений: плавное появление + тонкая обводка ── */
+.message, .chat-message, [class*="message-bubble"], [class*="msg"] {
+  animation: em-rise 0.4s cubic-bezier(0.2, 0.7, 0.3, 1);
+}
+@keyframes em-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* пузырь персонажа (AI) — мягкое свечение слева */
+[class*="ai-bubble"], [class*="character-message"], .ai-message {
+  border-left: 2px solid var(--em-accent-dim) !important;
+  box-shadow: -4px 0 18px var(--em-glow-soft) !important;
+}
+
+/* ── Поля ввода: фокус с неоновой обводкой ── */
+input, textarea, select {
+  background-color: var(--em-surface) !important;
+  color: var(--em-text) !important;
+  border-color: rgba(46,230,160,0.15) !important;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease !important;
+}
+input:focus, textarea:focus, select:focus {
+  border-color: var(--em-accent) !important;
+  box-shadow: 0 0 0 3px var(--em-glow-soft), 0 0 18px var(--em-glow-soft) !important;
+  outline: none !important;
+}
+
+/* ── Модалки/панели ── */
+[class*="modal"], [class*="settings"], [class*="panel"], [class*="overlay-content"] {
+  background-color: var(--em-bg-2) !important;
+  border: 1px solid rgba(46,230,160,0.12) !important;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(46,230,160,0.06) !important;
+}
+
+/* ── Диалоговый текст (то что у них был #fde68a / жёлтый) ── */
+[style*="#fde68a"], [style*="#eeac3b"], .dialog-text, em, i {
+  color: var(--em-accent-2) !important;
+}
+
+/* ── Скроллбар в тему ── */
+::-webkit-scrollbar { width: 9px; height: 9px; }
+::-webkit-scrollbar-track { background: var(--em-bg); }
+::-webkit-scrollbar-thumb {
+  background: var(--em-accent-dim);
+  border-radius: 5px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--em-accent); }
+
+/* ── Линки/интерактив ── */
+a, [class*="link"] { color: var(--em-accent) !important; }
+a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-glow-soft); }
+
+/* ── Пульсация на активном элементе (например выбранный персонаж) ── */
+.active, [class*="selected"], [class*="active"] {
+  box-shadow: 0 0 0 1px var(--em-accent-dim), 0 0 20px var(--em-glow-soft) !important;
+}
+
+/* ═══════════════ КОНЕЦ КАСТОМНОЙ ТЕМЫ ═══════════════ */
