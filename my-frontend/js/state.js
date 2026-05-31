@@ -12,7 +12,11 @@ window.App = window.App || {};
 let db;
 
 // --- constants ---
+// Default model points at the local FastAPI backend. The backend itself
+// picks the actual Ollama model via its OLLAMA_MODEL env var, so the id/name
+// here is just a label; only targetApiUrl needs to be the local endpoint.
 const availableModels = [
+  { id: "local-qwen", name: "Qwen (local backend)", targetApiUrl: "http://127.0.0.1:8000/v1/chat/completions" },
   { id: "z-ai/glm-4.5-air:free", name: "Z.AI: GLM 4.5 Air (free)" }
 ];
 
