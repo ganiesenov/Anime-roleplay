@@ -2672,6 +2672,66 @@ async function initializeApp() {
         showCustomAlert("Could not load database. Please check browser permissions or try clearing site data.");
     }
 }
+
+    // === relocated from personas.js / editor.js (top-level wiring must live here, after DOM refs & all functions) ===
+
+    // -- persona management listeners --
+managePersonasBtn.addEventListener('click', () => {
+  personaListSearchInput.value = ''; 
+  openPersonaListModal(); 
+});
+
+personaListSearchInput.addEventListener('input', () => {
+  openPersonaListModal(personaListSearchInput.value);
+});
+
+closePersonaListBtn.addEventListener('click', () => {
+    personaListModal.classList.add('hidden');
+});
+
+createNewPersonaBtn.addEventListener('click', () => {
+    openPersonaEditor(); 
+});
+
+cancelPersonaEditBtn.addEventListener('click', () => {
+    personaEditorModal.classList.add('hidden');
+    openPersonaListModal(); 
+});
+
+personaForm.addEventListener('submit', handlePersonaFormSubmit);
+
+document.getElementById('persona-list-container').addEventListener('click', (event) => {
+    const personaElement = event.target.closest('.persona-list-entry'); 
+    if (!personaElement) return;
+
+    const personaId = personaElement.dataset.personaId;
+
+    if (event.target.closest('.edit-persona-btn')) {
+        openPersonaEditor(personaId);
+    }
+
+    if (event.target.closest('.delete-persona-btn')) {
+        handleDeletePersona(personaId);
+    }
+});
+
+    // -- character editor listeners --
+cardTypeCharacterRadio.addEventListener('change', () => updateEditorForType('character'));
+cardTypeWorldRadio.addEventListener('change', () => { worldCharSelectedIds = new Set(); updateEditorForType('world'); });
+document.getElementById('add-scenario-btn').addEventListener('click', () => {
+    createScenarioInput("");
+});
+
+document.getElementById('ai-scenario-btn').addEventListener('click', handleAIGenerateScenario);
+
+document.getElementById('scenario-editor-list').addEventListener('click', async (event) => {
+    if (event.target.classList.contains('delete-scenario-btn')) {
+        if (await showCustomConfirm("Do you really want to delete this scenario?", true)) {
+            event.target.parentElement.remove();
+        }
+    }
+});
+
 initializeApp();
 
 

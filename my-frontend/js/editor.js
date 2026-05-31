@@ -110,8 +110,7 @@ function populateWorldCharPicker() {
     });
 }
 
-cardTypeCharacterRadio.addEventListener('change', () => updateEditorForType('character'));
-cardTypeWorldRadio.addEventListener('change', () => { worldCharSelectedIds = new Set(); updateEditorForType('world'); });
+// (cardType radio listeners moved to js/main.js)
 
     function openEditorForNew() {
     tempUploadedImages = {};
@@ -391,19 +390,7 @@ function createScenarioInput(scenario) {
     scenarioListDiv.appendChild(entryDiv);
 }
 
-document.getElementById('add-scenario-btn').addEventListener('click', () => {
-    createScenarioInput("");
-});
-
-document.getElementById('ai-scenario-btn').addEventListener('click', handleAIGenerateScenario);
-
-document.getElementById('scenario-editor-list').addEventListener('click', async (event) => {
-    if (event.target.classList.contains('delete-scenario-btn')) {
-        if (await showCustomConfirm("Do you really want to delete this scenario?", true)) {
-            event.target.parentElement.remove();
-        }
-    }
-});
+// (scenario listeners moved to js/main.js)
 
 
 

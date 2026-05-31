@@ -144,46 +144,7 @@ async function handleDeletePersona(personaId) {
 
 
 
-// 2. EVENT LISTENERS
-
-managePersonasBtn.addEventListener('click', () => {
-  personaListSearchInput.value = ''; 
-  openPersonaListModal(); 
-});
-
-personaListSearchInput.addEventListener('input', () => {
-  openPersonaListModal(personaListSearchInput.value);
-});
-
-closePersonaListBtn.addEventListener('click', () => {
-    personaListModal.classList.add('hidden');
-});
-
-createNewPersonaBtn.addEventListener('click', () => {
-    openPersonaEditor(); 
-});
-
-cancelPersonaEditBtn.addEventListener('click', () => {
-    personaEditorModal.classList.add('hidden');
-    openPersonaListModal(); 
-});
-
-personaForm.addEventListener('submit', handlePersonaFormSubmit);
-
-document.getElementById('persona-list-container').addEventListener('click', (event) => {
-    const personaElement = event.target.closest('.persona-list-entry'); 
-    if (!personaElement) return;
-
-    const personaId = personaElement.dataset.personaId;
-
-    if (event.target.closest('.edit-persona-btn')) {
-        openPersonaEditor(personaId);
-    }
-
-    if (event.target.closest('.delete-persona-btn')) {
-        handleDeletePersona(personaId);
-    }
-});
+// (event listeners moved to js/main.js — they reference main.js DOM refs)
 
 
 
