@@ -1,4 +1,6 @@
-﻿document.addEventListener('DOMContentLoaded', () => {
+﻿// === Refactor step 0: DOMContentLoaded wrapper removed (scripts now load at end of <body>) ===
+// Shared namespace for cross-file access (variant A: bare top-level names stay shared across <script> tags).
+window.App = window.App || {};
 document.body.style.opacity = '1';
 
 let db;
@@ -8284,5 +8286,3 @@ window.addEventListener('resize', () => {
         });
     }
 }
-
-});

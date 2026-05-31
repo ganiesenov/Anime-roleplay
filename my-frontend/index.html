@@ -620,17 +620,6 @@
     </div>
 </div>
 
-    <script src="starter_pack_data.js"></script>
-    <script src="script.js"></script>
-    <script>
-    (function() {
-        var loader = document.getElementById('app-loader');
-        if (!loader) return;
-        loader.classList.add('fade-out');
-        loader.addEventListener('transitionend', function() { loader.remove(); }, { once: true });
-    })();
-    </script>
-
     <!-- ===================== TUTORIAL TOUR ===================== -->
     <div id="tutorial-backdrop"></div>
     <div id="tutorial-spotlight"></div>
@@ -646,6 +635,17 @@
     <!-- =================== END TUTORIAL TOUR =================== -->
 
     <div id="global-setting-tooltip"></div>
+
+    <script src="starter_pack_data.js"></script>
+    <script src="script.js"></script>
+    <script>
+    (function() {
+        var loader = document.getElementById('app-loader');
+        if (!loader) return;
+        loader.classList.add('fade-out');
+        loader.addEventListener('transitionend', function() { loader.remove(); }, { once: true });
+    })();
+    </script>
 
 </body>
 </html>
