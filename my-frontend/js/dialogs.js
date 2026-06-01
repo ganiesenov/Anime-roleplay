@@ -3,6 +3,31 @@
 // Self-contained: only uses the DOM. No app state.
 // =============================================================
 
+// Lightweight transient toast — non-blocking confirmation (e.g. "Saved").
+// Fades in/out on its own; no buttons, no overlay.
+function showToast(message, { duration = 1600 } = {}) {
+    const toast = document.createElement('div');
+    toast.textContent = message;
+    toast.style.cssText = [
+        'position:fixed', 'left:50%', 'bottom:48px', 'transform:translateX(-50%) translateY(10px)',
+        'background:rgba(20,20,28,0.95)', 'color:#fff', 'padding:10px 18px',
+        'border:1px solid rgba(80,220,160,0.5)', 'border-radius:8px',
+        'font-size:0.9em', 'z-index:99999', 'pointer-events:none',
+        'box-shadow:0 4px 16px rgba(0,0,0,0.4)', 'opacity:0',
+        'transition:opacity 0.18s ease, transform 0.18s ease',
+    ].join(';');
+    document.body.appendChild(toast);
+    requestAnimationFrame(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateX(-50%) translateY(0)';
+    });
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(-50%) translateY(10px)';
+        setTimeout(() => toast.remove(), 200);
+    }, duration);
+}
+
 function showCustomAlert(message) {
     const alertOverlay = document.createElement('div');
     alertOverlay.className = 'custom-alert-overlay';

@@ -10,13 +10,13 @@ FastAPI бэкенд roleplay-чатбота.
   POST /api/chat                — сгенерировать ответ (полный)
   POST /api/chat/stream         — сгенерировать ответ (стрим, SSE)
 
-Фронт раздаётся статикой из ../frontend
+Фронт (модульный) раздаётся статикой из ../my-frontend
 """
 import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse, FileResponse
+from fastapi.responses import StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -134,10 +134,10 @@ async def get_chat_history(character_id: str, chat_id: str):
 
 
 # ---------- статика (фронт) ----------
-FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+# Раздаём весь модульный фронт из ../frontend прямо по корню.
+# html=True → "/" отдаёт index.html, а ассеты (js/, style.css, gallery/, *.html)
+# доступны по их относительным путям. Монтируется ПОСЛЕДНИМ, поэтому /api/* и
+# /v1/* (объявленные выше) перехватываются раньше этого catch-all.
+FRONTEND_DIR = Path(__file__).parent.parent / "my-frontend"
 if FRONTEND_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
-
-    @app.get("/")
-    async def index():
-        return FileResponse(str(FRONTEND_DIR / "index.html"))
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")

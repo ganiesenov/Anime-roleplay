@@ -200,6 +200,7 @@ if (dashboardAvatarUrl) {
         updateChatMemoriesButtonState();
         updateTokenCount();
         closeChatMemoriesModal();
+        showToast(chat.memories ? '✓ Memories saved' : '✓ Memories cleared');
     }
 
 
@@ -998,7 +999,7 @@ const startTime = Date.now();
         if (targetCharacter.lore) fullSystemPrompt += `--- LORE / BACKGROUND KNOWLEDGE ---\n${targetCharacter.lore.trim()}\n\n`;
     }
     if (chat.mood) {
-        fullSystemPrompt += `--- CHARACTER CURRENT MOOD ---\n${charNameForAI} is currently feeling ${chat.mood}. This mood should subtly influence how they speak, react, and behave in this scene.\n\n`;
+        fullSystemPrompt += `--- CHARACTER CURRENT MOOD (IMPORTANT) ---\nRight now ${charNameForAI} is feeling ${chat.mood}. Let this mood clearly and noticeably come through in their tone, word choice, body language, and reactions in this reply — make it obvious to the reader, while still staying in character.\n\n`;
     }
     const chatMemoriesText = (chat.memories || '').trim();
     if (chatMemoriesText) {
@@ -1037,9 +1038,10 @@ const isLocal = targetApiUrlToSend && (
 );
 
 const reminderContent = type === 'dialog' ? combinedDialogReminder : combinedNarratorReminder;
-const lastUserContent = reminderContent
+const moodDirective = chat.mood ? `\n[MOOD — TOP PRIORITY: right now ${charNameForAI} is feeling ${chat.mood}. This emotion MUST be clearly and unmistakably visible in their tone, word choice, body language and reactions in THIS reply, even if it contrasts with their usual demeanor. Do not write them as calm or neutral — stay in character but let the ${chat.mood} show strongly.]` : '';
+const lastUserContent = (reminderContent
     ? `${finalMessageForAPI}\n[${reminderContent}]`
-    : finalMessageForAPI;
+    : finalMessageForAPI) + moodDirective;
 const messages = [
     { role: 'system', content: characterForAPI.description },
     ...historyForAPI.map(h => ({ role: h.sender === 'ai' ? 'assistant' : 'user', content: h.main })),
@@ -1484,7 +1486,7 @@ let characterNarratorReminder = applyUserPlaceholder((speakerCharacter.narratorR
         if (characterForAPI.lore) fullSystemPrompt += `--- LORE / BACKGROUND KNOWLEDGE ---\n${characterForAPI.lore.trim()}\n\n`;
     }
     if (chat.mood) {
-        fullSystemPrompt += `--- CHARACTER CURRENT MOOD ---\n${charNameForAI} is currently feeling ${chat.mood}. This mood should subtly influence how they speak, react, and behave in this scene.\n\n`;
+        fullSystemPrompt += `--- CHARACTER CURRENT MOOD (IMPORTANT) ---\nRight now ${charNameForAI} is feeling ${chat.mood}. Let this mood clearly and noticeably come through in their tone, word choice, body language, and reactions in this reply — make it obvious to the reader, while still staying in character.\n\n`;
     }
     const chatMemoriesText = (chat.memories || '').trim();
     if (chatMemoriesText) {
@@ -1542,9 +1544,10 @@ const isLocal = targetApiUrlToSend && (
 );
 
 const reminderContent = messageType === 'dialog' ? combinedDialogReminder : combinedNarratorReminder;
-const lastUserContent = reminderContent
+const moodDirective = chat.mood ? `\n[MOOD — TOP PRIORITY: right now ${charNameForAI} is feeling ${chat.mood}. This emotion MUST be clearly and unmistakably visible in their tone, word choice, body language and reactions in THIS reply, even if it contrasts with their usual demeanor. Do not write them as calm or neutral — stay in character but let the ${chat.mood} show strongly.]` : '';
+const lastUserContent = (reminderContent
     ? `${messageForAPIRegen}\n[${reminderContent}]`
-    : messageForAPIRegen;
+    : messageForAPIRegen) + moodDirective;
 const messages = [
     { role: 'system', content: characterForAPI.description },
     ...mappedHistoryForAPI.map(h => ({ role: h.sender === 'ai' ? 'assistant' : 'user', content: h.main })),
@@ -2012,7 +2015,7 @@ let characterNarratorReminder = applyUserPlaceholder((speakerCharacter.narratorR
         if (characterForAPI.lore) fullSystemPrompt += `--- LORE / BACKGROUND KNOWLEDGE ---\n${characterForAPI.lore.trim()}\n\n`;
     }
     if (chat.mood) {
-        fullSystemPrompt += `--- CHARACTER CURRENT MOOD ---\n${charNameForAI} is currently feeling ${chat.mood}. This mood should subtly influence how they speak, react, and behave in this scene.\n\n`;
+        fullSystemPrompt += `--- CHARACTER CURRENT MOOD (IMPORTANT) ---\nRight now ${charNameForAI} is feeling ${chat.mood}. Let this mood clearly and noticeably come through in their tone, word choice, body language, and reactions in this reply — make it obvious to the reader, while still staying in character.\n\n`;
     }
     const chatMemoriesText = (chat.memories || '').trim();
     if (chatMemoriesText) {
@@ -2067,9 +2070,10 @@ const isLocal = targetApiUrlToSend && (
 );
 
 const reminderContent = messageType === 'dialog' ? combinedDialogReminder : combinedNarratorReminder;
-const lastUserContent = reminderContent
+const moodDirective = chat.mood ? `\n[MOOD — TOP PRIORITY: right now ${charNameForAI} is feeling ${chat.mood}. This emotion MUST be clearly and unmistakably visible in their tone, word choice, body language and reactions in THIS reply, even if it contrasts with their usual demeanor. Do not write them as calm or neutral — stay in character but let the ${chat.mood} show strongly.]` : '';
+const lastUserContent = (reminderContent
     ? `${messageForAPI}\n[${reminderContent}]`
-    : messageForAPI;
+    : messageForAPI) + moodDirective;
 const messages = [
     { role: 'system', content: characterForAPI.description },
     ...historyForAPIcall.map(h => ({ role: h.sender === 'ai' ? 'assistant' : 'user', content: h.main })),

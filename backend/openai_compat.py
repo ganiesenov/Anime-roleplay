@@ -44,6 +44,29 @@ class OpenAIRequest(BaseModel):
     chat_id: str | None = None
 
 
+# Ролевой якорь. Фронт casual-character-chat шлёт богатую карточку персонажа
+# в system, но БЕЗ явной команды «ты — этот персонаж». Сильные облачные модели
+# (GLM и т.п.) и так понимают, что это отыгрыш, а локальные (qwen и др.) без
+# прямого указания сваливаются в режим ассистента ("As an AI I don't have
+# emotions..."). Этот префикс — тот же якорь, что prompt_builder.build_messages
+# добавляет на пути /api/chat. Без него /v1/chat/completions терял роль.
+ROLEPLAY_ANCHOR = (
+    "You are an actor fully embodying the character described below. "
+    "This is a fictional roleplay. Stay in character at ALL times. "
+    "Never say or imply that you are an AI, an assistant, a language model, "
+    "or a program. Never break the fourth wall, never give disclaimers, and "
+    "never refuse in-character. Speak and act ONLY as the character, in the "
+    "first person, reacting naturally to the user.\n"
+    # Формат для фронта: реплики в \"кавычках\" красятся в dialogueColor,
+    # *звёздочки* рендерятся курсивом (действия/нарратив). Без этого ответ
+    # выходит одним цветом — поэтому явно просим такой формат.
+    "FORMAT every reply as roleplay prose: put everything the character says "
+    "out loud inside \"double quotes\", and write all physical actions, "
+    "gestures, expressions and narration wrapped in *asterisks*. Do not write "
+    "plain unformatted paragraphs.\n\n"
+)
+
+
 def process_messages(messages: list[dict]) -> list[dict]:
     """
     ХУК ДЛЯ ТВОЕЙ ЛОГИКИ.
@@ -51,13 +74,22 @@ def process_messages(messages: list[dict]) -> list[dict]:
     Сюда приходят messages, которые собрал фронт
     (system = описание персонажа + lorebook, потом история, потом ввод).
 
-    Сейчас — просто пропускаем как есть. Когда захочешь полный контроль:
-    - распарси system, чтобы достать имя персонажа / факты
-    - подмешай свой lorebook из бэкенда (lorebook.py)
-    - добавь RAG-примеры (faiss)
-    - вставь summary длинного диалога (память, фаза 2)
-    и верни изменённый список messages.
+    Что делаем: добавляем ROLEPLAY_ANCHOR в начало системного сообщения,
+    чтобы локальные модели держали роль (см. коммент к ROLEPLAY_ANCHOR).
+    Если system-сообщения нет — вставляем якорь отдельным system в начало.
+
+    Дальше при желании можно расширять:
+    - подмешать свой lorebook из бэкенда (lorebook.py)
+    - добавить RAG-примеры (faiss)
+    - вставить summary длинного диалога (память, фаза 2)
     """
+    if messages and messages[0].get("role") == "system":
+        messages[0] = {
+            **messages[0],
+            "content": ROLEPLAY_ANCHOR + messages[0].get("content", ""),
+        }
+    else:
+        messages = [{"role": "system", "content": ROLEPLAY_ANCHOR.strip()}, *messages]
     return messages
 
 
