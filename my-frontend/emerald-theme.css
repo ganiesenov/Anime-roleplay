@@ -152,3 +152,17 @@ a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-g
 }
 
 /* ═══════════════ КОНЕЦ КАСТОМНОЙ ТЕМЫ ═══════════════ */
+
+
+/* ═══════════ ФОН: перекрас звёздного контейнера в изумруд ═══════════ */
+#stars-container {
+  background:
+    radial-gradient(ellipse 90% 70% at 15% 45%, rgba(18, 130, 90, 0.40) 0%, transparent 55%),
+    radial-gradient(ellipse 70% 90% at 85% 30%, rgba(20, 110, 80, 0.30) 0%, transparent 55%),
+    radial-gradient(ellipse 50% 40% at 50% 85%, rgba(10, 70, 50, 0.35) 0%, transparent 60%),
+    radial-gradient(ellipse 40% 30% at 65% 60%, rgba(40, 230, 160, 0.15) 0%, transparent 50%),
+    #03110c !important;
+}
+#stars, #stars2, #stars3 {
+  filter: hue-rotate(95deg) saturate(0.8);
+}
