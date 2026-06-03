@@ -912,7 +912,7 @@ async function handleChatSubmit(type) {
     if (continueBtn) {
         continueBtn.disabled = true;
     }
-    if (controls) controls.classList.add('is-streaming');
+    if (controls) { controls.classList.add('is-streaming'); controls.closest('.message')?.classList.add('msg-streaming'); }
     const mainContentElement = messageWrapper.querySelector('.main-content');
     let thinkBlockElement = messageWrapper.querySelector('.think-block');
 const coldStartTimer = setTimeout(() => {
@@ -1329,7 +1329,7 @@ if (elapsedTime > 20000) {
             const continueBtn = finalMessageEl.querySelector('.continue-btn');
             if (continueBtn) { continueBtn.disabled = false; continueBtn.classList.remove('is-loading'); }
             const finalControls = finalMessageEl.querySelector('.message-controls');
-            if (finalControls) finalControls.classList.remove('is-streaming');
+            if (finalControls) { finalControls.classList.remove('is-streaming'); finalControls.closest('.message')?.classList.remove('msg-streaming'); }
         }
     }
     loadingIndicator.classList.add('hidden');
@@ -1364,7 +1364,7 @@ if (messageElement) {
     const continueBtn = messageElement.querySelector('.continue-btn');
     if (continueBtn) continueBtn.disabled = true;
     const regenControls = messageElement.querySelector('.message-controls');
-    if (regenControls) regenControls.classList.add('is-streaming');
+    if (regenControls) { regenControls.classList.add('is-streaming'); regenControls.closest('.message')?.classList.add('msg-streaming'); }
 }
 
     loadingIndicator.classList.remove('hidden');
@@ -1830,7 +1830,7 @@ continue;
         }
 
         const controlsContainer = finalMessageElement.querySelector('.message-controls');
-        if (controlsContainer) controlsContainer.classList.remove('is-streaming');
+        if (controlsContainer) { controlsContainer.classList.remove('is-streaming'); controlsContainer.closest('.message')?.classList.remove('msg-streaming'); }
         let prevBtn = finalMessageElement.querySelector('.prev-variant-btn');
         let counter = finalMessageElement.querySelector('.variant-counter');
         let nextBtn = finalMessageElement.querySelector('.next-variant-btn');
@@ -1899,7 +1899,7 @@ if (messageElement) {
         continueBtn.classList.add('is-loading');
     }
     const contControls = messageElement.querySelector('.message-controls');
-    if (contControls) contControls.classList.add('is-streaming');
+    if (contControls) { contControls.classList.add('is-streaming'); contControls.closest('.message')?.classList.add('msg-streaming'); }
 }
 
     loadingIndicator.classList.remove('hidden');

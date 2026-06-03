@@ -1,24 +1,24 @@
 /* ═══════════════════════════════════════════════════════════
-   КАСТОМНАЯ ТЕМА: Emerald / Mint Neon
-   Добавь этот блок В КОНЕЦ style.css. Перебивает фиолетовую тему.
-   Логику не трогает — только внешний вид.
-   Чтобы откатить — просто удали всё от этой линии до конца файла.
+   CUSTOM THEME: Emerald / Mint Neon
+   Append this block at the END of style.css. Overrides the purple theme.
+   Doesn't touch logic — visual only.
+   To roll back — just delete everything from this line to the end of the file.
    ═══════════════════════════════════════════════════════════ */
 
 :root {
-  --em-bg:        #03110c;   /* почти чёрный изумрудный фон */
-  --em-bg-2:      #061a12;   /* чуть светлее, для панелей */
-  --em-surface:   #0a241a;   /* поверхности, карточки */
-  --em-accent:    #2ee6a0;   /* основной мятный неон */
-  --em-accent-2:  #5cffc4;   /* светлый акцент */
-  --em-accent-dim:#1a9e6e;   /* приглушённый */
+  --em-bg:        #03110c;   /* near-black emerald background */
+  --em-bg-2:      #061a12;   /* slightly lighter, for panels */
+  --em-surface:   #0a241a;   /* surfaces, cards */
+  --em-accent:    #2ee6a0;   /* primary mint neon */
+  --em-accent-2:  #5cffc4;   /* light accent */
+  --em-accent-dim:#1a9e6e;   /* dimmed */
   --em-glow:      rgba(46,230,160,0.45);
   --em-glow-soft: rgba(46,230,160,0.18);
-  --em-text:      #d7f5e8;   /* основной текст с зеленцой */
-  --em-text-dim:  #6f9686;   /* приглушённый текст */
+  --em-text:      #d7f5e8;   /* primary text with a green tint */
+  --em-text-dim:  #8fb8a6;   /* dimmed text — WCAG AA: ≥6.9:1 on all glass surfaces (was #6f9686, ~4.5–5.3 borderline) */
 }
 
-/* ── Фон приложения ── */
+/* ── App background ── */
 body,
 #app-loader {
   background-color: var(--em-bg) !important;
@@ -28,7 +28,7 @@ body,
   color: var(--em-text);
 }
 
-/* ── Заголовки с анимированным градиентом ── */
+/* ── Headings with animated gradient ── */
 #app-loader-title,
 h1, h2 {
   background: linear-gradient(120deg,
@@ -45,19 +45,19 @@ h1, h2 {
   to { background-position: 200% center; }
 }
 
-/* ── Спиннер загрузки ── */
+/* ── Loading spinner ── */
 #app-loader-spinner {
   border-color: rgba(46,230,160,0.2) !important;
   border-top-color: var(--em-accent) !important;
   box-shadow: 0 0 20px var(--em-glow-soft);
 }
 
-/* ── Перекрашиваем их фиолетовые акценты в мятные ── */
+/* ── Recolor their purple accents to mint ── */
 [style*="#a78bfa"], [style*="#c8b8ff"], [style*="#e0d7ff"] {
   color: var(--em-accent) !important;
 }
 
-/* ── Кнопки: неоновая обводка + glow при наведении ── */
+/* ── Buttons: neon outline + glow on hover ── */
 button {
   transition: all 0.22s cubic-bezier(0.4, 0, 0.2, 1) !important;
 }
@@ -66,7 +66,7 @@ button:hover {
   transform: translateY(-1px);
 }
 
-/* основные/акцентные кнопки — заливка неоном */
+/* primary/accent buttons — neon fill */
 .primary-btn, .send-btn, .create-character-btn,
 button[class*="primary"], button[class*="send"], button[class*="create"] {
   background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent)) !important;
@@ -81,7 +81,7 @@ button[class*="primary"]:hover, button[class*="send"]:hover {
   filter: brightness(1.08);
 }
 
-/* ── Аватары персонажей: мятное свечение ── */
+/* ── Character avatars: mint glow ── */
 .character-avatar, .char-avatar, [class*="avatar"] img,
 .favorite-character img, .character-card img {
   box-shadow: 0 0 0 2px var(--em-accent-dim), 0 0 22px var(--em-glow-soft) !important;
@@ -93,7 +93,7 @@ button[class*="primary"]:hover, button[class*="send"]:hover {
   transform: scale(1.04);
 }
 
-/* ── Пузыри сообщений: плавное появление + тонкая обводка ── */
+/* ── Message bubbles: smooth appear + subtle outline ── */
 .message, .chat-message, [class*="message-bubble"], [class*="msg"] {
   animation: em-rise 0.4s cubic-bezier(0.2, 0.7, 0.3, 1);
 }
@@ -102,13 +102,13 @@ button[class*="primary"]:hover, button[class*="send"]:hover {
   to   { opacity: 1; transform: translateY(0); }
 }
 
-/* пузырь персонажа (AI) — мягкое свечение слева */
+/* character (AI) bubble — soft glow on the left */
 [class*="ai-bubble"], [class*="character-message"], .ai-message {
   border-left: 2px solid var(--em-accent-dim) !important;
   box-shadow: -4px 0 18px var(--em-glow-soft) !important;
 }
 
-/* ── Поля ввода: фокус с неоновой обводкой ── */
+/* ── Inputs: focus with neon outline ── */
 input, textarea, select {
   background-color: var(--em-surface) !important;
   color: var(--em-text) !important;
@@ -121,19 +121,19 @@ input:focus, textarea:focus, select:focus {
   outline: none !important;
 }
 
-/* ── Модалки/панели ── */
+/* ── Modals/panels ── */
 [class*="modal"], [class*="settings"], [class*="panel"], [class*="overlay-content"] {
   background-color: var(--em-bg-2) !important;
   border: 1px solid rgba(46,230,160,0.12) !important;
   box-shadow: 0 8px 40px rgba(0,0,0,0.5), 0 0 0 1px rgba(46,230,160,0.06) !important;
 }
 
-/* ── Диалоговый текст (то что у них был #fde68a / жёлтый) ── */
+/* ── Dialogue text (was #fde68a / yellow in the original) ── */
 [style*="#fde68a"], [style*="#eeac3b"], .dialog-text, em, i {
   color: var(--em-accent-2) !important;
 }
 
-/* ── Скроллбар в тему ── */
+/* ── Scrollbar matching the theme ── */
 ::-webkit-scrollbar { width: 9px; height: 9px; }
 ::-webkit-scrollbar-track { background: var(--em-bg); }
 ::-webkit-scrollbar-thumb {
@@ -142,19 +142,19 @@ input:focus, textarea:focus, select:focus {
 }
 ::-webkit-scrollbar-thumb:hover { background: var(--em-accent); }
 
-/* ── Линки/интерактив ── */
+/* ── Links/interactive ── */
 a, [class*="link"] { color: var(--em-accent) !important; }
 a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-glow-soft); }
 
-/* ── Пульсация на активном элементе (например выбранный персонаж) ── */
+/* ── Pulse on the active element (e.g. selected character) ── */
 .active, [class*="selected"], [class*="active"] {
   box-shadow: 0 0 0 1px var(--em-accent-dim), 0 0 20px var(--em-glow-soft) !important;
 }
 
-/* ═══════════════ КОНЕЦ КАСТОМНОЙ ТЕМЫ ═══════════════ */
+/* ═══════════════ END OF CUSTOM THEME ═══════════════ */
 
 
-/* ═══════════ ФОН: перекрас звёздного контейнера в изумруд ═══════════ */
+/* ═══════════ BACKGROUND: recolor the star container to emerald ═══════════ */
 #stars-container {
   background:
     radial-gradient(ellipse 90% 70% at 15% 45%, rgba(18, 130, 90, 0.40) 0%, transparent 55%),
@@ -166,3 +166,1066 @@ a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-g
 #stars, #stars2, #stars3 {
   filter: hue-rotate(95deg) saturate(0.8);
 }
+
+
+/* ═══════════════════════════════════════════════════════════
+   REDESIGN 2 — navigation, toolbar, panels (2026-06-03)
+   Nav buttons, chat-header icons, music panel,
+   mood-picker, settings. Visual only, logic untouched.
+   Rollback: delete everything from this line to the end of the file.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Chat header: glass with a mint edge ── */
+#chat-header {
+  background: rgba(3, 17, 12, 0.55) !important;
+  border-bottom: 1px solid rgba(46, 230, 160, 0.16) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+
+/* ── Toolbar: group the icons into one cohesive island ── */
+#settings-container {
+  gap: 5px !important;
+  padding: 4px 6px !important;
+  background: rgba(46, 230, 160, 0.05);
+  border: 1px solid rgba(46, 230, 160, 0.10);
+  border-radius: 13px;
+}
+
+#settings-btn, #chat-memories-btn, #add-participant-btn,
+#select-persona-btn, #quick-swap-btn, #mood-btn,
+#music-btn, #particle-btn {
+  width: 34px !important;
+  height: 34px !important;
+  background: rgba(46, 230, 160, 0.06) !important;
+  border: 1px solid rgba(46, 230, 160, 0.14) !important;
+  border-radius: 9px !important;
+  color: var(--em-text) !important;
+  font-size: 16px !important;
+}
+#settings-btn:hover, #chat-memories-btn:hover, #add-participant-btn:hover,
+#select-persona-btn:hover, #quick-swap-btn:hover, #mood-btn:hover,
+#music-btn:hover, #particle-btn:hover {
+  background: rgba(46, 230, 160, 0.16) !important;
+  border-color: var(--em-accent) !important;
+  box-shadow: 0 0 14px var(--em-glow-soft) !important;
+  transform: translateY(-1px);
+}
+#settings-btn:active, #chat-memories-btn:active, #add-participant-btn:active,
+#select-persona-btn:active, #quick-swap-btn:active, #mood-btn:active,
+#music-btn:active, #particle-btn:active {
+  transform: scale(0.92);
+  background: rgba(46, 230, 160, 0.10) !important;
+}
+
+/* active icon (mood / particle / memories) — mint fill instead of the purple outline */
+#mood-btn.mood-active, #particle-btn.particle-active,
+#chat-memories-btn.active {
+  background: rgba(46, 230, 160, 0.22) !important;
+  border-color: var(--em-accent) !important;
+  outline: none !important;
+  box-shadow: 0 0 16px var(--em-glow-soft), inset 0 0 0 1px var(--em-accent-dim) !important;
+}
+
+/* ── Round "back" button in the chat header ── */
+#back-to-selection-btn {
+  background: rgba(46, 230, 160, 0.08) !important;
+  border: 1px solid rgba(46, 230, 160, 0.22) !important;
+  color: var(--em-accent-2) !important;
+  box-shadow: none !important;
+}
+#back-to-selection-btn:hover {
+  background: rgba(46, 230, 160, 0.18) !important;
+  box-shadow: 0 0 14px var(--em-glow-soft) !important;
+  transform: translateX(-2px);
+}
+
+/* ── Nav buttons — one unified NEON GLASS instead of clashing fills ──
+   This is the main visual shift: drop blue/purple/gray,
+   every button gets dark-emerald glass with a mint edge. */
+#new-character-btn, #manage-personas-btn, #app-settings-btn,
+#create-new-persona-btn, .header-menu button, #privacy-btn, #help-btn,
+#back-to-main-btn, #delete-character-btn-dashboard,
+#edit-character-btn, #copy-character-btn {
+  background-color: rgba(10, 36, 26, 0.72) !important;
+  background-image: linear-gradient(160deg, rgba(46, 230, 160, 0.12), rgba(46, 230, 160, 0.02)) !important;
+  border: 1px solid rgba(46, 230, 160, 0.24) !important;
+  border-radius: 12px !important;
+  color: var(--em-text) !important;
+  padding: 10px 16px !important;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.45) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+#new-character-btn:hover, #manage-personas-btn:hover, #app-settings-btn:hover,
+#create-new-persona-btn:hover, .header-menu button:hover, #privacy-btn:hover, #help-btn:hover,
+#back-to-main-btn:hover, #edit-character-btn:hover, #copy-character-btn:hover {
+  border-color: var(--em-accent) !important;
+  background-image: linear-gradient(160deg, rgba(46, 230, 160, 0.22), rgba(46, 230, 160, 0.06)) !important;
+  box-shadow: 0 0 22px var(--em-glow-soft), 0 4px 14px rgba(0, 0, 0, 0.4) !important;
+  transform: translateY(-2px);
+}
+
+/* primary CTAs — mint neon fill (Create Character + Start new Chat) */
+#new-character-btn, #start-new-chat-btn, #create-new-persona-btn {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent)) !important;
+  background-image: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent)) !important;
+  color: #04150e !important;
+  font-weight: 700 !important;
+  border: none !important;
+  border-radius: 12px !important;
+  padding: 10px 18px !important;
+  box-shadow: 0 0 20px var(--em-glow-soft) !important;
+}
+#new-character-btn:hover, #start-new-chat-btn:hover, #create-new-persona-btn:hover {
+  box-shadow: 0 0 30px var(--em-glow) !important;
+  filter: brightness(1.08);
+  transform: translateY(-2px);
+}
+
+/* delete buttons — red semantics, but kept in glass */
+#delete-character-btn-dashboard, #bulk-delete-btn, #bulkCharDeleteBtn {
+  border: 1px solid rgba(255, 90, 90, 0.4) !important;
+  color: #ffb4b4 !important;
+}
+
+/* "Isekai" — bigger and brighter */
+.main-title { font-size: 3.4em !important; letter-spacing: 0.04em !important; }
+
+/* ── Search: themed ── */
+#search-input, #tag-search-input {
+  background-color: var(--em-surface) !important;
+  border: 1px solid rgba(46, 230, 160, 0.16) !important;
+  border-radius: 9px !important;
+  color: var(--em-text) !important;
+}
+#search-input:focus, #tag-search-input:focus {
+  border-color: var(--em-accent) !important;
+  background-color: var(--em-surface) !important;
+  box-shadow: 0 0 0 3px var(--em-glow-soft) !important;
+}
+
+/* ═══════════ Music panel — card with a header ═══════════ */
+#music-panel {
+  width: 300px !important;
+  padding: 16px !important;
+  gap: 12px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(160deg, var(--em-bg-2), var(--em-surface)) !important;
+  border: 1px solid rgba(46, 230, 160, 0.20) !important;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(46, 230, 160, 0.05) !important;
+}
+#music-panel::before {
+  content: "🎵  Background Music";
+  display: block;
+  font-weight: 700;
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+  color: var(--em-accent-2);
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(46, 230, 160, 0.12);
+}
+/* neutralize the generic [class*="panel"] background on panel rows */
+.music-panel-row, .music-panel-btns {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.music-panel-row label {
+  color: var(--em-text-dim) !important;
+  font-size: 0.7rem !important;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-weight: 600;
+  opacity: 1 !important;
+}
+#music-url-input {
+  background: rgba(46, 230, 160, 0.06) !important;
+  border: 1px solid rgba(46, 230, 160, 0.16) !important;
+  border-radius: 9px !important;
+  padding: 9px 11px !important;
+  color: var(--em-text) !important;
+  font-size: 0.82rem !important;
+}
+.music-panel-btns { gap: 8px !important; }
+.music-panel-btns button {
+  flex: 1;
+  padding: 9px 0 !important;
+  border-radius: 9px !important;
+  font-weight: 600 !important;
+  font-size: 0.82rem !important;
+}
+#music-play-btn {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent)) !important;
+  color: #04150e !important;
+  border: none !important;
+  box-shadow: 0 0 16px var(--em-glow-soft) !important;
+}
+#music-play-btn:hover {
+  box-shadow: 0 0 24px var(--em-glow) !important;
+  filter: brightness(1.08);
+}
+#music-stop-btn {
+  background: rgba(46, 230, 160, 0.07) !important;
+  border: 1px solid rgba(46, 230, 160, 0.20) !important;
+  color: var(--em-text) !important;
+}
+#music-stop-btn:hover { background: rgba(46, 230, 160, 0.16) !important; }
+
+/* ═══════════ Mood-picker — themed ═══════════ */
+#mood-picker {
+  background: linear-gradient(160deg, var(--em-bg-2), var(--em-surface)) !important;
+  border: 1px solid rgba(46, 230, 160, 0.20) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 14px 44px rgba(0, 0, 0, 0.6) !important;
+}
+.mood-option {
+  background: rgba(46, 230, 160, 0.06) !important;
+  border: 1px solid rgba(46, 230, 160, 0.12) !important;
+  border-radius: 8px !important;
+  color: var(--em-text) !important;
+}
+.mood-option:hover {
+  background: rgba(46, 230, 160, 0.16) !important;
+  border-color: var(--em-accent) !important;
+}
+
+/* ═══════════ Settings panel + particle picker — themed ═══════════ */
+#settings-panel {
+  background: linear-gradient(160deg, var(--em-bg-2), var(--em-surface)) !important;
+  border: 1px solid rgba(46, 230, 160, 0.16) !important;
+  border-radius: 13px !important;
+}
+.particle-option-btn {
+  background: rgba(46, 230, 160, 0.06) !important;
+  border: 1px solid rgba(46, 230, 160, 0.12) !important;
+  border-radius: 9px !important;
+  color: var(--em-text) !important;
+}
+.particle-option-btn:hover {
+  background: rgba(46, 230, 160, 0.16) !important;
+  border-color: var(--em-accent) !important;
+}
+.particle-option-btn.active {
+  border-color: var(--em-accent) !important;
+  background: rgba(46, 230, 160, 0.20) !important;
+  box-shadow: 0 0 14px var(--em-glow-soft) !important;
+}
+
+/* ═══════════ Chat bubbles — modern shape with a "tail" ═══════════
+   We do NOT touch the background color (it comes from user settings --user/-ai-bubble-color),
+   only the shape, shadows and accents change. */
+.message {
+  border-radius: 18px !important;
+  padding: 11px 16px 13px !important;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.38) !important;
+}
+.ai-message {
+  border-top-left-radius: 5px !important;
+  border-left: 2px solid var(--em-accent-dim) !important;
+}
+.user-message {
+  border-bottom-right-radius: 5px !important;
+}
+
+/* character avatar in chat — mint frame + soft glow */
+.message-avatar {
+  border-radius: 16px !important;
+  box-shadow: 0 0 0 2px var(--em-accent-dim), 0 8px 24px rgba(0, 0, 0, 0.55) !important;
+}
+
+/* ═══════════ Character cards — rounding + mint hover ═══════════ */
+.character-card {
+  border-radius: 14px !important;
+  overflow: hidden;
+  border: 1px solid rgba(46, 230, 160, 0.14) !important;
+}
+.character-card:hover {
+  border-color: var(--em-accent) !important;
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7), 0 0 26px var(--em-glow-soft) !important;
+}
+.card-name-container {
+  background: linear-gradient(180deg, rgba(10, 36, 26, 0.6), rgba(6, 26, 18, 0.85)) !important;
+  border-left: 2px solid var(--em-accent) !important;
+  border-top: 1px solid rgba(46, 230, 160, 0.12) !important;
+}
+
+/* avatars on the home page (favorites) — mint ring */
+#favorites-bar img {
+  box-shadow: 0 0 0 2px var(--em-accent-dim), 0 0 22px var(--em-glow-soft) !important;
+}
+
+/* ═══════════ Input bar — "floating" bar ═══════════ */
+#message-input {
+  background-color: rgba(6, 26, 18, 0.6) !important;
+  border: 1px solid rgba(46, 230, 160, 0.18) !important;
+  border-radius: 16px !important;
+  color: var(--em-text) !important;
+}
+#message-input:focus {
+  border-color: var(--em-accent) !important;
+  box-shadow: 0 0 0 3px var(--em-glow-soft), 0 0 18px var(--em-glow-soft) !important;
+  outline: none !important;
+}
+
+/* mode buttons "Character" / "Narrator" — glass, active one mint-highlighted */
+#dialog-btn, #story-btn {
+  background-color: rgba(10, 36, 26, 0.72) !important;
+  border: 1px solid rgba(46, 230, 160, 0.22) !important;
+  border-radius: 12px !important;
+  color: var(--em-text) !important;
+}
+#dialog-btn:hover, #story-btn:hover {
+  border-color: var(--em-accent) !important;
+  box-shadow: 0 0 16px var(--em-glow-soft) !important;
+}
+/* Character — primary send button (mint fill) */
+#dialog-btn {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent)) !important;
+  color: #04150e !important;
+  font-weight: 700 !important;
+  border: none !important;
+  box-shadow: 0 0 16px var(--em-glow-soft) !important;
+}
+#dialog-btn:hover {
+  box-shadow: 0 0 26px var(--em-glow) !important;
+  filter: brightness(1.08);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   LANDING (home page) — navbar + tags + hero + tabs
+   In the spirit of large roleplay platforms. Overrides the old
+   absolute hacks .main-title / .main-header h3.
+   ═══════════════════════════════════════════════════════════ */
+
+/* kill the old decorative title hacks (no longer used) */
+.main-title { display: none !important; }
+
+/* ── Top navbar ── */
+.main-header {
+  position: sticky !important;
+  top: 0;
+  z-index: 50;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 16px;
+  margin: 0 !important;
+  padding: 12px 22px !important;
+  background: rgba(3, 17, 12, 0.72) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid rgba(46, 230, 160, 0.16);
+}
+.main-header .header-left-group { gap: 12px !important; flex: 0 1 auto !important; }
+.main-header .header-right-group { flex: 0 0 auto !important; }
+
+/* "Isekai" brand in the navbar */
+.brand-logo {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: 1.5rem;
+  letter-spacing: 0.02em;
+  margin-right: 8px;
+  background: linear-gradient(120deg, var(--em-accent-2), var(--em-accent), #b8ffe6, var(--em-accent));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 14px var(--em-glow));
+  animation: em-shimmer 4s linear infinite;
+  white-space: nowrap;
+}
+
+/* ── Tag strip ── */
+#tag-bar-container {
+  position: relative;
+  z-index: 1;
+  padding: 12px 22px 4px;
+  margin: 0;
+}
+#tag-bar {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 8px;
+  scrollbar-width: thin;
+}
+#tag-bar::-webkit-scrollbar { height: 6px; }
+.tag-chip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 13px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  color: var(--em-text);
+  background: rgba(10, 36, 26, 0.7);
+  border: 1px solid rgba(46, 230, 160, 0.2);
+  transition: all 0.18s ease;
+}
+.tag-chip:hover {
+  border-color: var(--em-accent);
+  box-shadow: 0 0 14px var(--em-glow-soft);
+  transform: translateY(-1px);
+}
+.tag-chip.active {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent));
+  color: #04150e;
+  border-color: transparent;
+  box-shadow: 0 0 18px var(--em-glow-soft);
+}
+.tag-chip-count {
+  font-size: 0.68rem;
+  opacity: 0.7;
+  font-weight: 700;
+}
+.tag-chip.active .tag-chip-count { opacity: 0.85; }
+.tag-bar-empty { color: var(--em-text-dim); font-size: 0.85rem; padding: 6px 2px; }
+
+/* ── Hero block ── */
+#hero-section {
+  position: relative;
+  z-index: 1;
+  text-align: center;
+  padding: 54px 22px 30px;
+}
+.hero-title {
+  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-weight: 800;
+  font-size: clamp(2.4rem, 6vw, 4.6rem);
+  line-height: 1.05;
+  margin: 0 0 14px;
+  color: var(--em-text);
+  text-shadow: 0 2px 24px rgba(0, 0, 0, 0.5);
+}
+.hero-title .hero-accent {
+  background: linear-gradient(120deg, var(--em-accent-2), var(--em-accent), #b8ffe6, var(--em-accent));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  filter: drop-shadow(0 0 22px var(--em-glow));
+  animation: em-shimmer 5s linear infinite;
+}
+.hero-subtitle {
+  margin: 0;
+  font-size: clamp(0.95rem, 2vw, 1.25rem);
+  color: var(--em-text-dim);
+  font-weight: 500;
+}
+
+/* ── Browse bar: tabs + count ── */
+#browse-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  padding: 6px 22px 10px;
+}
+.browse-tabs {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: rgba(10, 36, 26, 0.6);
+  border: 1px solid rgba(46, 230, 160, 0.16);
+  border-radius: 12px;
+}
+.browse-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border: none;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--em-text-dim);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.18s ease;
+}
+.browse-tab:hover { color: var(--em-text); }
+.browse-tab.active {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent));
+  color: #04150e;
+  box-shadow: 0 0 16px var(--em-glow-soft);
+}
+#char-count-badge {
+  margin-left: auto;
+  padding: 6px 14px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--em-accent-2);
+  background: rgba(46, 230, 160, 0.08);
+  border: 1px solid rgba(46, 230, 160, 0.18);
+  white-space: nowrap;
+}
+
+/* ── Search: wide, centered, single row ── */
+#search-bar-container {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  flex-wrap: wrap;
+  padding: 4px 22px 18px;
+}
+#search-input, #tag-search-input { max-width: 380px; }
+
+/* remove the huge bottom margin of the old header */
+#favorites-bar-container { margin-bottom: 20px !important; }
+
+/* ── Navbar buttons: icon + label, compact and aligned ── */
+#new-character-btn, #manage-personas-btn, #app-settings-btn,
+#import-btn, #export-btn, #help-btn, #privacy-btn {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  padding: 9px 15px !important;
+  font-size: 0.92rem !important;
+  font-weight: 600 !important;
+  line-height: 1 !important;
+  white-space: nowrap;
+}
+.nav-ic {
+  width: 17px;
+  height: 17px;
+  flex-shrink: 0;
+  stroke-width: 2;
+}
+/* on the filled "Create" CTA the icon is dark (matching the text) */
+#new-character-btn .nav-ic { color: #04150e; }
+
+/* right menu — quieter and more compact, the icon carries the accent */
+.header-menu { gap: 8px !important; }
+#import-btn, #export-btn, #help-btn, #privacy-btn {
+  padding: 8px 13px !important;
+  font-size: 0.86rem !important;
+}
+#import-btn .nav-ic, #export-btn .nav-ic { color: var(--em-accent); }
+#help-btn .nav-ic { color: #ffd166; }
+#privacy-btn .nav-ic { color: var(--em-accent-2); }
+
+/* ── Categories (curated thematics) ── */
+#category-bar-container {
+  position: relative;
+  z-index: 1;
+  padding: 6px 22px 2px;
+}
+#category-bar {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+.category-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 16px;
+  border-radius: 999px;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--em-text);
+  background: rgba(10, 36, 26, 0.6);
+  border: 1px solid rgba(46, 230, 160, 0.18);
+  transition: all 0.18s ease;
+}
+.category-chip .cat-ic { font-size: 1rem; line-height: 1; }
+.category-chip:hover {
+  border-color: var(--em-accent);
+  box-shadow: 0 0 14px var(--em-glow-soft);
+  transform: translateY(-1px);
+}
+.category-chip.active {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent));
+  color: #04150e;
+  border-color: transparent;
+  box-shadow: 0 0 18px var(--em-glow-soft);
+}
+
+/* ── Stat overlay on the character card ── */
+.card-stats {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  display: flex;
+  gap: 5px;
+  z-index: 3;
+  pointer-events: none;
+}
+.card-stat {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border-radius: 7px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: #eafff5;
+  background: rgba(3, 17, 12, 0.7);
+  border: 1px solid rgba(46, 230, 160, 0.25);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+/* ── Pagination ── */
+#pagination-bar {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 22px 18px 8px;
+}
+#pagination-bar:empty { display: none; }
+.page-btn {
+  min-width: 38px;
+  height: 38px;
+  padding: 0 11px;
+  border-radius: 10px;
+  font-size: 0.9rem;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--em-text);
+  background: rgba(10, 36, 26, 0.7);
+  border: 1px solid rgba(46, 230, 160, 0.18);
+  transition: all 0.16s ease;
+}
+.page-btn.nav { font-size: 1.1rem; }
+.page-btn:hover:not(:disabled) {
+  border-color: var(--em-accent);
+  box-shadow: 0 0 14px var(--em-glow-soft);
+}
+.page-btn.active {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent));
+  color: #04150e;
+  border-color: transparent;
+  box-shadow: 0 0 18px var(--em-glow-soft);
+}
+.page-btn:disabled { opacity: 0.35; cursor: default; }
+.page-dots { color: var(--em-text-dim); padding: 0 2px; }
+
+/* ═══════════════════════════════════════════════════════════
+   RESEARCH UPGRADE 2026 — from the trend research:
+   sorting, glass calibration, chat typography, skeleton,
+   empty states, streaming caret.
+   ═══════════════════════════════════════════════════════════ */
+
+/* ── Sorting in the browse bar ── */
+.browse-right {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+#char-count-badge { margin-left: 0 !important; }
+#sort-select {
+  appearance: none;
+  -webkit-appearance: none;
+  padding: 8px 34px 8px 14px !important;
+  border-radius: 10px !important;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--em-text) !important;
+  background-color: rgba(10, 36, 26, 0.7) !important;
+  border: 1px solid rgba(46, 230, 160, 0.18) !important;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%232ee6a0' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E") !important;
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  background-size: 12px;
+}
+#sort-select:hover { border-color: var(--em-accent) !important; }
+#sort-select option { background: #061a12; color: var(--em-text); }
+
+/* ── Glass calibration per the 2026 recipe ──
+   blur 12px (sweet spot), "light-catcher" edge rgba(255,255,255,0.10),
+   depth shadow 0 8px 32px rgba(0,0,0,0.36) + a subtle inner highlight. */
+#settings-panel, #music-panel, #mood-picker {
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  border-color: rgba(255, 255, 255, 0.10) !important;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.36), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+}
+/* top scrim on the card — so the stat badges stay readable on any background */
+.card-image-container::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 62px;
+  background: linear-gradient(to bottom, rgba(3, 17, 12, 0.6), transparent);
+  z-index: 2;
+  pointer-events: none;
+}
+
+/* ── Chat typography: "breathing" dialogue (font size left untouched) ── */
+.message .main-content {
+  line-height: 1.7 !important;
+  letter-spacing: 0.01em;
+}
+
+/* ── Skeleton shimmer on the card image while it loads ── */
+.card-image-container img { transition: opacity 0.25s ease; }
+.card-image-container.img-loading img {
+  background-image: linear-gradient(110deg,
+    rgba(46, 230, 160, 0.06) 8%, rgba(46, 230, 160, 0.16) 18%, rgba(46, 230, 160, 0.06) 33%);
+  background-size: 200% 100%;
+  animation: em-skel 1.2s linear infinite;
+}
+@keyframes em-skel { to { background-position: -200% 0; } }
+
+/* ── Meaningful empty state for the grid ── */
+.grid-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 54px 20px;
+  color: var(--em-text-dim);
+}
+.grid-empty-icon { font-size: 2.6rem; margin-bottom: 10px; opacity: 0.85; }
+.grid-empty-title { font-size: 1.12rem; font-weight: 700; color: var(--em-text); margin-bottom: 6px; }
+.grid-empty-text { font-size: 0.9rem; }
+
+/* ── Streaming caret: blinking mint bar in the AI reply ── */
+.message.msg-streaming .main-content::after {
+  content: '';
+  display: inline-block;
+  width: 2px;
+  height: 1.05em;
+  margin-left: 3px;
+  vertical-align: -0.18em;
+  background: var(--em-accent);
+  box-shadow: 0 0 6px var(--em-glow-soft);
+  animation: em-caret 1s steps(1) infinite;
+}
+@keyframes em-caret { 50% { opacity: 0; } }
+
+/* ═══════════════════════════════════════════════════════════
+   "APP SETTINGS" MODAL — from flat to card-based, themed
+   (2026-06-03). Scoped to #app-settings-modal; other modals untouched.
+   ═══════════════════════════════════════════════════════════ */
+#app-settings-modal { background-color: rgba(0, 0, 0, 0.72) !important; backdrop-filter: blur(4px); }
+#app-settings-modal-content {
+  background: linear-gradient(165deg, #07211688, #0a241acc), rgba(6, 26, 18, 0.96) !important;
+  border: 1px solid rgba(46, 230, 160, 0.18) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(46, 230, 160, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.05) !important;
+  padding: 42px 42px 34px !important;
+}
+#app-settings-modal .modal-content > p {
+  color: var(--em-text-dim) !important;
+  margin-bottom: 26px !important;
+}
+#app-settings-modal .modal-header-container {
+  gap: 16px;
+  padding-bottom: 18px;
+  border-bottom: 1px solid rgba(46, 230, 160, 0.12);
+  margin-bottom: 6px !important;
+}
+
+/* Reset — NEUTRAL ghost button (not mint: it's not the primary action) */
+#reset-app-settings-btn {
+  background: rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  color: var(--em-text-dim) !important;
+  border-radius: 10px !important;
+  padding: 8px 14px !important;
+  font-size: 0.85rem !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+#reset-app-settings-btn:hover {
+  background: rgba(255, 255, 255, 0.1) !important;
+  border-color: rgba(255, 255, 255, 0.26) !important;
+  color: var(--em-text) !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+#reset-app-settings-btn:focus,
+#reset-app-settings-btn:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
+
+/* settings fields + API key */
+#app-settings-modal .settings-input,
+#app-settings-modal input[type="text"],
+#app-settings-modal input[type="url"],
+#app-settings-modal input[type="password"],
+#app-settings-modal input[type="number"],
+#app-settings-modal textarea {
+  background: rgba(46, 230, 160, 0.05) !important;
+  background-image: none !important;
+  border: 1px solid rgba(46, 230, 160, 0.16) !important;
+  border-radius: 10px !important;
+  color: var(--em-text) !important;
+}
+#app-settings-modal .settings-input:focus,
+#app-settings-modal input:focus,
+#app-settings-modal textarea:focus {
+  border-color: var(--em-accent) !important;
+  box-shadow: 0 0 0 3px var(--em-glow-soft) !important;
+  outline: none !important;
+}
+#app-settings-modal .settings-input { width: 100% !important; }
+#app-settings-modal .settings-separator { border-top: 1px solid rgba(46, 230, 160, 0.12) !important; }
+
+/* ── Model = card ── */
+.model-entry {
+  background: rgba(10, 36, 26, 0.45);
+  border: 1px solid rgba(46, 230, 160, 0.14);
+  border-radius: 14px;
+  padding: 14px 14px 14px 10px;
+  margin-bottom: 12px;
+  transition: border-color 0.18s ease, box-shadow 0.18s ease;
+}
+.model-entry:hover { border-color: rgba(46, 230, 160, 0.3); }
+/* remove the old divider border inside the card */
+.model-content-wrapper,
+#model-list-container .model-entry:last-child .model-content-wrapper {
+  border-bottom: none !important;
+  padding-bottom: 0 !important;
+  margin-bottom: 0 !important;
+}
+/* first model (our local Qwen) — highlighted as the primary one */
+#model-list-container .model-entry:first-child {
+  border-color: rgba(46, 230, 160, 0.4);
+  box-shadow: 0 0 22px var(--em-glow-soft), inset 3px 0 0 var(--em-accent);
+}
+#model-list-container .model-entry:first-child .model-content-wrapper::before {
+  content: '● DEFAULT · local backend';
+  display: inline-block;
+  margin-bottom: 9px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.66rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #04150e;
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent));
+  box-shadow: 0 0 14px var(--em-glow-soft);
+}
+.model-drag-handle:hover { color: var(--em-accent) !important; }
+
+/* Global Prompts — themed accordion */
+.global-prompts-summary {
+  color: var(--em-text) !important;
+  border-radius: 9px !important;
+}
+.global-prompts-container { border: 1px solid rgba(46, 230, 160, 0.12) !important; border-radius: 10px !important; }
+
+/* "+ Add new Model" — mint outlined, not blue */
+#app-settings-modal .add-scenario-button {
+  background: rgba(46, 230, 160, 0.08) !important;
+  border: 1px dashed rgba(46, 230, 160, 0.4) !important;
+  color: var(--em-accent-2) !important;
+  border-radius: 12px !important;
+  font-weight: 700 !important;
+  padding: 11px !important;
+  width: 100%;
+  margin-top: 6px;
+}
+#app-settings-modal .add-scenario-button:hover {
+  background: rgba(46, 230, 160, 0.16) !important;
+  border-style: solid !important;
+  box-shadow: 0 0 18px var(--em-glow-soft) !important;
+}
+
+/* Save / Cancel */
+#app-settings-modal .form-buttons { gap: 10px !important; margin-top: 24px !important; }
+#save-app-settings-btn {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent)) !important;
+  color: #04150e !important;
+  font-weight: 700 !important;
+  border: none !important;
+  border-radius: 11px !important;
+  padding: 11px 22px !important;
+  box-shadow: 0 0 18px var(--em-glow-soft) !important;
+}
+#save-app-settings-btn:hover { box-shadow: 0 0 28px var(--em-glow) !important; filter: brightness(1.08); }
+#cancel-app-settings-btn {
+  background: rgba(46, 230, 160, 0.07) !important;
+  border: 1px solid rgba(46, 230, 160, 0.2) !important;
+  color: var(--em-text) !important;
+  border-radius: 11px !important;
+  padding: 11px 22px !important;
+}
+#cancel-app-settings-btn:hover { background: rgba(46, 230, 160, 0.15) !important; }
+
+/* ── Provider sections (Ollama / OpenRouter) ── */
+.provider-card {
+  background: rgba(10, 36, 26, 0.4);
+  border: 1px solid rgba(46, 230, 160, 0.14);
+  border-radius: 14px;
+  padding: 16px 16px 18px;
+  margin-bottom: 16px;
+}
+.provider-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.provider-title { font-weight: 700; font-size: 1rem; color: var(--em-text); }
+#app-settings-modal .provider-hint {
+  font-size: 0.82rem; color: var(--em-text-dim); margin: 8px 0 12px !important; line-height: 1.5;
+}
+.provider-hint code {
+  background: rgba(46, 230, 160, 0.1); padding: 1px 6px; border-radius: 5px;
+  color: var(--em-accent-2); font-size: 0.9em;
+}
+.provider-btn {
+  padding: 7px 13px; border-radius: 9px; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  color: var(--em-text); background: rgba(46, 230, 160, 0.08);
+  border: 1px solid rgba(46, 230, 160, 0.22); transition: all 0.16s ease;
+}
+.provider-btn:hover { border-color: var(--em-accent); background: rgba(46, 230, 160, 0.16); }
+.provider-btn.primary {
+  background: linear-gradient(135deg, var(--em-accent-dim), var(--em-accent));
+  color: #04150e; border: none; font-weight: 700;
+}
+.provider-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.provider-chip {
+  display: inline-flex; align-items: center; gap: 8px; padding: 8px 13px; border-radius: 999px;
+  font-size: 0.84rem; font-weight: 600; cursor: pointer; color: var(--em-text);
+  background: rgba(10, 36, 26, 0.7); border: 1px solid rgba(46, 230, 160, 0.2); transition: all 0.16s ease;
+}
+.provider-chip:hover { border-color: var(--em-accent); box-shadow: 0 0 14px var(--em-glow-soft); transform: translateY(-1px); }
+.provider-chip .chip-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--em-accent); box-shadow: 0 0 8px var(--em-glow); flex-shrink: 0; }
+.provider-chip.is-default { border-color: var(--em-accent); background: rgba(46, 230, 160, 0.14); }
+.provider-chip .chip-meta { font-size: 0.7rem; opacity: 0.65; font-weight: 700; }
+.provider-loading, .provider-empty { font-size: 0.82rem; color: var(--em-text-dim); }
+.openrouter-pick { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 10px; }
+.openrouter-pick #openrouter-model-input { flex: 1 1 220px; min-width: 200px; margin: 0 !important; }
+.model-entry-flash { animation: em-flash 1.2s ease; }
+@keyframes em-flash {
+  0%, 100% { box-shadow: none; }
+  30% { box-shadow: 0 0 0 2px var(--em-accent), 0 0 22px var(--em-glow); }
+}
+
+/* ── Home shelves (Netflix-style rows by theme) ── */
+/* old centered Favorites bar is replaced by a Favorites shelf */
+#favorites-bar-container { display: none !important; }
+
+#shelves-container {
+  position: relative;
+  z-index: 1;
+  padding: 4px 22px 32px;
+}
+.shelf { margin-bottom: 26px; }
+.shelf-head {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  margin-bottom: 12px;
+}
+.shelf-title {
+  font-size: 1.18rem;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: var(--em-text);
+}
+.shelf-count {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: var(--em-accent-2);
+  background: rgba(46, 230, 160, 0.1);
+  border: 1px solid rgba(46, 230, 160, 0.2);
+  padding: 2px 9px;
+  border-radius: 999px;
+}
+.shelf-seeall {
+  margin-left: auto;
+  background: none;
+  border: none;
+  color: var(--em-text-dim);
+  font-weight: 700;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: color 0.15s ease;
+}
+.shelf-seeall:hover { color: var(--em-accent); }
+.shelf-track {
+  display: flex;
+  gap: 16px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 14px;
+  scroll-snap-type: x proximity;
+}
+.shelf-track::-webkit-scrollbar { height: 8px; }
+.shelf-track::-webkit-scrollbar-track { background: transparent; }
+.shelf-track::-webkit-scrollbar-thumb { background: var(--em-accent-dim); border-radius: 5px; }
+.shelf-track::-webkit-scrollbar-thumb:hover { background: var(--em-accent); }
+.shelf-track .character-card {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+/* ── Toolbar icons (chat header): unified SVG line set ── */
+.tool-ic {
+  width: 17px;
+  height: 17px;
+  stroke-width: 2;
+  color: var(--em-text);
+}
+#settings-btn:hover .tool-ic, #chat-memories-btn:hover .tool-ic,
+#add-participant-btn:hover .tool-ic, #select-persona-btn:hover .tool-ic,
+#quick-swap-btn:hover .tool-ic, #mood-btn:hover .tool-ic,
+#music-btn:hover .tool-ic, #particle-btn:hover .tool-ic { color: var(--em-accent-2); }
+#mood-btn.mood-active .tool-ic, #particle-btn.particle-active .tool-ic,
+#chat-memories-btn.active .tool-ic { color: var(--em-accent-2); }
+
+/* ── Unified search field (Name + Tag merged into one) ── */
+.search-field {
+  position: relative;
+  display: flex;
+  align-items: center;
+  width: 100%;
+  max-width: 560px;
+}
+.search-ic {
+  position: absolute;
+  left: 16px;
+  width: 18px;
+  height: 18px;
+  color: var(--em-text-dim);
+  pointer-events: none;
+}
+#search-bar-container #search-input {
+  width: 100% !important;
+  max-width: none !important;
+  height: 46px;
+  padding: 0 16px 0 44px !important;
+  text-align: left !important;
+  border-radius: 12px !important;
+  font-size: 15px;
+  background-color: var(--em-surface) !important;
+  border: 1px solid rgba(46, 230, 160, 0.16) !important;
+  color: var(--em-text) !important;
+}
+#search-bar-container #search-input:focus {
+  border-color: var(--em-accent) !important;
+  box-shadow: 0 0 0 3px var(--em-glow-soft) !important;
+}
+.search-field:focus-within .search-ic { color: var(--em-accent); }
+
+/* ── Unified SVG icon sizing across chips/shelves/cards/tabs/providers ── */
+.cat-ic { display: inline-flex; align-items: center; }
+.cat-ic svg { width: 16px; height: 16px; }
+.shelf-title { display: inline-flex; align-items: center; gap: 9px; }
+.shelf-title svg { width: 20px; height: 20px; flex-shrink: 0; }
+.card-stat svg { width: 12px; height: 12px; flex-shrink: 0; }
+.browse-tab .tab-ic { width: 16px; height: 16px; }
+.provider-title { display: inline-flex; align-items: center; gap: 9px; }
+.provider-title .provider-ic { width: 18px; height: 18px; }
+
+/* ═══════════════ END OF REDESIGN 2 ═══════════════ */

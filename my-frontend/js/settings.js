@@ -77,9 +77,18 @@ async function loadAppSettingsFromDB() {
 
     document.getElementById('api-key-input').value = appSettings.apiKey || '';
     modelListContainer.innerHTML = '';
-    if (appSettings.availableModels) {
-        appSettings.availableModels.forEach(model => createModelEntry(model));
+    // Always surface OUR local Qwen backend first. Non-destructive: only prepend
+    // it if no existing model already points at the local endpoint (so user's
+    // own models — incl. the seeded Z.AI example — are kept, just not on top).
+    const models = appSettings.availableModels ? [...appSettings.availableModels] : [];
+    const hasLocal = models.some(m =>
+        m.id === 'local-qwen' || (m.targetApiUrl || '').includes('127.0.0.1:8000'));
+    if (!hasLocal) {
+        models.unshift({ id: 'local-qwen', name: 'Qwen (local backend)', targetApiUrl: DEFAULT_API_URL });
     }
+    models.forEach(model => createModelEntry(model));
+    // surface downloaded Ollama models as a pick-list (fire-and-forget)
+    if (typeof loadOllamaModels === 'function') loadOllamaModels();
 }
 
 
@@ -90,6 +99,7 @@ async function resetAppSettings() {
     availableModels.forEach(m => createModelEntry({
       name: m.name,
       id: m.id,
+      targetApiUrl: m.targetApiUrl || '',
       instructions: '',
       reminder: '',
       narratorReminder: ''
@@ -97,6 +107,111 @@ async function resetAppSettings() {
     await saveAppSettings();
   }
 }
+
+
+
+// ─────────────────────────────────────────────────────────────
+// Providers: model discovery (local Ollama + cloud OpenRouter)
+// ─────────────────────────────────────────────────────────────
+function _addModelEntryAndScroll(model) {
+    createModelEntry(model);
+    const last = modelListContainer.lastElementChild;
+    if (last) {
+        last.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        last.classList.add('model-entry-flash');
+        setTimeout(() => last.classList.remove('model-entry-flash'), 1200);
+    }
+}
+
+// Downloaded Ollama models -> clickable chips.
+// Source is /api/health (it already returns available_models + the current
+// model), so this works without restarting the backend. There's also a richer
+// /api/ollama/models if the backend is restarted, but health is enough here.
+async function loadOllamaModels() {
+    const box = document.getElementById('ollama-models-list');
+    if (!box) return;
+    box.innerHTML = '<span class="provider-loading">Loading models from Ollama…</span>';
+    try {
+        const res = await fetch('/api/health');
+        const data = await res.json();
+        const models = data.available_models || [];
+        if (!models.length) {
+            box.innerHTML = data.error
+                ? `<span class="provider-empty">Ollama is unreachable — is it running? (${data.error})</span>`
+                : '<span class="provider-empty">No models in Ollama yet. Pull one, e.g.: <code>ollama pull qwen2.5</code></span>';
+            return;
+        }
+        const def = data.model;
+        box.innerHTML = '';
+        models.forEach(name => {
+            const isDefault = name === def;
+            const chip = document.createElement('button');
+            chip.type = 'button';
+            chip.className = 'provider-chip' + (isDefault ? ' is-default' : '');
+            chip.title = 'Add this model to the list';
+            chip.innerHTML = `<span class="chip-dot"></span><span class="chip-name">${name}</span>${isDefault ? '<span class="chip-meta">default</span>' : ''}`;
+            chip.addEventListener('click', () =>
+                _addModelEntryAndScroll({ name: name, id: name, targetApiUrl: DEFAULT_API_URL }));
+            box.appendChild(chip);
+        });
+    } catch (e) {
+        box.innerHTML = `<span class="provider-empty">Couldn't fetch the list (${e.message}).</span>`;
+    }
+}
+
+// Public OpenRouter model list -> searchable datalist
+let _openrouterLoaded = false;
+async function loadOpenRouterModels() {
+    const dl = document.getElementById('openrouter-models-datalist');
+    const btn = document.getElementById('load-openrouter-btn');
+    if (!dl) return;
+    if (btn) { btn.disabled = true; btn.textContent = 'Loading…'; }
+    try {
+        const res = await fetch('https://openrouter.ai/api/v1/models');
+        const data = await res.json();
+        const models = data.data || [];
+        dl.innerHTML = '';
+        models.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m.id;
+            opt.label = m.name || m.id;
+            dl.appendChild(opt);
+        });
+        _openrouterLoaded = true;
+        if (btn) btn.textContent = `Loaded: ${models.length}`;
+    } catch (e) {
+        if (btn) btn.textContent = 'Load failed';
+        if (typeof showToast === 'function') showToast('Couldn\'t fetch OpenRouter list: ' + e.message);
+    } finally {
+        if (btn) setTimeout(() => {
+            btn.disabled = false;
+            if (!_openrouterLoaded) btn.textContent = 'Load list';
+        }, 1600);
+    }
+}
+
+// Add the chosen OpenRouter model as an entry (URL + current key)
+function addOpenRouterModel() {
+    const input = document.getElementById('openrouter-model-input');
+    const id = (input && input.value || '').trim();
+    if (!id) {
+        if (typeof showToast === 'function') showToast('Type or pick an OpenRouter model.');
+        return;
+    }
+    const key = (document.getElementById('api-key-input')?.value || '').trim();
+    _addModelEntryAndScroll({
+        name: id,
+        id: id,
+        targetApiUrl: 'https://openrouter.ai/api/v1/chat/completions',
+        apiKey: key,
+    });
+    if (input) input.value = '';
+}
+
+// Wire the provider controls (DOM is static, present at module load)
+document.getElementById('refresh-ollama-btn')?.addEventListener('click', loadOllamaModels);
+document.getElementById('load-openrouter-btn')?.addEventListener('click', loadOpenRouterModels);
+document.getElementById('add-openrouter-model-btn')?.addEventListener('click', addOpenRouterModel);
 
 
 

@@ -565,7 +565,8 @@ personaEditorAvatarImg.onerror = () => {
     renderCharacterList(searchTerm);
 });
 
-document.getElementById('tag-search-input').addEventListener('input', () => {
+// #tag-search-input was merged into the single #search-input; guard in case
+document.getElementById('tag-search-input')?.addEventListener('input', () => {
     renderCharacterList();
 });
 
@@ -1371,7 +1372,7 @@ document.getElementById('add-scenario-btn').addEventListener('click', () => {
     createScenarioInput("");
 });
 
-document.getElementById('ai-scenario-btn').addEventListener('click', handleAIGenerateScenario);
+document.getElementById('ai-scenario-btn').addEventListener('click', () => handleAIGenerateScenario());
 
 document.getElementById('scenario-editor-list').addEventListener('click', async (event) => {
     if (event.target.classList.contains('delete-scenario-btn')) {

@@ -11,7 +11,6 @@
     const musicPlayBtn = document.getElementById('music-play-btn');
     const musicStopBtn = document.getElementById('music-stop-btn');
     let musicAudioEl = null;
-    let musicIframeEl = null;
     let musicIsPlaying = false;
 
     function extractYouTubeId(url) {
@@ -27,25 +26,18 @@
             musicAudioEl.remove();
             musicAudioEl = null;
         }
-        if (musicIframeEl) {
-            musicIframeEl.src = '';
-            musicIframeEl.remove();
-            musicIframeEl = null;
-        }
         musicIsPlaying = false;
         if (musicPlayBtn) musicPlayBtn.textContent = '▶ Play';
     }
 
     function pauseMusic() {
         if (musicAudioEl) musicAudioEl.pause();
-        if (musicIframeEl) musicIframeEl.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'pauseVideo', args: [] }), '*');
         musicIsPlaying = false;
         if (musicPlayBtn) musicPlayBtn.textContent = '▶ Play';
     }
 
     function resumeMusic() {
         if (musicAudioEl) musicAudioEl.play().catch(() => {});
-        if (musicIframeEl) musicIframeEl.contentWindow.postMessage(JSON.stringify({ event: 'command', func: 'playVideo', args: [] }), '*');
         musicIsPlaying = true;
         if (musicPlayBtn) musicPlayBtn.textContent = '⏸ Pause';
     }
@@ -53,28 +45,32 @@
     function playMusic(url) {
         stopMusic();
         if (!url) return;
+        // YouTube URLs can't play in-browser here (embed Error 153 + IP-locked,
+        // CORS-less stream). Route them through the backend proxy, which uses
+        // yt-dlp to resolve a direct audio stream and pipes it to this <audio>.
+        // Direct audio URLs (mp3/ogg/…) are played as-is.
         const ytId = extractYouTubeId(url);
-        if (ytId) {
-            musicIframeEl = document.createElement('iframe');
-            musicIframeEl.src = `https://www.youtube.com/embed/${ytId}?autoplay=1&loop=1&playlist=${ytId}&enablejsapi=1`;
-            musicIframeEl.allow = 'autoplay';
-            musicIframeEl.style.cssText = 'display:none;width:0;height:0;border:0;position:absolute;';
-            document.body.appendChild(musicIframeEl);
-            musicIsPlaying = true;
-            if (musicPlayBtn) musicPlayBtn.textContent = '⏸ Pause';
-        } else {
-            const audio = document.createElement('audio');
-            audio.src = url;
-            audio.loop = true;
-            document.body.appendChild(audio);
-            musicAudioEl = audio;
-            audio.play().catch(() => {
-                musicIsPlaying = false;
-                if (musicPlayBtn) musicPlayBtn.textContent = '▶ Play';
-            });
-            musicIsPlaying = true;
-            if (musicPlayBtn) musicPlayBtn.textContent = '⏸ Pause';
-        }
+        const src = ytId ? `/api/yt-audio?url=${encodeURIComponent(url)}` : url;
+
+        const audio = document.createElement('audio');
+        audio.src = src;
+        audio.loop = true;
+        audio.addEventListener('error', () => {
+            stopMusic();
+            const msg = ytId
+                ? 'Не удалось получить аудио из YouTube (видео недоступно/удалено или сеть режет ютуб).'
+                : 'Не удалось воспроизвести аудио по этой ссылке.';
+            if (typeof showToast === 'function') showToast(msg);
+            else console.warn('[music]', msg);
+        });
+        document.body.appendChild(audio);
+        musicAudioEl = audio;
+        audio.play().catch(() => {
+            musicIsPlaying = false;
+            if (musicPlayBtn) musicPlayBtn.textContent = '▶ Play';
+        });
+        musicIsPlaying = true;
+        if (musicPlayBtn) musicPlayBtn.textContent = '⏸ Pause';
     }
 
     if (musicBtn) {
@@ -94,7 +90,7 @@
             if (musicIsPlaying) {
                 pauseMusic();
             } else {
-                if (musicAudioEl || musicIframeEl) {
+                if (musicAudioEl) {
                     resumeMusic();
                 } else if (musicUrlInput) {
                     playMusic(musicUrlInput.value.trim());
