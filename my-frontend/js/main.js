@@ -1317,6 +1317,12 @@ async function initializeApp() {
         renderCharacterList();
         restoreLastSession();
         tutorialInit();
+        // Auto-pull server-side chat backups in the background (non-blocking,
+        // non-destructive). Recovers history after a cache clear / new device;
+        // stays silent unless it actually restored something. See settings.js.
+        if (typeof restoreChatsFromServer === 'function') {
+            Promise.resolve(restoreChatsFromServer({ silent: true })).catch(() => {});
+        }
     } catch (error) {
         console.error("Failed to initialize the app:", error);
         showCustomAlert("Could not load database. Please check browser permissions or try clearing site data.");

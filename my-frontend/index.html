@@ -662,6 +662,15 @@
                 </div>
             </div>
 
+            <div class="provider-card" id="backup-section">
+                <div class="provider-head">
+                    <span class="provider-title"><svg class="provider-ic" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 16.2A4.5 4.5 0 0 0 17.5 8h-1.8A7 7 0 1 0 4 14.9"/><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/></svg>Backup &amp; Restore</span>
+                    <button type="button" id="restore-chats-btn" class="provider-btn primary">☁ Restore from server</button>
+                </div>
+                <p class="provider-hint">The backend keeps a copy of every chat on disk. If you cleared your browser data or switched devices, pull those chats back into characters that still exist here. Newer local chats are never overwritten.</p>
+                <p class="provider-hint" id="restore-status" style="margin-top:4px;"></p>
+            </div>
+
             <hr class="settings-separator">
 
             <label>List of your AI Models:</label>

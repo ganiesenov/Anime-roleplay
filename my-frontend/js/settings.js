@@ -208,10 +208,128 @@ function addOpenRouterModel() {
     if (input) input.value = '';
 }
 
+// ── Backup & Restore: pull server-side chat backups back into IndexedDB ──
+// The backend mirrors every chat to data/chats/<character_id>/<chat_id>.json
+// (see backend/history.py). The UI normally reads only from IndexedDB, so if
+// the browser data is cleared those backups are invisible. This pulls them
+// back into characters that still exist locally, without clobbering newer
+// local copies.
+
+function localBackendBase() {
+    // The frontend is served BY the backend, so its own origin is the backend.
+    if (location.protocol === 'http:' || location.protocol === 'https:') return location.origin;
+    try { return new URL(DEFAULT_API_URL).origin; } catch (e) { return 'http://127.0.0.1:8000'; }
+}
+
+// Convert one backend OpenAI-style message {role, content} into a frontend
+// history item {id, sender, type, variations:[{main, think}], activeVariant}.
+function _backendMsgToHistory(m, idx, chatId) {
+    const content = m.content || '';
+    let think = null;
+    const lc = content.toLowerCase();
+    const close = lc.indexOf('</think>');
+    if (close !== -1) {
+        const open = lc.indexOf('<think>');
+        const start = open !== -1 ? open + '<think>'.length : 0;
+        think = content.slice(start, close).trim() || null;
+    }
+    const main = (typeof extractMainFromReasoning === 'function')
+        ? extractMainFromReasoning(content) : content;
+    return {
+        id: `msg-restored-${chatId}-${idx}`,
+        sender: m.role === 'assistant' ? 'ai' : 'user',
+        type: 'dialog',
+        variations: [{ main, think }],
+        activeVariant: 0,
+    };
+}
+
+// silent=true → auto-run at startup: stay quiet unless something was actually
+// pulled in (no error/"up to date" noise, no status line in the hidden modal).
+async function restoreChatsFromServer({ silent = false } = {}) {
+    const statusEl = document.getElementById('restore-status');
+    const setStatus = (t) => { if (!silent && statusEl) statusEl.textContent = t; };
+    setStatus('Loading…');
+
+    let list;
+    try {
+        const res = await fetch(`${localBackendBase()}/api/chats`);
+        if (!res.ok) throw new Error('HTTP ' + res.status);
+        list = await res.json();
+    } catch (e) {
+        setStatus('');
+        if (!silent && typeof showToast === 'function') showToast("Couldn't reach the server: " + e.message);
+        return;
+    }
+    if (!Array.isArray(list) || list.length === 0) {
+        setStatus('No saved chats on the server.');
+        return;
+    }
+
+    let added = 0, updated = 0, orphans = 0;
+    const touched = new Set();
+    for (const entry of list) {
+        const cid = entry.character_id, chatId = entry.chat_id;
+        if (!cid || !chatId) continue;
+        const character = characters[cid];
+        if (!character) { orphans++; continue; }            // no card on this device
+        if (!character.chats) character.chats = {};
+        const existing = character.chats[chatId];
+        const serverTurns = entry.turns || 0;
+        const localTurns = existing && Array.isArray(existing.history) ? existing.history.length : -1;
+        if (existing && localTurns >= serverTurns) continue; // local is as fresh or fresher
+
+        let full;
+        try {
+            const r = await fetch(`${localBackendBase()}/api/chats/${encodeURIComponent(cid)}/${encodeURIComponent(chatId)}`);
+            if (!r.ok) continue;
+            full = await r.json();
+        } catch (e) { continue; }
+
+        const history = (full.messages || [])
+            .filter(m => m.role !== 'system')
+            .map((m, i) => _backendMsgToHistory(m, i, chatId));
+
+        if (existing) {
+            existing.history = history;
+            updated++;
+        } else {
+            const when = entry.updated_at ? new Date(entry.updated_at * 1000) : new Date();
+            character.chats[chatId] = {
+                id: chatId,
+                name: 'Restored - ' + when.toLocaleString('en-EN'),
+                history,
+                memories: '',
+                participants: [cid],
+                activePersonaId: null,
+                mood: null,
+            };
+            added++;
+        }
+        touched.add(cid);
+    }
+
+    for (const cid of touched) {
+        if (typeof saveSingleCharacterToDB === 'function') await saveSingleCharacterToDB(characters[cid]);
+    }
+    if (typeof renderCharacterList === 'function') renderCharacterList();
+
+    const parts = [];
+    if (added) parts.push(`${added} new`);
+    if (updated) parts.push(`${updated} updated`);
+    const changed = added + updated > 0;
+    const summary = changed ? `Restored ${parts.join(', ')} chat(s).` : 'Everything is already up to date.';
+    const orphanNote = orphans ? ` ${orphans} skipped — no matching character on this device.` : '';
+    setStatus(summary + orphanNote);
+    // In silent (startup) mode only speak up when something actually changed.
+    if ((!silent || changed) && typeof showToast === 'function') showToast('☁ ' + summary);
+}
+
 // Wire the provider controls (DOM is static, present at module load)
 document.getElementById('refresh-ollama-btn')?.addEventListener('click', loadOllamaModels);
 document.getElementById('load-openrouter-btn')?.addEventListener('click', loadOpenRouterModels);
 document.getElementById('add-openrouter-model-btn')?.addEventListener('click', addOpenRouterModel);
+document.getElementById('restore-chats-btn')?.addEventListener('click', restoreChatsFromServer);
 
 
 
