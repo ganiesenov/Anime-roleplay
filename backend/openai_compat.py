@@ -67,6 +67,44 @@ ROLEPLAY_ANCHOR = (
 )
 
 
+# ── Depth-injection (@D) ───────────────────────────────────────────────────
+# Короткое напоминание роли, вставляемое НЕ в начало промпта, а на фиксированной
+# глубине от его КОНЦА. Зачем: стартовый ROLEPLAY_ANCHOR в длинном диалоге
+# оказывается далеко от точки генерации, и маленькие локальные модели (qwen и
+# др.) теряют роль/формат под весом истории. Reminder за DEPTH_INJECTION_DEPTH
+# сообщений до низа держит модель в роли почти бесплатно (несколько токенов).
+# Это backend-аналог mood-директивы, которую фронт дописывает в конец user-хода.
+DEPTH_REMINDER = (
+    "[Reminder: you are still the character described above. Stay fully in "
+    "character, never break role or mention being an AI/assistant. Keep the "
+    'format — spoken words in "double quotes", actions and narration in '
+    "*asterisks*.]"
+)
+# На сколько сообщений выше низа вставлять напоминание (ST-дефолт ~4).
+DEPTH_INJECTION_DEPTH = 4
+# Не вставляем в коротких чатах — там стартовый якорь и так рядом с генерацией.
+DEPTH_MIN_MESSAGES = 6
+
+
+def inject_depth_reminder(
+    messages: list[dict], depth: int = DEPTH_INJECTION_DEPTH
+) -> list[dict]:
+    """Вставляет DEPTH_REMINDER на `depth` сообщений выше конца списка.
+
+    Считаем длину по реальным ходам диалога (без system). В коротких чатах
+    (< DEPTH_MIN_MESSAGES ходов) ничего не делаем. Reminder никогда не встаёт
+    перед стартовым system-якорем — минимум на позиции 1.
+    """
+    convo_len = sum(1 for m in messages if m.get("role") != "system")
+    if convo_len < DEPTH_MIN_MESSAGES:
+        return messages
+    idx = len(messages) - depth
+    floor = 1 if (messages and messages[0].get("role") == "system") else 0
+    idx = max(idx, floor)
+    reminder = {"role": "system", "content": DEPTH_REMINDER}
+    return messages[:idx] + [reminder] + messages[idx:]
+
+
 def process_messages(messages: list[dict]) -> list[dict]:
     """
     ХУК ДЛЯ ТВОЕЙ ЛОГИКИ.
@@ -90,6 +128,8 @@ def process_messages(messages: list[dict]) -> list[dict]:
         }
     else:
         messages = [{"role": "system", "content": ROLEPLAY_ANCHOR.strip()}, *messages]
+    # @D: дублируем напоминание роли близко к концу промпта (см. inject_depth_reminder)
+    messages = inject_depth_reminder(messages)
     return messages
 
 
@@ -120,7 +160,7 @@ async def chat_completions(req: OpenAIRequest):
         async def event_stream():
             full_reply = []  # копим полный ответ для сохранения истории
             # OpenAI SSE: каждый chunk — объект с delta.content
-            async for piece in llm.generate_stream(messages, options):
+            async for piece in llm.generate_stream(messages, options, model=req.model):
                 full_reply.append(piece)
                 chunk = {
                     "id": completion_id,
@@ -158,7 +198,7 @@ async def chat_completions(req: OpenAIRequest):
         return StreamingResponse(event_stream(), media_type="text/event-stream")
 
     # не-стриминговый ответ
-    text = await llm.generate(messages, options)
+    text = await llm.generate(messages, options, model=req.model)
     # сохраняем историю на бэкенд
     if req.character_id:
         try:

@@ -23,7 +23,21 @@ DEFAULT_OPTIONS = {
 }
 
 
-async def generate(messages: list[dict], options: dict | None = None) -> str:
+def _resolve_model(requested: str | None) -> str:
+    """Which Ollama model to actually run.
+
+    The frontend may send a concrete downloaded-model tag (picked in the UI) —
+    then we use it. The sentinels ''/'local'/'local-qwen' mean "local backend
+    default" → fall back to OLLAMA_MODEL from .env.
+    """
+    r = (requested or "").strip()
+    if r and r.lower() not in ("local", "local-qwen"):
+        return r
+    return OLLAMA_MODEL
+
+
+async def generate(messages: list[dict], options: dict | None = None,
+                   model: str | None = None) -> str:
     """
     messages — список {"role": "system"|"user"|"assistant", "content": str}
     Возвращает полный текст ответа (без стриминга).
@@ -31,31 +45,32 @@ async def generate(messages: list[dict], options: dict | None = None) -> str:
     opts = {**DEFAULT_OPTIONS, **(options or {})}
 
     if PROVIDER == "ollama":
-        return await _ollama_generate(messages, opts)
+        return await _ollama_generate(messages, opts, _resolve_model(model))
     elif PROVIDER == "openrouter":
         return await _openrouter_generate(messages, opts)
     else:
         raise ValueError(f"Unknown LLM_PROVIDER: {PROVIDER}")
 
 
-async def generate_stream(messages: list[dict], options: dict | None = None) -> AsyncGenerator[str, None]:
+async def generate_stream(messages: list[dict], options: dict | None = None,
+                          model: str | None = None) -> AsyncGenerator[str, None]:
     """Стриминговая генерация — отдаёт токены по мере готовности."""
     opts = {**DEFAULT_OPTIONS, **(options or {})}
     if PROVIDER == "ollama":
-        async for chunk in _ollama_stream(messages, opts):
+        async for chunk in _ollama_stream(messages, opts, _resolve_model(model)):
             yield chunk
     else:
         # для не-стриминговых провайдеров — отдаём всё одним куском
-        text = await generate(messages, options)
+        text = await generate(messages, options, model)
         yield text
 
 
-async def _ollama_generate(messages: list[dict], opts: dict) -> str:
+async def _ollama_generate(messages: list[dict], opts: dict, model: str | None = None) -> str:
     async with httpx.AsyncClient(timeout=300.0) as client:
         resp = await client.post(
             f"{OLLAMA_URL}/api/chat",
             json={
-                "model": OLLAMA_MODEL,
+                "model": model or OLLAMA_MODEL,
                 "messages": messages,
                 "stream": False,
                 "options": opts,
@@ -66,13 +81,13 @@ async def _ollama_generate(messages: list[dict], opts: dict) -> str:
         return data["message"]["content"].strip()
 
 
-async def _ollama_stream(messages: list[dict], opts: dict) -> AsyncGenerator[str, None]:
+async def _ollama_stream(messages: list[dict], opts: dict, model: str | None = None) -> AsyncGenerator[str, None]:
     async with httpx.AsyncClient(timeout=300.0) as client:
         async with client.stream(
             "POST",
             f"{OLLAMA_URL}/api/chat",
             json={
-                "model": OLLAMA_MODEL,
+                "model": model or OLLAMA_MODEL,
                 "messages": messages,
                 "stream": True,
                 "options": opts,
@@ -109,6 +124,21 @@ async def _openrouter_generate(messages: list[dict], opts: dict) -> str:
         resp.raise_for_status()
         data = resp.json()
         return data["choices"][0]["message"]["content"].strip()
+
+
+async def list_ollama_models() -> dict:
+    """List of models actually downloaded in Ollama (for the settings picker)."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(f"{OLLAMA_URL}/api/tags")
+            resp.raise_for_status()
+            models = [
+                {"name": m.get("name"), "size": m.get("size")}
+                for m in resp.json().get("models", []) if m.get("name")
+            ]
+            return {"ok": True, "default": OLLAMA_MODEL, "models": models}
+    except Exception as e:
+        return {"ok": False, "error": str(e), "models": []}
 
 
 async def health_check() -> dict:

@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import llm, character, prompt_builder, openai_compat, history
+from . import llm, character, prompt_builder, openai_compat, history, youtube_audio
 
 app = FastAPI(title="Roleplay Bot")
 
@@ -35,6 +35,10 @@ app.add_middleware(
 
 # OpenAI-совместимый слой (/v1/chat/completions) для внешних фронтов
 app.include_router(openai_compat.router)
+
+# YouTube → audio proxy (/api/yt-audio) — играет звук из YouTube в <audio>,
+# минуя нерабочий iframe-embed
+app.include_router(youtube_audio.router)
 
 
 # ---------- модели запросов ----------
@@ -60,6 +64,12 @@ class ChatRequest(BaseModel):
 @app.get("/api/health")
 async def health():
     return await llm.health_check()
+
+
+# ---------- Ollama: list of downloaded models (for the settings picker) ----------
+@app.get("/api/ollama/models")
+async def ollama_models():
+    return await llm.list_ollama_models()
 
 
 # ---------- characters ----------
