@@ -1231,4 +1231,8 @@ a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-g
 /* ── AI accordion: taller to fit auto-summarize controls (toggle/slider/model) ── */
 #section-ai.open .accordion-content { max-height: 640px !important; }
 
+/* ── Backup & Restore: buttons on their own wrapping row (no head overflow) ── */
+#backup-section .provider-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
+#backup-section .provider-actions .provider-btn { flex: 1 1 auto; }
+
 /* ═══════════════ END OF REDESIGN 2 ═══════════════ */
