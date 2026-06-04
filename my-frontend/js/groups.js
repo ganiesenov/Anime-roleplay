@@ -1,187 +1,149 @@
-// =============================================================
-// groups.js — group-chat participants: icon list, character
-// dropdown/selection, active-speaker handling, add participant.
-// Depends on globals resolved at call time (state, storage,
-// updateTokenCount, startChat, DOM refs, createAvatarWithEffect).
-// =============================================================
+/* groups.js — group chat participants: icons, add modal, active-speaker dropdown. */
+(function () {
+    'use strict';
+    function $(id) { return document.getElementById(id); }
+    function curChar() { return window.characters[window.currentCharacterId]; }
+    function curChat() { const c = curChar(); return c && c.chats ? c.chats[window.currentChatId] : null; }
+    function dispName(c) { return (c && (c.chatName || c.name)) || 'Character'; }
 
-// --- FUNCTIONS FOR GROUP CHATS ---
+    function guests(chat) {
+        return (chat.participants || []).slice(1).map((id) => window.characters[id]).filter(Boolean);
+    }
 
-function renderParticipantIcons() {
-    participantIconList.innerHTML = '';
-    const chat = characters[currentCharacterId]?.chats?.[currentChatId];
-    if (!chat || !chat.participants || chat.participants.length <= 1) return;
-    const guestIds = chat.participants.slice(1);
+    function renderParticipantIcons() {
+        const list = $('participant-icon-list');
+        const chat = curChat();
+        if (!list || !chat) return;
+        list.innerHTML = '';
+        guests(chat).forEach((c) => {
+            const wrap = document.createElement('div');
+            wrap.className = 'participant-icon-wrapper';
+            wrap.dataset.charId = c.id;
+            if (c.avatar) {
+                const img = document.createElement('img');
+                img.src = window.getImageUrl(c.avatar);
+                img.addEventListener('error', () => { wrap.innerHTML = '<span class="placeholder-icon">👤</span>'; appendHint(wrap); });
+                wrap.appendChild(img);
+            } else {
+                wrap.innerHTML = '<span class="placeholder-icon">👤</span>';
+            }
+            appendHint(wrap);
+            wrap.title = dispName(c);
+            list.appendChild(wrap);
+        });
+    }
+    function appendHint(wrap) {
+        const hint = document.createElement('span');
+        hint.className = 'participant-remove-hint';
+        hint.textContent = '×';
+        wrap.appendChild(hint);
+    }
 
-    guestIds.forEach(charId => {
-        const participant = characters[charId];
-        if (!participant) return;
+    async function removeParticipant(charId) {
+        const char = curChar();
+        const chat = curChat();
+        if (!char || !chat) return;
+        const ok = await window.showCustomConfirm('Remove this character from the group chat?', true);
+        if (!ok) return;
+        chat.participants = (chat.participants || []).filter((id) => id !== charId);
+        if (window.activeGroupParticipantId === charId) clearActiveGroupParticipant();
+        await window.saveSingleCharacterToDB(char);
+        renderParticipantIcons();
+        if (window.updateTokenCount) window.updateTokenCount();
+    }
 
-        const wrapper = document.createElement('div');
-        wrapper.className = 'participant-icon-wrapper';
-        wrapper.dataset.charId = charId;
-
-        if (participant.avatar) {
-            const img = document.createElement('img');
-            img.onerror = function() {
-                const placeholder = document.createElement('div');
-                placeholder.className = 'placeholder-icon';
-                placeholder.innerHTML = '👤';
-                this.replaceWith(placeholder);
-            };
-            img.src = participant.avatar;
-            smartObjectFit(img);
-            img.style.objectFit = 'cover';
-            img.style.objectPosition = 'center';
-            wrapper.appendChild(img);
-        } else {
-            const placeholder = document.createElement('div');
-            placeholder.className = 'placeholder-icon';
-            placeholder.innerHTML = '👤';
-            wrapper.appendChild(placeholder);
+    // ── Add participant modal ───────────────────────────────────────────────
+    function openParticipantModal(filter) {
+        const modal = $('participant-selection-modal');
+        const search = $('participant-search-input');
+        if (search && filter == null) search.value = '';
+        renderParticipantSelectionList(filter != null ? filter : (search ? search.value : ''));
+        if (modal) modal.classList.remove('hidden');
+    }
+    function renderParticipantSelectionList(filter) {
+        const list = $('participant-selection-list');
+        const chat = curChat();
+        if (!list || !chat) return;
+        const q = (filter || '').trim().toLowerCase();
+        list.innerHTML = '';
+        const existing = new Set(chat.participants || []);
+        const candidates = Object.values(window.characters)
+            .filter((c) => c.type !== 'world' && !existing.has(c.id))
+            .filter((c) => (c.name || '').toLowerCase().indexOf(q) !== -1)
+            .sort((a, b) => String(a.name).localeCompare(b.name, 'de'));
+        if (!candidates.length) {
+            list.innerHTML = '<p class="picker-empty">No characters available.</p>';
+            return;
         }
+        candidates.forEach((c) => {
+            const btn = document.createElement('button');
+            btn.className = 'participant-option-btn';
+            btn.innerHTML = (c.avatar ? '<img class="opt-avatar" src="' + window.getImageUrl(c.avatar) + '">' : '<span class="placeholder-icon">👤</span>') +
+                '<span>' + window.escapeHtml(c.name) + '</span>';
+            btn.addEventListener('click', () => addParticipantToChat(c.id));
+            list.appendChild(btn);
+        });
+    }
 
-        participantIconList.appendChild(wrapper);
-    });
+    async function addParticipantToChat(id) {
+        const char = curChar();
+        const chat = curChat();
+        if (!char || !chat) return;
+        if (!Array.isArray(chat.participants)) chat.participants = [char.id];
+        if (chat.participants.indexOf(id) === -1) chat.participants.push(id);
+        await window.saveSingleCharacterToDB(char);
+        if (window.updateTokenCount) window.updateTokenCount();
+        renderParticipantIcons();
+        const modal = $('participant-selection-modal');
+        if (modal) modal.classList.add('hidden');
+    }
 
-    const hint = document.createElement('span');
-    hint.className = 'participant-remove-hint';
-    hint.innerHTML = '&times;';
-    participantIconList.appendChild(hint);
-}
-
-
-
-// --- GROUP CHAT CHARACTER DROPDOWN ---
-
-function showGroupCharDropdown() {
-    const chat = characters[currentCharacterId]?.chats?.[currentChatId];
-    if (!chat || !chat.participants || chat.participants.length <= 1) {
+    // ── Active speaker ──────────────────────────────────────────────────────
+    function showGroupCharDropdown() {
+        const dropdown = $('group-char-dropdown');
+        const chat = curChat();
+        if (!dropdown || !chat) return;
+        const g = guests(chat);
+        if (!g.length) { dropdown.classList.add('hidden'); return; }
+        dropdown.innerHTML = '';
+        g.forEach((c) => {
+            const item = document.createElement('div');
+            item.className = 'group-char-dropdown-item' + (window.activeGroupParticipantId === c.id ? ' selected' : '');
+            item.dataset.charId = c.id;
+            item.textContent = dispName(c);
+            dropdown.appendChild(item);
+        });
+        dropdown.classList.remove('hidden');
+    }
+    function hideGroupCharDropdown() {
+        const dropdown = $('group-char-dropdown');
+        if (dropdown) dropdown.classList.add('hidden');
+    }
+    function setActiveGroupParticipant(id) {
+        const c = window.characters[id];
+        if (!c) return;
+        window.activeGroupParticipantId = id;
+        const bubble = $('group-char-bubble');
+        const name = $('group-char-bubble-name');
+        if (name) name.textContent = dispName(c);
+        if (bubble) bubble.classList.remove('hidden');
         hideGroupCharDropdown();
-        return;
+        const input = $('message-input');
+        if (input) input.focus();
+    }
+    function clearActiveGroupParticipant() {
+        window.activeGroupParticipantId = null;
+        const bubble = $('group-char-bubble');
+        if (bubble) bubble.classList.add('hidden');
     }
 
-    groupCharDropdown.innerHTML = '';
-    const guestIds = chat.participants.filter(id => id !== currentCharacterId);
-    if (guestIds.length === 0) {
-        hideGroupCharDropdown();
-        return;
-    }
-
-    guestIds.forEach(charId => {
-        const character = characters[charId];
-        if (!character) return;
-        const displayName = (character.chatName || character.name || '').trim();
-        if (!displayName) return;
-
-        const item = document.createElement('div');
-        item.className = 'group-char-dropdown-item';
-        if (charId === activeGroupParticipantId) item.classList.add('is-selected');
-        item.dataset.charId = charId;
-
-        let avatarEl;
-        if (character.avatar) {
-            avatarEl = document.createElement('img');
-            avatarEl.src = getImageUrl(character.avatar);
-            avatarEl.className = 'group-char-dropdown-avatar';
-            avatarEl.alt = displayName;
-            avatarEl.onerror = function() {
-                const ph = document.createElement('div');
-                ph.className = 'group-char-dropdown-avatar-placeholder';
-                ph.textContent = '👤';
-                this.replaceWith(ph);
-            };
-        } else {
-            avatarEl = document.createElement('div');
-            avatarEl.className = 'group-char-dropdown-avatar-placeholder';
-            avatarEl.textContent = '👤';
-        }
-
-        const nameEl = document.createElement('span');
-        nameEl.className = 'group-char-dropdown-name';
-        nameEl.textContent = displayName;
-
-        item.appendChild(avatarEl);
-        item.appendChild(nameEl);
-        groupCharDropdown.appendChild(item);
-    });
-
-    if (groupCharDropdown.childElementCount > 0) {
-        groupCharDropdown.classList.remove('hidden');
-    } else {
-        hideGroupCharDropdown();
-    }
-}
-
-function hideGroupCharDropdown() {
-    groupCharDropdown.classList.add('hidden');
-}
-
-function setActiveGroupParticipant(charId) {
-    activeGroupParticipantId = charId;
-    const character = characters[charId];
-    const displayName = character ? (character.chatName || character.name || '').trim() : '';
-    groupCharBubbleName.textContent = displayName;
-    groupCharBubble.classList.remove('hidden');
-    hideGroupCharDropdown();
-    messageInput.focus();
-}
-
-function clearActiveGroupParticipant() {
-    activeGroupParticipantId = null;
-    groupCharBubble.classList.add('hidden');
-    groupCharBubbleName.textContent = '';
-}
-
-
-
-function openParticipantModal(searchTerm = '') {
-  participantSelectionList.innerHTML = '';
-  const currentParticipants = characters[currentCharacterId]?.chats?.[currentChatId]?.participants || [];
-
-  const sortedCharacters = Object.values(characters).sort((a, b) => {
-    return a.name.localeCompare(b.name, 'de', { sensitivity: 'base' });
-  });
-
-  const lowerCaseSearchTerm = searchTerm.trim().toLowerCase();
-  const filteredCharacters = sortedCharacters.filter(char =>
-    char.type !== 'world' && char.name.toLowerCase().includes(lowerCaseSearchTerm)
-  );
-
-  filteredCharacters.forEach(char => {
-    if (!currentParticipants.includes(char.id)) {
-      const btn = document.createElement('button');
-      btn.className = 'participant-option-btn';
-      btn.dataset.charId = char.id;
-
-      const imageUrl = getImageUrl(char.avatar);
-const avatarHtml = `
-    <img src="${imageUrl}" class="${char.avatar ? '' : 'hidden'}" onerror="this.style.display='none'; this.nextElementSibling.classList.remove('hidden');">
-    <div class="placeholder-icon ${char.avatar ? 'hidden' : ''}">👤</div>
-`;
-
-      btn.innerHTML = `${avatarHtml} <span>${char.name}</span>`;
-
-      participantSelectionList.appendChild(btn);
-    }
-  });
-smartObjectFitAll('.participant-option-btn img');
-  participantSelectionModal.classList.remove('hidden');
-  document.querySelectorAll('#participant-selection-list img').forEach(img => {
-  img.style.objectFit = 'cover';
-  img.style.objectPosition = 'center';
-});
-}
-
-
-
-async function addParticipantToChat(participantId) {
-    const chat = characters[currentCharacterId]?.chats?.[currentChatId];
-    if (!chat || chat.participants.includes(participantId)) return;
-
-    chat.participants.push(participantId);
-    await saveSingleCharacterToDB(characters[currentCharacterId]);
-    updateTokenCount();
-    renderParticipantIcons(); 
-    participantSelectionModal.classList.add('hidden');
-}
+    window.renderParticipantIcons = renderParticipantIcons;
+    window.removeParticipant = removeParticipant;
+    window.openParticipantModal = openParticipantModal;
+    window.renderParticipantSelectionList = renderParticipantSelectionList;
+    window.addParticipantToChat = addParticipantToChat;
+    window.showGroupCharDropdown = showGroupCharDropdown;
+    window.hideGroupCharDropdown = hideGroupCharDropdown;
+    window.setActiveGroupParticipant = setActiveGroupParticipant;
+    window.clearActiveGroupParticipant = clearActiveGroupParticipant;
+})();
