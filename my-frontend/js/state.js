@@ -76,6 +76,9 @@
         replyOptionsEnabled: 'true',
         suggestionModelId: '',
         thinkEnabled: 'true',
+        autoSummarizeEnabled: 'false',
+        autoSummarizeEvery: '30',
+        summaryModelId: '',
         ttsVoiceURI: '',
         ttsEnabled: 'false',
         soundEnabled: 'true'
@@ -95,6 +98,9 @@
         ttsEnabled: false,
         replyLength: 'default',
         suggestionModelId: '',
+        autoSummarizeEnabled: false,
+        autoSummarizeEvery: 30,
+        summaryModelId: '',
         ttsVoiceURI: ''
     };
 

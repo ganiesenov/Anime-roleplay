@@ -255,6 +255,18 @@
             case 'thinkEnabled':
                 window.runtimeFlags.thinkEnabled = (value === true || value === 'true');
                 break;
+            case 'autoSummarizeEnabled':
+                window.runtimeFlags.autoSummarizeEnabled = (value === true || value === 'true');
+                break;
+            case 'autoSummarizeEvery': {
+                const n = Math.max(10, parseInt(value, 10) || 30);
+                window.runtimeFlags.autoSummarizeEvery = n;
+                setLabel('auto-summarize-every-value', String(n));
+                break;
+            }
+            case 'summaryModelId':
+                window.runtimeFlags.summaryModelId = value;
+                break;
             case 'replyOptionsEnabled':
                 window.runtimeFlags.replyOptionsEnabled = (value === true || value === 'true');
                 window.replyOptionsEnabled = window.runtimeFlags.replyOptionsEnabled;

@@ -293,6 +293,24 @@
                                 <input type="checkbox" id="think-toggle" class="toggle-switch">
                             </label>
                         </div>
+                        <div class="setting">
+                            <label for="auto-summarize-toggle">
+                                <span>Auto-summarize to Memory: <span class="setting-info-icon" data-tooltip="When on, every few turns the chat is quietly summarized into Chat Memories in the background, so the AI keeps long-term context even after older turns scroll out of the model's window. Runs after a reply finishes and is paused while you're chatting.">ℹ️</span></span>
+                                <input type="checkbox" id="auto-summarize-toggle" class="toggle-switch">
+                            </label>
+                        </div>
+                        <div class="setting" id="auto-summarize-every-setting">
+                            <label for="auto-summarize-every">Summarize Every: <span id="auto-summarize-every-value">30</span> messages</label>
+                            <input type="range" id="auto-summarize-every" min="10" max="100" value="30" step="5">
+                        </div>
+                        <div class="setting" id="summary-model-setting">
+                            <label for="summary-model-select">
+                                <span>Summary Model: <span class="setting-info-icon" data-tooltip="Choose a lighter/cheaper model for background summaries so your main chat model isn't tied up. Tip: a small local model (e.g. llama3.1:8b) works well here.">ℹ️</span></span>
+                            </label>
+                            <select id="summary-model-select">
+                                <option value="">(same as chat model)</option>
+                            </select>
+                        </div>
                     </div>
                 </div>
             </div>

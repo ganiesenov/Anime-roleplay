@@ -26,6 +26,25 @@
         return html;
     }
 
+    // Streaming display helper: provisionally close a single trailing unterminated
+    // inline marker (* italics, " dialogue) so partial tokens render styled instead
+    // of flashing a raw delimiter. Display-only — never applied to stored text.
+    function balanceInlineMarkup(text) {
+        if (text == null) return '';
+        let s = String(text);
+        // Single-* italics: if odd count and the dangling open is on the last line
+        // (so formatSubString's same-line regex can match), provisionally close it.
+        if (((s.match(/\*/g) || []).length) % 2 === 1) {
+            const li = s.lastIndexOf('*');
+            if (s.indexOf('\n', li) === -1) s += '*';
+        }
+        // Straight double-quote dialogue.
+        if (((s.match(/"/g) || []).length) % 2 === 1) s += '"';
+        // Curly-quote dialogue.
+        if ((s.match(/“/g) || []).length > (s.match(/”/g) || []).length) s += '”';
+        return s;
+    }
+
     // Strip C0/C1 control chars (keep \t \n \r) and known LLM special tokens.
     function sanitizeModelText(text) {
         if (text == null) return '';
@@ -195,6 +214,7 @@
 
     window.escapeHtml = escapeHtml;
     window.formatSubString = formatSubString;
+    window.balanceInlineMarkup = balanceInlineMarkup;
     window.sanitizeModelText = sanitizeModelText;
     window.stripThinkTags = stripThinkTags;
     window.splitThink = splitThink;

@@ -22,6 +22,9 @@
         replyOptionsEnabled: { id: 'reply-options-toggle', type: 'checkbox' },
         suggestionModelId: { id: 'suggestion-model-select', type: 'select' },
         thinkEnabled: { id: 'think-toggle', type: 'checkbox' },
+        autoSummarizeEnabled: { id: 'auto-summarize-toggle', type: 'checkbox' },
+        autoSummarizeEvery: { id: 'auto-summarize-every', type: 'range' },
+        summaryModelId: { id: 'summary-model-select', type: 'select' },
         ttsVoiceURI: { id: 'tts-voice-select', type: 'select' },
         ttsEnabled: { id: 'tts-toggle', type: 'checkbox' },
         soundEnabled: { id: 'sound-toggle', type: 'checkbox' }
@@ -45,19 +48,21 @@
         const stored = await window.loadAllSettingsRows();
         window._settingsValueMap = {};
         Object.keys(window.defaultSettings).forEach((key) => {
-            if (key === 'suggestionModelId') return; // handled separately below
+            // Model-select keys are handled after their options are populated.
+            if (key === 'suggestionModelId' || key === 'summaryModelId') return;
             const binding = SETTING_BINDINGS[key];
             const value = (stored[key] != null) ? stored[key] : window.defaultSettings[key];
             window._settingsValueMap[key] = value;
             if (binding) writeControlValue(binding, value);
             window.applySetting(key, value);
         });
-        // Suggestion model only applied if stored.
-        if (stored.suggestionModelId != null) {
-            window._settingsValueMap.suggestionModelId = stored.suggestionModelId;
-            writeControlValue(SETTING_BINDINGS.suggestionModelId, stored.suggestionModelId);
-            window.applySetting('suggestionModelId', stored.suggestionModelId);
-        }
+        // Model selectors only applied if stored (options are populated separately).
+        ['suggestionModelId', 'summaryModelId'].forEach((key) => {
+            if (stored[key] == null) return;
+            window._settingsValueMap[key] = stored[key];
+            writeControlValue(SETTING_BINDINGS[key], stored[key]);
+            window.applySetting(key, stored[key]);
+        });
     }
     // Alias used at bootstrap.
     const loadAndApplySettings = loadAndApplySettingsFromDB;
@@ -126,16 +131,19 @@
             else if (models.some((m) => m.id === window.defaultSettings.model)) chatSel.value = window.defaultSettings.model;
             window.runtimeFlags.model = chatSel.value;
         }
-        if (sugSel) {
-            const prev = sugSel.value;
-            sugSel.innerHTML = '<option value="">(same as chat model)</option>';
+        const fillModelDropdown = (sel) => {
+            if (!sel) return;
+            const prev = sel.value;
+            sel.innerHTML = '<option value="">(same as chat model)</option>';
             models.forEach((m) => {
                 const opt = document.createElement('option');
                 opt.value = m.id; opt.textContent = m.name || m.id;
-                sugSel.appendChild(opt);
+                sel.appendChild(opt);
             });
-            if (prev && models.some((m) => m.id === prev)) sugSel.value = prev;
-        }
+            if (prev && models.some((m) => m.id === prev)) sel.value = prev;
+        };
+        fillModelDropdown(sugSel);
+        fillModelDropdown($('summary-model-select'));
     }
 
     // ── App settings modal ──────────────────────────────────────────────────

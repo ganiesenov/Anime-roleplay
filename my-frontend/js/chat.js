@@ -667,6 +667,11 @@
     // Core streaming runner with retry, timers, think split.
     async function runStream(aiMsg, messages, char, chat, opts) {
         opts = opts || {};
+        // Preempt a background auto-summary so the user's turn isn't queued behind
+        // it on a single local model.
+        if (window._autoSummaryController) {
+            try { window._autoSummaryController.abort(); } catch (e) { /* ignore */ }
+        }
         const variantIndex = aiMsg.streamingVariant != null ? aiMsg.streamingVariant : aiMsg.activeVariant;
         const controller = new AbortController();
         window.currentStreamController = controller;
@@ -690,7 +695,9 @@
             const el = bubble();
             if (!el) return;
             const mc = el.querySelector('.main-content');
-            if (mc) mc.innerHTML = window.formatSubString(window.sanitizeModelText(main || ''));
+            // Display-only: provisionally close dangling * / " so partial tokens
+            // render styled instead of flashing a raw delimiter. Stored v.main stays raw.
+            if (mc) mc.innerHTML = window.formatSubString(window.balanceInlineMarkup(window.sanitizeModelText(main || '')));
             const tb = el.querySelector('.think-block');
             const tc = el.querySelector('.think-block-content');
             if (tb && tc) {
@@ -701,6 +708,19 @@
             }
             const win = $('chat-window');
             if (win && win._autoScroll !== false) win.scrollTop = win.scrollHeight;
+        };
+
+        // Coalesce per-chunk renders into one paint per frame (~60fps) so a fast
+        // token stream doesn't re-parse + re-layout the whole bubble on every delta.
+        let rafPending = false;
+        let finished = false;
+        const raf = window.requestAnimationFrame
+            ? window.requestAnimationFrame.bind(window)
+            : (fn) => setTimeout(fn, 16);
+        const scheduleView = () => {
+            if (rafPending || finished) return;
+            rafPending = true;
+            raf(() => { rafPending = false; if (!finished) updateView(); });
         };
 
         let attempts = 0;
@@ -716,9 +736,9 @@
                     onContent: (c) => {
                         if (!firstChunk) { firstChunk = true; clearTimeout(t20); clearTimeout(t70); }
                         mainAcc += c;
-                        updateView();
+                        scheduleView();
                     },
-                    onReasoning: (r) => { reasonAcc += r; updateView(); }
+                    onReasoning: (r) => { reasonAcc += r; scheduleView(); }
                 });
                 if (mainAcc.trim() || reasonAcc.trim()) { success = true; }
                 else { await sleep(500); } // empty: retry
@@ -737,6 +757,7 @@
             }
         }
 
+        finished = true; // stop any pending rAF from clobbering the final render
         clearTimeout(t20); clearTimeout(t70);
         window.currentStreamController = null;
         aiMsg.isStreaming = false;
@@ -784,6 +805,8 @@
             if (window.runtimeFlags.ttsEnabled && window.speakText) window.speakText(getMessageText(aiMsg), aiMsg.id);
             if (window.runtimeFlags.replyOptionsEnabled && window.generateReplyOptionsInBackground)
                 window.generateReplyOptionsInBackground();
+            // Background, opt-in: distill older turns into chat memories (non-blocking).
+            maybeAutoSummarize(char, chat);
         }
     }
 
@@ -1013,6 +1036,62 @@
         const has = !!(chat && chat.memories && chat.memories.trim());
         btn.classList.toggle('active', has);
         btn.title = has ? 'Chat Memories (set)' : 'Chat Memories';
+    }
+
+    // ── Auto-summarize to memory (opt-in, background) ─────────────────────────
+    // Fires after a reply finishes once the chat has grown by `every` messages
+    // since the last auto-summary. Distilled bullets are appended to chat.memories
+    // (injected as high-priority context) so the AI keeps long-term recall even
+    // after older turns scroll out of the model's window. Non-blocking; preempted
+    // by the next user turn (runStream aborts it) so the local model isn't tied up.
+    async function maybeAutoSummarize(char, chat) {
+        if (!window.runtimeFlags.autoSummarizeEnabled) return;
+        if (!char || !chat || !Array.isArray(chat.history)) return;
+        if (window._autoSummaryRunning) return;
+        const every = Math.max(10, parseInt(window.runtimeFlags.autoSummarizeEvery, 10) || 30);
+        const len = chat.history.length;
+        const prevLen = chat._lastAutoSummaryLen || 0;
+        if (len - prevLen < every) return;
+
+        window._autoSummaryRunning = true;
+        chat._lastAutoSummaryLen = len; // mark up front to avoid re-entry
+        const controller = new AbortController();
+        window._autoSummaryController = controller;
+        try {
+            const modelId = window.runtimeFlags.summaryModelId
+                || window.runtimeFlags.model || 'local-qwen';
+            const transcript = chat.history.slice(-Math.max(40, every)).map((m) => {
+                const speaker = m.sender === 'user'
+                    ? 'User' : displayName(window.characters[m.speakerId] || char);
+                return speaker + ': ' + getMessageText(m);
+            }).join('\n');
+            const sys = 'Summarize the conversation into 5-10 concise bullet points capturing key events, '
+                + 'facts, relationships and unresolved threads. No markdown headers, no intro/outro — bullets only.';
+            const result = await window.callAISimple(modelId, sys, transcript, controller.signal);
+            if (controller.signal.aborted) return;
+            if (result && result.trim()) {
+                const header = '--- Auto-summary (' + new Date().toLocaleDateString() + ') ---\n';
+                const prev = (chat.memories || '').trim();
+                chat.memories = (prev ? prev + '\n\n' : '') + header + result.trim();
+                // Reflect into the memories textarea if its modal is open.
+                const modal = $('chat-memories-modal');
+                const ta = $('chat-memories-textarea');
+                if (ta && modal && !modal.classList.contains('hidden')) {
+                    ta.value = chat.memories;
+                    if (window.autoResizeTextarea) window.autoResizeTextarea(ta);
+                }
+                await window.saveSingleCharacterToDB(char);
+                updateMemoriesButton();
+                updateTokenCount();
+                if (window.showToast) window.showToast('Memory updated (auto-summary)');
+            }
+        } catch (e) {
+            // Silent: a failed/aborted background summary must not disrupt roleplay.
+            if (controller.signal.aborted) chat._lastAutoSummaryLen = prevLen; // retry next threshold
+        } finally {
+            window._autoSummaryRunning = false;
+            window._autoSummaryController = null;
+        }
     }
 
     // ── Mood ────────────────────────────────────────────────────────────────
