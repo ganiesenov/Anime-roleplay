@@ -10,13 +10,12 @@ __pycache__/
 # uv
 uv.lock
 
-# data (если не хочешь коммитить своих персонажей — раскомментируй)
-# data/characters/*.json
+# личные данные — карточки и диалоги бэкапятся локально, не в репозиторий
+data/characters/
+data/chats/
 
 # их эталон-репо (референс, не наш код)
 casual-character-chat-blueprint/
-# личные диалоги
-data/chats/
 # бэкапы
 *.bak
 script.js.backup
