@@ -1005,7 +1005,7 @@ a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-g
   border-color: rgba(46, 230, 160, 0.4);
   box-shadow: 0 0 22px var(--em-glow-soft), inset 3px 0 0 var(--em-accent);
 }
-#model-list-container .model-entry:first-child .model-content-wrapper::before {
+#model-list-container .model-entry:first-child::before {
   content: '● DEFAULT · local backend';
   display: inline-block;
   margin-bottom: 9px;
@@ -1234,5 +1234,42 @@ a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-g
 /* ── Backup & Restore: buttons on their own wrapping row (no head overflow) ── */
 #backup-section .provider-actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 10px 0 6px; }
 #backup-section .provider-actions .provider-btn { flex: 1 1 auto; }
+
+/* ── Model entries: correct layout for the rebuilt markup ──────────────────
+   style.css still flexes .model-entry expecting the old [handle][wrapper]
+   structure; the rebuilt HTML is .model-entry-top + stacked fields, so we
+   override it here: a clean top row (handle · name · id · delete) and full-
+   width fields beneath. */
+#model-list-container .model-entry { display: block !important; padding-left: 14px; }
+#model-list-container .model-entry-top {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 10px;
+}
+#model-list-container .model-entry-top .model-drag-handle {
+  flex: 0 0 auto; width: 18px; padding-top: 0; align-items: center;
+}
+#model-list-container .model-entry-top .model-name-input,
+#model-list-container .model-entry-top .model-id-input {
+  flex: 1 1 0; min-width: 0; width: auto; margin: 0;
+}
+#model-list-container .model-entry-top .delete-model-btn {
+  flex: 0 0 auto; width: 34px; height: 34px; border-radius: 9px; cursor: pointer;
+  background: rgba(255, 80, 80, 0.10); border: 1px solid rgba(255, 90, 90, 0.30);
+  color: #ff8d8d; font-size: 0.9rem; line-height: 1; transition: background 0.15s ease, border-color 0.15s ease;
+}
+#model-list-container .model-entry-top .delete-model-btn:hover {
+  background: rgba(255, 80, 80, 0.20); border-color: rgba(255, 90, 90, 0.6);
+}
+#model-list-container .model-entry > .model-target-api-url-input,
+#model-list-container .model-entry > .model-api-key-input,
+#model-list-container .model-entry > .model-num-ctx-input {
+  display: block; width: 100%; margin: 0 0 10px;
+}
+#model-list-container .model-prompts { margin-top: 4px; }
+#model-list-container .model-prompts summary {
+  cursor: pointer; color: var(--em-text-dim); font-size: 0.86rem; padding: 4px 0;
+}
+#model-list-container .model-prompts textarea {
+  width: 100%; box-sizing: border-box; margin-top: 8px; min-height: 56px;
+}
 
 /* ═══════════════ END OF REDESIGN 2 ═══════════════ */
