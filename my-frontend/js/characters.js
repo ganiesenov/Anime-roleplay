@@ -403,6 +403,7 @@
         clone.isFavorite = false;
         window.characters[clone.id] = clone;
         await window.saveSingleCharacterToDB(clone);
+        if (window.syncCharacterToServer) window.syncCharacterToServer(clone); // backup to server
         renderCharacterList();
         await window.showCustomAlert('Character copied as "' + clone.name + '".');
         window.showMainScreen();
@@ -423,6 +424,7 @@
             });
         });
         await window.deleteSingleCharacterFromDB(id);
+        if (window.deleteCharacterFromServer) window.deleteCharacterFromServer(id); // remove server backup
         window.currentCharacterId = null;
         window.currentChatId = null;
         renderCharacterList();
@@ -505,6 +507,7 @@
                 });
             });
             await window.deleteManyCharactersFromDB(ids);
+            if (window.deleteCharacterFromServer) ids.forEach((id) => window.deleteCharacterFromServer(id)); // remove server backups
             renderCharacterList();
             overlay.remove();
             window.showToast('Deleted ' + ids.length + ' character(s).');

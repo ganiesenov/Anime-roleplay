@@ -252,6 +252,7 @@
         }
         window.normalizeCharacter(char);
         await window.saveSingleCharacterToDB(char);
+        if (window.syncCharacterToServer) window.syncCharacterToServer(char); // backup to server (non-blocking)
         window.renderCharacterList();
         if (window.currentCharacterId === char.id && !$('chat-list-screen').classList.contains('is-inactive')) {
             window.showChatList(char.id);

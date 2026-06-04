@@ -196,6 +196,96 @@
         });
     }
 
+    // ── Card sync to backend (definition only; chats sync via /api/chats) ─────
+    function cardBackendOrigin() {
+        if (location.protocol === 'http:' || location.protocol === 'https:') return location.origin;
+        try { return new URL(window.DEFAULT_API_URL).origin; } catch (e) { return 'http://127.0.0.1:8000'; }
+    }
+
+    // Drop the heavy per-chat blob — chats are backed up separately by the server.
+    function cardForServer(char) {
+        const copy = Object.assign({}, char);
+        delete copy.chats;
+        return copy;
+    }
+
+    // Fire-and-forget: persist a card definition so it survives cache-clear / new
+    // device. Silently no-ops when the backend is unreachable (e.g. static host).
+    function syncCharacterToServer(char) {
+        if (!char || !char.id) return Promise.resolve();
+        return fetch(cardBackendOrigin() + '/api/characters', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(cardForServer(char))
+        }).catch(() => { /* offline / static host: ignore */ });
+    }
+
+    function deleteCharacterFromServer(id) {
+        if (!id) return Promise.resolve();
+        return fetch(cardBackendOrigin() + '/api/characters/' + encodeURIComponent(id), { method: 'DELETE' })
+            .catch(() => { /* ignore */ });
+    }
+
+    // Pull server-stored cards and seed any missing locally (never clobbers local
+    // edits). Chats are restored separately afterwards. Returns count added.
+    async function restoreCharactersFromServer(opts) {
+        opts = opts || {};
+        let list;
+        try {
+            const r = await fetch(cardBackendOrigin() + '/api/characters');
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+            list = await r.json();
+        } catch (e) { return 0; }
+        if (!Array.isArray(list)) return 0;
+        let added = 0;
+        for (const item of list) {
+            if (!item || !item.id || window.characters[item.id]) continue; // present → don't overwrite
+            let full;
+            try {
+                const r = await fetch(cardBackendOrigin() + '/api/characters/' + encodeURIComponent(item.id));
+                if (!r.ok) continue;
+                full = await r.json();
+            } catch (e) { continue; }
+            if (!full || !full.id) continue;
+            window.characters[full.id] = normalizeCharacter(full);
+            await saveSingleCharacterToDB(window.characters[full.id]);
+            added++;
+        }
+        if (added) {
+            if (window.renderCharacterList) window.renderCharacterList();
+            if (!opts.silent && window.showToast)
+                window.showToast(added + ' character' + (added === 1 ? '' : 's') + ' restored from server');
+        }
+        return added;
+    }
+
+    // One-time backfill: push the whole local library to the server (existing
+    // cards created before auto-sync existed). Sequential, with status updates.
+    async function backupAllCharactersToServer() {
+        const status = document.getElementById('restore-status');
+        const set = (t) => { if (status) status.textContent = t; };
+        const all = Object.values(window.characters || {});
+        if (!all.length) { set('No characters to back up.'); return; }
+        try {
+            const r = await fetch(cardBackendOrigin() + '/api/characters');
+            if (!r.ok) throw new Error('HTTP ' + r.status);
+        } catch (e) { set('Could not reach backup server.'); return; }
+        let ok = 0, fail = 0;
+        for (let i = 0; i < all.length; i++) {
+            set('Backing up ' + (i + 1) + '/' + all.length + '…');
+            try {
+                const resp = await fetch(cardBackendOrigin() + '/api/characters', {
+                    method: 'POST', headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(cardForServer(all[i]))
+                });
+                if (resp.ok) ok++; else fail++;
+            } catch (e) { fail++; }
+        }
+        const msg = ok + ' card' + (ok === 1 ? '' : 's') + ' backed up' + (fail ? ', ' + fail + ' failed' : '');
+        set(msg);
+        if (window.showToast) window.showToast(msg);
+    }
+
     function savePersonasToDB() {
         const all = Object.values(window.personas);
         return new Promise((resolve, reject) => {
@@ -232,6 +322,10 @@
     window.saveCharactersToDB = saveCharactersToDB;
     window.deleteSingleCharacterFromDB = deleteSingleCharacterFromDB;
     window.deleteManyCharactersFromDB = deleteManyCharactersFromDB;
+    window.syncCharacterToServer = syncCharacterToServer;
+    window.deleteCharacterFromServer = deleteCharacterFromServer;
+    window.restoreCharactersFromServer = restoreCharactersFromServer;
+    window.backupAllCharactersToServer = backupAllCharactersToServer;
     window.savePersonasToDB = savePersonasToDB;
     window.saveSettingToDB = saveSettingToDB;
     window.saveAppSettingsToDB = saveAppSettingsToDB;

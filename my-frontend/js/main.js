@@ -74,10 +74,12 @@
         window.restoreLastSession();
         if (window.tutorialInit) window.tutorialInit();
         if (window.populateTtsVoices) window.populateTtsVoices();
-        // Fire-and-forget silent server restore.
-        if (window.restoreChatsFromServer) {
-            window.restoreChatsFromServer({ silent: true }).catch(() => { /* swallow */ });
-        }
+        // Fire-and-forget silent server restore: cards first (so recovered chats
+        // can attach to them), then chats.
+        Promise.resolve()
+            .then(() => window.restoreCharactersFromServer && window.restoreCharactersFromServer({ silent: true }))
+            .then(() => window.restoreChatsFromServer && window.restoreChatsFromServer({ silent: true }))
+            .catch(() => { /* swallow */ });
     }
 
     // ── Wiring ──────────────────────────────────────────────────────────────
@@ -182,7 +184,11 @@
         on('refresh-ollama-btn', 'click', () => window.fetchOllamaModels());
         on('load-openrouter-btn', 'click', () => window.loadOpenRouterModels());
         on('add-openrouter-model-btn', 'click', () => window.addOpenRouterModel());
-        on('restore-chats-btn', 'click', () => window.restoreChatsFromServer({ silent: false }));
+        on('restore-chats-btn', 'click', async () => {
+            if (window.restoreCharactersFromServer) await window.restoreCharactersFromServer({ silent: false });
+            await window.restoreChatsFromServer({ silent: false });
+        });
+        on('backup-chars-btn', 'click', () => window.backupAllCharactersToServer && window.backupAllCharactersToServer());
         wheelSwallow(['app-settings-modal', 'persona-editor-modal', 'persona-list-modal']);
 
         // Editor.
