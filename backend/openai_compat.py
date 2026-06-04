@@ -22,7 +22,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import llm, history
+from . import llm, history, rag
 
 router = APIRouter()
 
@@ -133,6 +133,21 @@ def process_messages(messages: list[dict]) -> list[dict]:
     return messages
 
 
+async def inject_rag(messages: list[dict]) -> list[dict]:
+    """RAG-память: достаёт релевантные старые сообщения (эмбеддинги Ollama) и
+    вставляет их компактным system-блоком сразу после стартового якоря. Если
+    embed-модель не стоит / ничего не нашлось — список не меняется (rag.py молча
+    отдаёт []). См. backend/rag.py."""
+    snippets = await rag.relevant_snippets(messages)
+    block = rag.render(snippets)
+    if not block:
+        return messages
+    rag_msg = {"role": "system", "content": block}
+    # после стартового system-якоря (idx 0), если он есть
+    idx = 1 if (messages and messages[0].get("role") == "system") else 0
+    return messages[:idx] + [rag_msg] + messages[idx:]
+
+
 def _extract_options(req: OpenAIRequest) -> dict:
     """Переносит параметры из запроса фронта в опции Ollama."""
     opts = {}
@@ -150,6 +165,7 @@ def _extract_options(req: OpenAIRequest) -> dict:
 async def chat_completions(req: OpenAIRequest):
     messages = [m.model_dump() for m in req.messages]
     messages = process_messages(messages)  # ← твоя логика тут
+    messages = await inject_rag(messages)  # ← RAG-память (релевантные старые сообщения)
     options = _extract_options(req)
 
     model_name = req.model or "local"

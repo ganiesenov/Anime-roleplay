@@ -21,7 +21,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
-from . import llm, character, prompt_builder, openai_compat, history, youtube_audio
+from . import llm, character, prompt_builder, openai_compat, history, youtube_audio, media_proxy
 
 app = FastAPI(title="Roleplay Bot")
 
@@ -39,6 +39,10 @@ app.include_router(openai_compat.router)
 # YouTube → audio proxy (/api/yt-audio) — играет звук из YouTube в <audio>,
 # минуя нерабочий iframe-embed
 app.include_router(youtube_audio.router)
+
+# Image proxy (/api/img?url=) — тянет внешние аватары/фоны сервером, обходя
+# ISP-блокировки/CORS внешнего хоста (см. media_proxy.py)
+app.include_router(media_proxy.router)
 
 
 # ---------- модели запросов ----------
