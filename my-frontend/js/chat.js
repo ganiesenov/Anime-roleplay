@@ -667,11 +667,6 @@
     // Core streaming runner with retry, timers, think split.
     async function runStream(aiMsg, messages, char, chat, opts) {
         opts = opts || {};
-        // Preempt a background auto-summary so the user's turn isn't queued behind
-        // it on a single local model.
-        if (window._autoSummaryController) {
-            try { window._autoSummaryController.abort(); } catch (e) { /* ignore */ }
-        }
         const variantIndex = aiMsg.streamingVariant != null ? aiMsg.streamingVariant : aiMsg.activeVariant;
         const controller = new AbortController();
         window.currentStreamController = controller;
@@ -1042,8 +1037,9 @@
     // Fires after a reply finishes once the chat has grown by `every` messages
     // since the last auto-summary. Distilled bullets are appended to chat.memories
     // (injected as high-priority context) so the AI keeps long-term recall even
-    // after older turns scroll out of the model's window. Non-blocking; preempted
-    // by the next user turn (runStream aborts it) so the local model isn't tied up.
+    // after older turns scroll out of the model's window. Fire-and-forget after a
+    // reply; one at a time. On a single local model the next reply may queue briefly
+    // behind it (~once per `every` turns) — acceptable for an opt-in feature.
     async function maybeAutoSummarize(char, chat) {
         if (!window.runtimeFlags.autoSummarizeEnabled) return;
         if (!char || !chat || !Array.isArray(chat.history)) return;
@@ -1055,8 +1051,7 @@
 
         window._autoSummaryRunning = true;
         chat._lastAutoSummaryLen = len; // mark up front to avoid re-entry
-        const controller = new AbortController();
-        window._autoSummaryController = controller;
+        if (window.showToast) window.showToast('Summarizing memory…');
         try {
             const modelId = window.runtimeFlags.summaryModelId
                 || window.runtimeFlags.model || 'local-qwen';
@@ -1067,8 +1062,7 @@
             }).join('\n');
             const sys = 'Summarize the conversation into 5-10 concise bullet points capturing key events, '
                 + 'facts, relationships and unresolved threads. No markdown headers, no intro/outro — bullets only.';
-            const result = await window.callAISimple(modelId, sys, transcript, controller.signal);
-            if (controller.signal.aborted) return;
+            const result = await window.callAISimple(modelId, sys, transcript);
             if (result && result.trim()) {
                 const header = '--- Auto-summary (' + new Date().toLocaleDateString() + ') ---\n';
                 const prev = (chat.memories || '').trim();
@@ -1084,13 +1078,14 @@
                 updateMemoriesButton();
                 updateTokenCount();
                 if (window.showToast) window.showToast('Memory updated (auto-summary)');
+            } else {
+                chat._lastAutoSummaryLen = prevLen; // empty result: retry next threshold
             }
         } catch (e) {
-            // Silent: a failed/aborted background summary must not disrupt roleplay.
-            if (controller.signal.aborted) chat._lastAutoSummaryLen = prevLen; // retry next threshold
+            chat._lastAutoSummaryLen = prevLen; // failed: retry next threshold
+            if (window.showToast) window.showToast('Auto-summary failed: ' + String(e && e.message || e).slice(0, 120));
         } finally {
             window._autoSummaryRunning = false;
-            window._autoSummaryController = null;
         }
     }
 
