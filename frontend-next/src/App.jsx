@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { getAllCharacters, characterStats } from './lib/db.js';
 import CharacterCard from './components/CharacterCard.jsx';
+import ChatView from './components/ChatView.jsx';
 
 const CATEGORIES = [
   { key: null, label: 'All', keywords: [] },
@@ -31,6 +32,7 @@ export default function App() {
   const [category, setCategory] = useState(null);
   const [favOnly, setFavOnly] = useState(false);
   const [sort, setSort] = useState('recent');
+  const [activeChar, setActiveChar] = useState(null);
 
   useEffect(() => {
     getAllCharacters().then((list) => setChars(list.filter((c) => !c.isArchived)));
@@ -49,8 +51,11 @@ export default function App() {
   const favorites = useMemo(() => (chars || []).filter((c) => c.isFavorite), [chars]);
 
   function openCharacter(char) {
-    // Chat screen isn't ported yet — hand off to the legacy app for now.
-    window.location.href = '/?character=' + encodeURIComponent(char.id);
+    setActiveChar(char);
+  }
+
+  if (activeChar) {
+    return <ChatView character={activeChar} onBack={() => setActiveChar(null)} />;
   }
 
   return (

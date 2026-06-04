@@ -40,6 +40,11 @@ body {
   pointer-events: none;
 }
 
+/* Chat markdown rendering (ported palette: dialogue gold, italics mint). */
+.chat-md { white-space: normal; word-break: break-word; }
+.chat-md .dlg { color: #ffd952; }
+.chat-md em { font-style: italic; color: #5cffc4; }
+
 /* Thin emerald scrollbars. */
 * { scrollbar-width: thin; scrollbar-color: rgba(46,230,160,0.35) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; }

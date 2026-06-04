@@ -37,6 +37,36 @@ export async function getAllCharacters() {
   }
 }
 
+export async function getAllPersonas() {
+  try {
+    const db = await openAriaDB();
+    const ps = await getAllFromStore(db, 'personas');
+    db.close();
+    return Array.isArray(ps) ? ps : [];
+  } catch (e) {
+    return [];
+  }
+}
+
+// Persist a full character record (same store the legacy app writes, so chat
+// edits stay in sync across both UIs).
+export async function saveCharacter(char) {
+  if (!char || !char.id) return;
+  try {
+    const db = await openAriaDB();
+    if (!db.objectStoreNames.contains('characters')) { db.close(); return; }
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('characters', 'readwrite');
+      tx.objectStore('characters').put(char);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (e) {
+    /* ignore — best effort */
+  }
+}
+
 // Derive lightweight stats from a character (mirrors the legacy id-timestamp scheme).
 export function characterStats(char) {
   const chats = char && char.chats ? Object.values(char.chats) : [];
