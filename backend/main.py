@@ -152,6 +152,13 @@ async def get_chat_history(character_id: str, chat_id: str):
 # html=True → "/" отдаёт index.html, а ассеты (js/, style.css, gallery/, *.html)
 # доступны по их относительным путям. Монтируется ПОСЛЕДНИМ, поэтому /api/* и
 # /v1/* (объявленные выше) перехватываются раньше этого catch-all.
+# Новый React/Vite/Tailwind фронт (инкрементальный ребилд). Раздаётся на /next,
+# тот же origin → читает ту же IndexedDB AriaBD и ходит в /api + /v1. Монтируется
+# РАНЬШЕ catch-all "/" — иначе корневой mount перехватил бы /next.
+FRONTEND_NEXT_DIR = Path(__file__).parent.parent / "frontend-next" / "dist"
+if FRONTEND_NEXT_DIR.exists():
+    app.mount("/next", StaticFiles(directory=str(FRONTEND_NEXT_DIR), html=True), name="frontend-next")
+
 FRONTEND_DIR = Path(__file__).parent.parent / "my-frontend"
 if FRONTEND_DIR.exists():
     app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
