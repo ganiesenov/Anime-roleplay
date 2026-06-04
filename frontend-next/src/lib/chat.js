@@ -39,9 +39,12 @@ function personaName(chat, personas) {
 
 const REPLY_LEN = { short: '3-4', medium: '6-7', long: '9-10', verylong: '12-13' };
 
+const REPLY_LEN_MAP = { short: '3-4', medium: '6-7', long: '9-10', verylong: '12-13' };
+
 // Builds the system prompt for a single-character dialog (the common path).
 // World/story/multi-character narration aren't ported yet.
-export function buildSystemPrompt(char, chat, personas) {
+export function buildSystemPrompt(char, chat, personas, opts) {
+  opts = opts || {};
   const cName = displayName(char);
   const uName = personaName(chat, personas);
   const exp = (t) => expandPlaceholders(t, cName, uName);
@@ -58,13 +61,16 @@ export function buildSystemPrompt(char, chat, personas) {
   if (chat.memories && chat.memories.trim()) {
     sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
   }
+  if (REPLY_LEN_MAP[opts.replyLength]) {
+    sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');
+  }
   return sections.join('\n\n');
 }
 
-export function buildMessagesArray(char, chat, personas, lastUserText) {
+export function buildMessagesArray(char, chat, personas, lastUserText, opts) {
   const cName = displayName(char);
   const uName = personaName(chat, personas);
-  const messages = [{ role: 'system', content: buildSystemPrompt(char, chat, personas) }];
+  const messages = [{ role: 'system', content: buildSystemPrompt(char, chat, personas, opts) }];
 
   let history = (chat.history || []).filter((m) => !m.isStreaming);
   if (lastUserText != null && history.length && history[history.length - 1].sender === 'user') {
@@ -87,7 +93,7 @@ export function buildMessagesArray(char, chat, personas, lastUserText) {
 export async function streamCompletion(messages, opts) {
   opts = opts || {};
   const body = {
-    model: 'local-qwen',
+    model: opts.model || 'local-qwen',
     messages,
     temperature: opts.temperature != null ? opts.temperature : 0.7,
     top_p: 0.95,

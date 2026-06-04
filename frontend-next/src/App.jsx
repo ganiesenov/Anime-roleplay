@@ -3,6 +3,8 @@ import { getAllCharacters, characterStats } from './lib/db.js';
 import CharacterCard from './components/CharacterCard.jsx';
 import ChatView from './components/ChatView.jsx';
 import CharacterEditor from './components/CharacterEditor.jsx';
+import SettingsModal from './components/SettingsModal.jsx';
+import { loadSettings, saveSettings } from './lib/settings.js';
 
 const CATEGORIES = [
   { key: null, label: 'All', keywords: [] },
@@ -35,6 +37,10 @@ export default function App() {
   const [sort, setSort] = useState('recent');
   const [activeChar, setActiveChar] = useState(null);
   const [editing, setEditing] = useState(null); // null=closed, {} or char=open
+  const [settings, setSettings] = useState(loadSettings);
+  const [showSettings, setShowSettings] = useState(false);
+
+  function onSaveSettings(next) { setSettings(next); saveSettings(next); setShowSettings(false); }
 
   function refresh() {
     return getAllCharacters().then((list) => {
@@ -68,22 +74,25 @@ export default function App() {
     setActiveChar(char);
   }
 
-  const editorEl = editing !== null
-    ? <CharacterEditor char={editing} onClose={() => setEditing(null)} onSaved={onEditorSaved} />
-    : null;
+  const overlays = (
+    <>
+      {editing !== null && <CharacterEditor char={editing} onClose={() => setEditing(null)} onSaved={onEditorSaved} />}
+      {showSettings && <SettingsModal settings={settings} onSave={onSaveSettings} onClose={() => setShowSettings(false)} />}
+    </>
+  );
 
   if (activeChar) {
     return (
       <>
-        {editorEl}
-        <ChatView character={activeChar} onBack={() => setActiveChar(null)} onEdit={(c) => setEditing(c)} />
+        {overlays}
+        <ChatView character={activeChar} settings={settings} onBack={() => setActiveChar(null)} onEdit={(c) => setEditing(c)} />
       </>
     );
   }
 
   return (
     <div className="min-h-full">
-      {editorEl}
+      {overlays}
       {/* Navbar */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-em-bg/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
@@ -95,6 +104,9 @@ export default function App() {
             <a href="/" className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
               ← Classic UI
             </a>
+            <button onClick={() => setShowSettings(true)} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Settings">
+              ⚙
+            </button>
             <button onClick={() => setEditing({})} className="rounded-lg bg-em-accent px-3 py-1.5 font-semibold text-em-bg transition hover:bg-emerald-300">
               + Create
             </button>

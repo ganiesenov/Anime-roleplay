@@ -3,8 +3,9 @@ import { saveCharacter, getAllPersonas, savePersona } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
-  buildMessagesArray, streamCompletion, splitThink,
+  buildMessagesArray, streamCompletion, splitThink, summarizeChat,
 } from '../lib/chat.js';
+import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 
 function avatarUrl(url) {
@@ -25,7 +26,7 @@ function newChat(char) {
   return { id: 'chat-' + Date.now(), name: 'Chat ' + new Date().toLocaleString(), history, memories: '', participants: [char.id], activePersonaId: null, mood: null };
 }
 
-export default function ChatView({ character, onBack, onEdit }) {
+export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS }) {
   const [char, setChar] = useState(character);
   const [personas, setPersonas] = useState({});
   const [chatId, setChatId] = useState(null);
@@ -37,6 +38,7 @@ export default function ChatView({ character, onBack, onEdit }) {
   const controllerRef = useRef(null);
   const scrollRef = useRef(null);
   const autoScroll = useRef(true);
+  const autoSumRef = useRef(false);
 
   const chats = char.chats || (char.chats = {});
 
@@ -105,10 +107,12 @@ export default function ChatView({ character, onBack, onEdit }) {
     };
 
     try {
-      await streamCompletion(buildMessagesArray(char, chat, personas, lastUserText), {
+      await streamCompletion(buildMessagesArray(char, chat, personas, lastUserText, { replyLength: settings.replyLength }), {
         signal: controller.signal,
         characterId: char.id,
         chatId: chat.id,
+        model: settings.model,
+        temperature: settings.temperature,
         onContent: (c) => { mainAcc += c; schedule(); },
         onReasoning: (r) => { reasonAcc += r; schedule(); },
       });
@@ -129,6 +133,35 @@ export default function ChatView({ character, onBack, onEdit }) {
       setStreaming(false);
       await saveCharacter(char);
       rerender();
+      if (mainAcc) maybeAutoSummarize();
+    }
+  }
+
+  // Opt-in: distill old turns into chat.memories once the chat grows by N msgs.
+  // Fire-and-forget; one at a time; preempted by nothing (runs after a reply).
+  async function maybeAutoSummarize() {
+    if (!settings.autoSummarize || !chat || autoSumRef.current) return;
+    const every = Math.max(10, parseInt(settings.autoSummarizeEvery, 10) || 30);
+    const len = chat.history.length;
+    const prev = chat._lastAutoSummaryLen || 0;
+    if (len - prev < every) return;
+    autoSumRef.current = true;
+    chat._lastAutoSummaryLen = len;
+    try {
+      const bullets = await summarizeChat(char, chat, personas);
+      if (bullets && bullets.trim()) {
+        const header = '--- Auto-summary (' + new Date().toLocaleDateString() + ') ---\n';
+        chat.memories = (chat.memories || '').trim();
+        chat.memories = (chat.memories ? chat.memories + '\n\n' : '') + header + bullets.trim();
+        await saveCharacter(char);
+        rerender();
+      } else {
+        chat._lastAutoSummaryLen = prev;
+      }
+    } catch (e) {
+      chat._lastAutoSummaryLen = prev;
+    } finally {
+      autoSumRef.current = false;
     }
   }
 
@@ -255,6 +288,7 @@ export default function ChatView({ character, onBack, onEdit }) {
             msg={m}
             char={char}
             streaming={streaming}
+            showThink={settings.showThink}
             onRegenerate={() => regenerate(m)}
             onSwipe={(d) => swipe(m, d)}
           />
@@ -288,11 +322,11 @@ export default function ChatView({ character, onBack, onEdit }) {
   );
 }
 
-function MessageBubble({ msg, char, streaming, onRegenerate, onSwipe }) {
+function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onSwipe }) {
   const [showThink, setShowThink] = useState(false);
   const isUser = msg.sender === 'user';
   const text = getMessageText(msg);
-  const think = getMessageThink(msg);
+  const think = showThinkSetting ? getMessageThink(msg) : '';
   const nVariants = isUser ? 1 : (msg.variations ? msg.variations.length : 1);
   const isStreamingThis = msg.isStreaming;
 
