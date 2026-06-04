@@ -24,7 +24,7 @@ function newChat(char) {
   return { id: 'chat-' + Date.now(), name: 'Chat ' + new Date().toLocaleString(), history, memories: '', participants: [char.id], activePersonaId: null, mood: null };
 }
 
-export default function ChatView({ character, onBack }) {
+export default function ChatView({ character, onBack, onEdit }) {
   const [char, setChar] = useState(character);
   const [personas, setPersonas] = useState({});
   const [chatId, setChatId] = useState(null);
@@ -37,6 +37,9 @@ export default function ChatView({ character, onBack }) {
   const autoScroll = useRef(true);
 
   const chats = char.chats || (char.chats = {});
+
+  // Reflect edits made via the editor (parent passes a refreshed character).
+  useEffect(() => { setChar(character); }, [character]);
 
   // Pick most-recent existing chat, or create one.
   useEffect(() => {
@@ -186,6 +189,7 @@ export default function ChatView({ character, onBack }) {
           <div className="truncate font-semibold">{displayName(char)}</div>
           {chat && chat.memories && <div className="text-[11px] text-em-accent">🧠 memory active</div>}
         </div>
+        {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
         <button onClick={startNewChat} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
       </header>
 

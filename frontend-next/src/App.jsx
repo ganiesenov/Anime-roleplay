@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { getAllCharacters, characterStats } from './lib/db.js';
 import CharacterCard from './components/CharacterCard.jsx';
 import ChatView from './components/ChatView.jsx';
+import CharacterEditor from './components/CharacterEditor.jsx';
 
 const CATEGORIES = [
   { key: null, label: 'All', keywords: [] },
@@ -33,10 +34,23 @@ export default function App() {
   const [favOnly, setFavOnly] = useState(false);
   const [sort, setSort] = useState('recent');
   const [activeChar, setActiveChar] = useState(null);
+  const [editing, setEditing] = useState(null); // null=closed, {} or char=open
 
-  useEffect(() => {
-    getAllCharacters().then((list) => setChars(list.filter((c) => !c.isArchived)));
-  }, []);
+  function refresh() {
+    return getAllCharacters().then((list) => {
+      const filtered = list.filter((c) => !c.isArchived);
+      setChars(filtered);
+      return filtered;
+    });
+  }
+
+  useEffect(() => { refresh(); }, []);
+
+  function onEditorSaved(updated) {
+    setEditing(null);
+    refresh();
+    if (activeChar && activeChar.id === updated.id) setActiveChar(updated);
+  }
 
   const filtered = useMemo(() => {
     if (!chars) return [];
@@ -54,12 +68,22 @@ export default function App() {
     setActiveChar(char);
   }
 
+  const editorEl = editing !== null
+    ? <CharacterEditor char={editing} onClose={() => setEditing(null)} onSaved={onEditorSaved} />
+    : null;
+
   if (activeChar) {
-    return <ChatView character={activeChar} onBack={() => setActiveChar(null)} />;
+    return (
+      <>
+        {editorEl}
+        <ChatView character={activeChar} onBack={() => setActiveChar(null)} onEdit={(c) => setEditing(c)} />
+      </>
+    );
   }
 
   return (
     <div className="min-h-full">
+      {editorEl}
       {/* Navbar */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-em-bg/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
@@ -71,7 +95,7 @@ export default function App() {
             <a href="/" className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
               ← Classic UI
             </a>
-            <button className="rounded-lg bg-em-accent px-3 py-1.5 font-semibold text-em-bg transition hover:bg-emerald-300">
+            <button onClick={() => setEditing({})} className="rounded-lg bg-em-accent px-3 py-1.5 font-semibold text-em-bg transition hover:bg-emerald-300">
               + Create
             </button>
           </nav>
