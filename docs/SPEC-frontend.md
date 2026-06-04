@@ -1,6 +1,6 @@
-# Isekai — Frontend Behavioral Specification (clean-room)
+# Aria — Frontend Behavioral Specification (clean-room)
 
-This document describes the **behavior and external contracts** of the Isekai
+This document describes the **behavior and external contracts** of the Aria
 roleplay-chat web frontend. It is written for an implementer who will build the
 JavaScript layer **from scratch**, having never seen the previous source.
 
@@ -66,10 +66,16 @@ scenarios (`#scenario-*`), memories (`#chat-memories-*`).
   and `X-Title` headers.
 
 ### 2.3 Persistence contract
-- **IndexedDB** database `CasualCharacterChatDB`, version 3, object stores:
+- **IndexedDB** database **`AriaBD`** (exact string), version 3, object stores:
   `characters` (keyPath `id`), `personas` (keyPath `id`), `settings`
-  (keyPath `key`). Keeping this name/schema preserves users' existing data.
-  *(If a rename is desired later, it needs a migration; default = keep.)*
+  (keyPath `key`).
+- **One-time migration on first open.** If a legacy database named
+  `CasualCharacterChatDB` exists, copy all records from its `characters`,
+  `personas`, and `settings` stores into `AriaBD` before the app uses it, but
+  only when `AriaBD` is still empty (do not overwrite newer data on repeat
+  loads). After a successful copy the app runs purely against `AriaBD`; the
+  legacy DB may be left untouched as a safety net. This guarantees existing
+  users keep their characters/chats/settings under the new name.
 - **localStorage** keys: `activeCharacterId`, `activeChatId`,
   `chatScrollPos:<characterId>:<chatId>`, `userMusicUrl:<characterId>`,
   `tutorialCompleted`.
@@ -104,6 +110,18 @@ Settings apply live by setting CSS variables on `:root`:
 opacity), `--message-blur`, `--ai-avatar-size`, `--ai-placeholder-icon-size`,
 plus runtime boolean flags (sound / think / reply-options / TTS). The CSS already
 consumes these variables, so the implementer must write the same variable names.
+
+### 2.7 Branding strings
+The product is named **Aria**. Wherever a human- or service-visible product name
+appears, use `Aria` (never any legacy name):
+- Document/page title and any in-app brand label → `Aria`.
+- First-run tutorial welcome step title → `Welcome to Aria!`.
+- Export filename prefix → `aria_export_<YYYY-MM-DD>.json` (replaces any
+  `casualcharacterchat_export_…` form). The exported JSON object shape is
+  unchanged (`{version, characters, personas, appSettings}`).
+- OpenRouter request headers: `X-Title: Aria` (and a sensible `HTTP-Referer`).
+Any other occurrences of legacy names (e.g. "Casual Character Chat", "Isekai")
+must NOT appear in the rebuilt code.
 
 ---
 
