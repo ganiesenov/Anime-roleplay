@@ -1228,4 +1228,7 @@ a:hover { color: var(--em-accent-2) !important; text-shadow: 0 0 10px var(--em-g
 .provider-title { display: inline-flex; align-items: center; gap: 9px; }
 .provider-title .provider-ic { width: 18px; height: 18px; }
 
+/* ── AI accordion: taller to fit auto-summarize controls (toggle/slider/model) ── */
+#section-ai.open .accordion-content { max-height: 640px !important; }
+
 /* ═══════════════ END OF REDESIGN 2 ═══════════════ */
