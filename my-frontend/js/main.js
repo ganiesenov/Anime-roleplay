@@ -61,8 +61,14 @@
             window.enforceResponsiveSettingLimits();
             window.renderCharacterList();
         } catch (err) {
-            console.error(err);
-            window.showCustomAlert('Could not load database. Please check browser permissions or try clearing site data.');
+            console.error('[init] failed:', err);
+            const why = err && (err.name || err.message)
+                ? ` (${err.name || ''}${err.message ? ': ' + err.message : ''})`
+                : '';
+            window.showCustomAlert(
+                'Could not load database.' + why +
+                '\n\nOpen the console (F12) for details. Your data is NOT deleted — ' +
+                'this is a load error, not data loss.');
             return;
         }
         window.restoreLastSession();
