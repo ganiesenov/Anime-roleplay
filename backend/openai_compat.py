@@ -22,7 +22,7 @@ from fastapi import APIRouter
 from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel
 
-from . import llm, history, rag
+from . import llm, history, rag, summarize
 
 router = APIRouter()
 
@@ -148,6 +148,22 @@ async def inject_rag(messages: list[dict]) -> list[dict]:
     return messages[:idx] + [rag_msg] + messages[idx:]
 
 
+async def inject_summary(messages: list[dict]) -> list[dict]:
+    """Rolling-summary память: сжимает старые ходы диалога в короткий «story so
+    far» и вставляет его system-блоком сразу после стартового якоря. Аддитивно
+    (ничего не удаляет); system-блок переживает обрезку контекста Ollama, поэтому
+    суть длинного чата сохраняется, даже когда сырые старые ходы выпадают. Если
+    выключено / чат короткий / суммаризация упала — список не меняется (молча
+    отдаёт ""). См. backend/summarize.py."""
+    summary = await summarize.rolling_summary(messages)
+    block = summarize.render(summary)
+    if not block:
+        return messages
+    summ_msg = {"role": "system", "content": block}
+    idx = 1 if (messages and messages[0].get("role") == "system") else 0
+    return messages[:idx] + [summ_msg] + messages[idx:]
+
+
 def _extract_options(req: OpenAIRequest) -> dict:
     """Переносит параметры из запроса фронта в опции Ollama."""
     opts = {}
@@ -165,7 +181,8 @@ def _extract_options(req: OpenAIRequest) -> dict:
 async def chat_completions(req: OpenAIRequest):
     messages = [m.model_dump() for m in req.messages]
     messages = process_messages(messages)  # ← твоя логика тут
-    messages = await inject_rag(messages)  # ← RAG-память (релевантные старые сообщения)
+    messages = await inject_rag(messages)      # ← RAG: конкретные релевантные старые сообщения
+    messages = await inject_summary(messages)  # ← rolling summary: «story so far» (встаёт над RAG)
     options = _extract_options(req)
 
     model_name = req.model or "local"
