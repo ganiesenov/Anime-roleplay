@@ -48,6 +48,21 @@ export async function getAllPersonas() {
   }
 }
 
+export async function savePersona(persona) {
+  if (!persona || !persona.id) return;
+  try {
+    const db = await openAriaDB();
+    if (!db.objectStoreNames.contains('personas')) { db.close(); return; }
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction('personas', 'readwrite');
+      tx.objectStore('personas').put(persona);
+      tx.oncomplete = () => resolve();
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch (e) { /* best effort */ }
+}
+
 // Persist a full character record (same store the legacy app writes, so chat
 // edits stay in sync across both UIs).
 export async function saveCharacter(char) {

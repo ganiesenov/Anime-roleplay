@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { saveCharacter, getAllPersonas } from '../lib/db.js';
+import { saveCharacter, getAllPersonas, savePersona } from '../lib/db.js';
+import MemoriesModal from './MemoriesModal.jsx';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
   buildMessagesArray, streamCompletion, splitThink,
@@ -30,6 +31,7 @@ export default function ChatView({ character, onBack, onEdit }) {
   const [chatId, setChatId] = useState(null);
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState('');
+  const [showMemories, setShowMemories] = useState(false);
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -175,6 +177,21 @@ export default function ChatView({ character, onBack, onEdit }) {
     if (controllerRef.current) { try { controllerRef.current.abort(); } catch (e) { /* ignore */ } }
   }
 
+  function setMood(v) { chat.mood = v || null; saveCharacter(char); rerender(); }
+  function setPersona(id) { chat.activePersonaId = id || null; saveCharacter(char); rerender(); }
+  function saveMemories(text) { chat.memories = text; setShowMemories(false); saveCharacter(char); rerender(); }
+
+  async function createPersona() {
+    const name = window.prompt('New persona name (this is who YOU are in the chat):');
+    if (!name || !name.trim()) return;
+    const p = { id: 'persona-' + Date.now(), name: name.trim(), description: '' };
+    await savePersona(p);
+    setPersonas((prev) => ({ ...prev, [p.id]: p }));
+    setPersona(p.id);
+  }
+
+  const MOODS = ['happy', 'sad', 'angry', 'flirty', 'scared', 'calm', 'excited', 'nervous'];
+
   const history = chat ? chat.history : [];
 
   return (
@@ -192,6 +209,43 @@ export default function ChatView({ character, onBack, onEdit }) {
         {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
         <button onClick={startNewChat} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
       </header>
+
+      {/* Tools: persona · mood · memories */}
+      {chat && (
+        <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
+          <label className="flex items-center gap-1.5 text-em-text-dim">
+            <span>👤 You as</span>
+            <select
+              value={chat.activePersonaId || ''}
+              onChange={(e) => { if (e.target.value === '__new') createPersona(); else setPersona(e.target.value); }}
+              className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
+            >
+              <option value="">User</option>
+              {Object.values(personas).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+              <option value="__new">＋ New persona…</option>
+            </select>
+          </label>
+
+          <label className="flex items-center gap-1.5 text-em-text-dim">
+            <span>🎭 Mood</span>
+            <select
+              value={chat.mood || ''}
+              onChange={(e) => setMood(e.target.value)}
+              className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
+            >
+              <option value="">none</option>
+              {MOODS.map((m) => <option key={m} value={m}>{m}</option>)}
+            </select>
+          </label>
+
+          <button
+            onClick={() => setShowMemories(true)}
+            className={'rounded-lg border px-2.5 py-1 transition ' + (chat.memories && chat.memories.trim() ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
+          >
+            🧠 Memories
+          </button>
+        </div>
+      )}
 
       {/* Messages */}
       <div ref={scrollRef} onScroll={onScroll} className="mx-auto w-full max-w-3xl flex-1 space-y-5 overflow-y-auto px-4 py-6">
@@ -226,6 +280,10 @@ export default function ChatView({ character, onBack, onEdit }) {
           )}
         </div>
       </div>
+
+      {showMemories && chat && (
+        <MemoriesModal char={char} chat={chat} personas={personas} onSave={saveMemories} onClose={() => setShowMemories(false)} />
+      )}
     </div>
   );
 }

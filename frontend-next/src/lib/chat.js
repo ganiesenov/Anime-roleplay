@@ -132,4 +132,25 @@ export async function streamCompletion(messages, opts) {
   }
 }
 
+// Collect a full (non-streamed) completion into a string. Used for summaries.
+export async function collectCompletion(messages, opts) {
+  let out = '';
+  await streamCompletion(messages, { ...(opts || {}), onContent: (c) => { out += c; } });
+  return out.trim();
+}
+
+// Summarize the recent transcript into memory bullets (manual "summarize now").
+export async function summarizeChat(char, chat, personas, signal) {
+  const uName = personaName(chat, personas);
+  const transcript = (chat.history || [])
+    .filter((m) => !m.isStreaming)
+    .slice(-40)
+    .map((m) => (m.sender === 'user' ? uName : displayName(char)) + ': ' + getMessageText(m))
+    .join('\n');
+  if (!transcript.trim()) return '';
+  const sys = 'Summarize the conversation into 5-10 concise bullet points capturing key events, '
+    + 'facts, relationships and unresolved threads. No markdown headers, no intro/outro — bullets only.';
+  return collectCompletion([{ role: 'system', content: sys }, { role: 'user', content: transcript }], { signal });
+}
+
 export { splitThink };
