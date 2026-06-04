@@ -1,153 +1,240 @@
-// =============================================================
-// storage.js — IndexedDB persistence layer.
-// Depends only on shared state (db, characters, personas) from state.js.
-// Loaded after state.js / utils.js, before script.js.
-// =============================================================
+/* storage.js — IndexedDB (AriaBD v3) + legacy migration + load/save helpers. */
+(function () {
+    'use strict';
 
-function openDB() {
-    return new Promise((resolve, reject) => {
-        const request = indexedDB.open('CasualCharacterChatDB', 3);
-
-        request.onupgradeneeded = (event) => {
-            const dbInstance = event.target.result;
-            if (!dbInstance.objectStoreNames.contains('characters')) {
-                dbInstance.createObjectStore('characters', { keyPath: 'id' });
-            }
-            if (!dbInstance.objectStoreNames.contains('personas')) {
-                dbInstance.createObjectStore('personas', { keyPath: 'id' });
-            }
-            if (!dbInstance.objectStoreNames.contains('settings')) {
-                dbInstance.createObjectStore('settings', { keyPath: 'key' });
-            }
-        };
-
-        request.onsuccess = (event) => {
-            db = event.target.result;
-            resolve(db);
-        };
-
-        request.onerror = (event) => {
-            console.error("IndexedDB error:", event.target.errorCode);
-            reject(event.target.errorCode);
-        };
-    });
-}
-
-async function saveCharactersToDB() {
-    if (!db) return;
-    const transaction = db.transaction(['characters'], 'readwrite');
-    const store = transaction.objectStore('characters');
-
-    store.clear();
-
-    for (const character of Object.values(characters)) {
-        store.put(character);
-    }
-
-    return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (event) => reject(event.target.error);
-    });
-}
-
-async function saveSingleCharacterToDB(character) {
-    if (!db) return;
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['characters'], 'readwrite');
-        const store = transaction.objectStore('characters');
-        const request = store.put(character);
-
-        transaction.oncomplete = () => {
-            resolve();
-        };
-        transaction.onerror = (event) => {
-            console.error("Error saving single character:", event.target.error);
-            reject(event.target.error);
-        };
-    });
-}
-
-async function deleteSingleCharacterFromDB(charId) {
-    if (!db) return;
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['characters'], 'readwrite');
-        const store = transaction.objectStore('characters');
-        store.delete(charId);
-
-        transaction.oncomplete = () => {
-            resolve();
-        };
-        transaction.onerror = (event) => {
-            console.error("Error deleting single character:", event.target.error);
-            reject(event.target.error);
-        };
-    });
-}
-
-async function deleteMultipleCharactersFromDB(arrayOfIds) {
-    if (!db || !arrayOfIds || arrayOfIds.length === 0) return;
-    return new Promise((resolve, reject) => {
-        const transaction = db.transaction(['characters'], 'readwrite');
-        const store = transaction.objectStore('characters');
-        arrayOfIds.forEach(id => {
-            store.delete(id);
+    function openRawDB(name, version, upgrade) {
+        return new Promise((resolve, reject) => {
+            const req = version ? indexedDB.open(name, version) : indexedDB.open(name);
+            if (upgrade) req.onupgradeneeded = (e) => upgrade(req.result, e);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+            req.onblocked = () => { /* wait */ };
         });
-
-        transaction.oncomplete = () => {
-            resolve();
-        };
-        transaction.onerror = (event) => {
-            console.error("Error deleting multiple characters:", event.target.error);
-            reject(event.target.error);
-        };
-    });
-}
-
-async function loadCharactersFromDB() {
-    if (!db) return;
-    const transaction = db.transaction(['characters'], 'readonly');
-    const store = transaction.objectStore('characters');
-    const allCharactersArray = await new Promise((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = (event) => reject(event.target.error);
-    });
-
-    characters = allCharactersArray.reduce((obj, char) => {
-        obj[char.id] = char;
-        return obj;
-    }, {});
-}
-
-async function savePersonasToDB() {
-    if (!db) return;
-    const transaction = db.transaction(['personas'], 'readwrite');
-    const store = transaction.objectStore('personas');
-
-    store.clear();
-
-    for (const persona of Object.values(personas)) {
-        store.put(persona);
     }
 
-    return new Promise((resolve, reject) => {
-        transaction.oncomplete = () => resolve();
-        transaction.onerror = (event) => reject(event.target.error);
-    });
-}
+    function ensureStores(database) {
+        if (!database.objectStoreNames.contains('characters'))
+            database.createObjectStore('characters', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('personas'))
+            database.createObjectStore('personas', { keyPath: 'id' });
+        if (!database.objectStoreNames.contains('settings'))
+            database.createObjectStore('settings', { keyPath: 'key' });
+    }
 
-async function loadPersonasFromDB() {
-    if (!db) return;
-    const transaction = db.transaction(['personas'], 'readonly');
-    const store = transaction.objectStore('personas');
-    const allPersonasArray = await new Promise((resolve, reject) => {
-        const request = store.getAll();
-        request.onsuccess = () => resolve(request.result);
-        request.onerror = (event) => reject(event.target.error);
-    });
+    function getAll(database, store) {
+        return new Promise((resolve, reject) => {
+            if (!database.objectStoreNames.contains(store)) { resolve([]); return; }
+            const tx = database.transaction(store, 'readonly');
+            const req = tx.objectStore(store).getAll();
+            req.onsuccess = () => resolve(req.result || []);
+            req.onerror = () => reject(req.error);
+        });
+    }
 
-    personas = allPersonasArray.reduce((obj, persona) => {
-        obj[persona.id] = persona;
-        return obj;
-    }, {});
-}
+    function putAll(database, store, records) {
+        return new Promise((resolve, reject) => {
+            if (!records || !records.length) { resolve(); return; }
+            const tx = database.transaction(store, 'readwrite');
+            const os = tx.objectStore(store);
+            records.forEach((r) => { try { os.put(r); } catch (e) { /* skip */ } });
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    // Does a database currently exist? (best-effort across browsers)
+    function dbExists(name) {
+        return new Promise((resolve) => {
+            if (indexedDB.databases) {
+                indexedDB.databases().then((list) => {
+                    resolve(!!(list || []).find((d) => d.name === name));
+                }).catch(() => resolve(true)); // assume yes; openRawDB will no-op if empty
+                return;
+            }
+            resolve(true);
+        });
+    }
+
+    async function migrateFromLegacy(database) {
+        // Only migrate when AriaBD is still empty.
+        const existing = await getAll(database, 'characters');
+        if (existing && existing.length) return false;
+        const existingPersonas = await getAll(database, 'personas');
+        const existingSettings = await getAll(database, 'settings');
+        if (existing.length || existingPersonas.length || existingSettings.length) return false;
+
+        const has = await dbExists(window.LEGACY_DB_NAME);
+        if (!has) return false;
+
+        let legacy;
+        try {
+            legacy = await openRawDB(window.LEGACY_DB_NAME);
+        } catch (e) { return false; }
+
+        try {
+            const chars = await getAll(legacy, 'characters');
+            const pers = await getAll(legacy, 'personas');
+            const sets = await getAll(legacy, 'settings');
+            if (!chars.length && !pers.length && !sets.length) { legacy.close(); return false; }
+            await putAll(database, 'characters', chars);
+            await putAll(database, 'personas', pers);
+            await putAll(database, 'settings', sets);
+            legacy.close();
+            return true;
+        } catch (e) {
+            try { legacy.close(); } catch (_) { /* ignore */ }
+            return false;
+        }
+    }
+
+    async function openDB() {
+        const database = await openRawDB(window.DB_NAME, window.DB_VERSION, (d) => ensureStores(d));
+        window.db = database;
+        try { await migrateFromLegacy(database); } catch (e) { console.warn('Legacy migration skipped:', e); }
+        return database;
+    }
+
+    async function loadCharactersFromDB() {
+        const rows = await getAll(window.db, 'characters');
+        window.characters = {};
+        rows.forEach((c) => { if (c && c.id) window.characters[c.id] = normalizeCharacter(c); });
+        return window.characters;
+    }
+
+    function normalizeCharacter(c) {
+        c.tags = typeof c.tags === 'string' ? c.tags : (Array.isArray(c.tags) ? c.tags.join(', ') : '');
+        c.type = c.type || 'character';
+        c.scenarios = Array.isArray(c.scenarios) ? c.scenarios : [];
+        c.characterIds = Array.isArray(c.characterIds) ? c.characterIds : [];
+        c.chats = c.chats && typeof c.chats === 'object' ? c.chats : {};
+        c.isFavorite = !!c.isFavorite;
+        c.isArchived = !!c.isArchived;
+        ['name', 'chatName', 'avatar', 'background', 'description', 'lore', 'instructions',
+            'reminder', 'narratorReminder', 'musicUrl'].forEach((k) => {
+                if (c[k] == null) c[k] = '';
+            });
+        return c;
+    }
+
+    async function loadPersonasFromDB() {
+        const rows = await getAll(window.db, 'personas');
+        window.personas = {};
+        rows.forEach((p) => { if (p && p.id) window.personas[p.id] = p; });
+        return window.personas;
+    }
+
+    function getSettingRow(key) {
+        return new Promise((resolve) => {
+            const tx = window.db.transaction('settings', 'readonly');
+            const req = tx.objectStore('settings').get(key);
+            req.onsuccess = () => resolve(req.result || null);
+            req.onerror = () => resolve(null);
+        });
+    }
+
+    async function loadAllSettingsRows() {
+        const rows = await getAll(window.db, 'settings');
+        const map = {};
+        rows.forEach((r) => { if (r && r.key != null) map[r.key] = r.value; });
+        return map;
+    }
+
+    async function loadAppSettingsFromDB() {
+        const row = await getSettingRow('appSettings');
+        if (row && row.value) {
+            window.appSettings = row.value;
+        }
+        if (!window.appSettings) window.appSettings = {};
+        if (!Array.isArray(window.appSettings.availableModels)) window.appSettings.availableModels = [];
+        if (window.appSettings.apiKey == null) window.appSettings.apiKey = '';
+        ensureLocalBackendModel();
+        return window.appSettings;
+    }
+
+    function ensureLocalBackendModel() {
+        const models = window.appSettings.availableModels;
+        const hasLocal = models.some((m) =>
+            m && (m.id === 'local-qwen' || (m.targetApiUrl && m.targetApiUrl.indexOf('127.0.0.1:8000') !== -1)));
+        if (!models.length) {
+            window.appSettings.availableModels = window.DEFAULT_AVAILABLE_MODELS.map((m) => Object.assign({}, m));
+        } else if (!hasLocal) {
+            models.unshift(Object.assign({}, window.DEFAULT_AVAILABLE_MODELS[0]));
+        }
+    }
+
+    function saveSingleCharacterToDB(char) {
+        return new Promise((resolve, reject) => {
+            if (!char || !char.id) { resolve(); return; }
+            const tx = window.db.transaction('characters', 'readwrite');
+            tx.objectStore('characters').put(char);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    function saveCharactersToDB() {
+        const all = Object.values(window.characters);
+        return putAll(window.db, 'characters', all);
+    }
+
+    function deleteSingleCharacterFromDB(id) {
+        return new Promise((resolve, reject) => {
+            const tx = window.db.transaction('characters', 'readwrite');
+            tx.objectStore('characters').delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    function deleteManyCharactersFromDB(ids) {
+        return new Promise((resolve, reject) => {
+            const tx = window.db.transaction('characters', 'readwrite');
+            const os = tx.objectStore('characters');
+            ids.forEach((id) => os.delete(id));
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    function savePersonasToDB() {
+        const all = Object.values(window.personas);
+        return new Promise((resolve, reject) => {
+            const tx = window.db.transaction('personas', 'readwrite');
+            const os = tx.objectStore('personas');
+            // Clear & rewrite to handle deletions.
+            const clearReq = os.clear();
+            clearReq.onsuccess = () => { all.forEach((p) => os.put(p)); };
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    function saveSettingToDB(key, value) {
+        return new Promise((resolve, reject) => {
+            const tx = window.db.transaction('settings', 'readwrite');
+            tx.objectStore('settings').put({ key: key, value: value });
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    }
+
+    function saveAppSettingsToDB() {
+        return saveSettingToDB('appSettings', window.appSettings);
+    }
+
+    window.openDB = openDB;
+    window.loadCharactersFromDB = loadCharactersFromDB;
+    window.loadPersonasFromDB = loadPersonasFromDB;
+    window.loadAppSettingsFromDB = loadAppSettingsFromDB;
+    window.loadAllSettingsRows = loadAllSettingsRows;
+    window.getSettingRow = getSettingRow;
+    window.saveSingleCharacterToDB = saveSingleCharacterToDB;
+    window.saveCharactersToDB = saveCharactersToDB;
+    window.deleteSingleCharacterFromDB = deleteSingleCharacterFromDB;
+    window.deleteManyCharactersFromDB = deleteManyCharactersFromDB;
+    window.savePersonasToDB = savePersonasToDB;
+    window.saveSettingToDB = saveSettingToDB;
+    window.saveAppSettingsToDB = saveAppSettingsToDB;
+    window.normalizeCharacter = normalizeCharacter;
+    window.ensureLocalBackendModel = ensureLocalBackendModel;
+})();

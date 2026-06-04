@@ -1,78 +1,117 @@
-// =============================================================
-// state.js — shared global app state & constants.
-// Loaded FIRST (before all other scripts). Pure data, no DOM access.
-// All names are top-level globals, shared across <script> tags (variant A).
-// window.App is the namespace facade; the bare names below ARE the
-// canonical state and are referenced directly throughout the app.
-// =============================================================
+/* state.js — shared mutable state & constants for Aria.
+ * All globals declared on window so the plain <script> modules can share them.
+ */
+(function () {
+    'use strict';
 
-window.App = window.App || {};
+    window.App = window.App || {};
 
-// --- IndexedDB handle (assigned in openDB(), storage layer) ---
-let db;
+    // ── Core data maps ──────────────────────────────────────────────────────
+    window.characters = window.characters || {};   // id -> character
+    window.personas = window.personas || {};        // id -> persona
+    window.appSettings = window.appSettings || { apiKey: '', availableModels: [] };
 
-// --- constants ---
-// Default model points at the local FastAPI backend. The backend itself
-// picks the actual Ollama model via its OLLAMA_MODEL env var, so the id/name
-// here is just a label; only targetApiUrl needs to be the local endpoint.
-const availableModels = [
-  { id: "local-qwen", name: "Qwen (local backend)", targetApiUrl: "http://127.0.0.1:8000/v1/chat/completions" },
-  { id: "z-ai/glm-4.5-air:free", name: "Z.AI: GLM 4.5 Air (free)" }
-];
+    // ── Active session ──────────────────────────────────────────────────────
+    window.currentCharacterId = null;
+    window.currentChatId = null;
+    window.activeGroupParticipantId = null;
 
-const APP_VERSION = 1.0;
+    // ── Reply suggestions ───────────────────────────────────────────────────
+    window.pendingReplyOptions = null;
+    window.replyOptionsLoading = false;
+    window.replyOptionsEnabled = true;
+    window.replyOptionsReqId = 0;
 
-// Default endpoint = local FastAPI backend (this fork runs against a local
-// server). Models with an empty "Other provider URL" fall back to this, so
-// chat works out of the box without per-model configuration.
-const DEFAULT_API_URL = "http://127.0.0.1:8000/v1/chat/completions";
+    // ── Streaming ───────────────────────────────────────────────────────────
+    window.currentStreamController = null;
 
-const defaultSettings = {
-    fontSize: '18',
-    temperature: '0.70',
-    model: availableModels[0].id,
-    mainTextColor: '#FFFFFF',
-    dialogueColor: '#ffd952',
-    userBubbleColor: '#141414',
-    userBubbleOpacity: '0.7',
-    aiBubbleColor: '#141414',
-    aiBubbleOpacity: '0.7',
-    messageSpacing: '50',
-    soundEnabled: 'true',
-    thinkEnabled: 'true',
-    replyOptionsEnabled: 'true',
-    blur: '5',
-    avatarSize: '200',
-    ttsEnabled: 'false',
-    ttsVoiceURI: '',
-    replyLength: 'default',
-};
+    // ── Editor staging ──────────────────────────────────────────────────────
+    window.tempUploadedImages = {};
+    window.worldCharSelectedIds = new Set();
 
-// --- mutable runtime state ---
-let audioCtx;
-let soundEnabled = true;
-let thinkEnabled = true;
-let replyOptionsEnabled = true;
-let ttsEnabled = false;
-let ttsCurrentVoiceURI = '';
-let replyLength = 'default';
-let replyOptionsLoading = false;
-let pendingReplyOptions = null;
-let replyOptionsReqId = 0;
-let suggestionModelId = null;
-let characters = {};
-let currentCharacterId = null;
-let tempUploadedImages = {
-  avatar: null,
-  avatarOriginal: null,
-  background: null,
-  backgroundOriginal: null,
-  personaAvatar: null,
-  personaAvatarOriginal: null
-};
-let currentChatId = null;
-let worldCharSelectedIds = new Set();
-let activeGroupParticipantId = null;
-let personas = {};
-let appSettings = {};
-let currentStreamController = null;
+    // ── Audio ───────────────────────────────────────────────────────────────
+    window.audioCtx = null;
+    window._musicFeatureReady = false;
+
+    // ── Home browse state ───────────────────────────────────────────────────
+    window.sortMode = 'recent';
+    window.activeCategory = null;
+    window.activeTag = null;
+    window.browseFilter = 'all';            // 'all' | 'favorites'
+    window.currentPage = 1;
+    window.PAGE_SIZE = 24;
+    window._lastFilterSig = '';
+    window._forceGrid = false;
+
+    // ── Undo for deletes ────────────────────────────────────────────────────
+    window._undoSnapshot = null;
+
+    // ── DB ──────────────────────────────────────────────────────────────────
+    window.db = null;
+
+    // ── Endpoints / constants ───────────────────────────────────────────────
+    window.DEFAULT_API_URL = 'http://127.0.0.1:8000/v1/chat/completions';
+    window.DB_NAME = 'AriaBD';
+    window.DB_VERSION = 3;
+    window.LEGACY_DB_NAME = 'CasualCharacterChatDB';
+    window.MOBILE_BREAKPOINT = 768;
+    window.MOBILE_FONT_MAX = 24;
+    window.MOBILE_AVATAR_MAX = 180;
+
+    // ── Default design settings (JS defaults win over HTML value=) ───────────
+    window.defaultSettings = {
+        avatarSize: '200',
+        fontSize: '18',
+        messageSpacing: '50',
+        mainTextColor: '#FFFFFF',
+        dialogueColor: '#ffd952',
+        userBubbleColor: '#141414',
+        userBubbleOpacity: '0.7',
+        aiBubbleColor: '#141414',
+        aiBubbleOpacity: '0.7',
+        blur: '5',
+        model: 'local-qwen',
+        temperature: '0.70',
+        replyLength: 'default',
+        replyOptionsEnabled: 'true',
+        suggestionModelId: '',
+        thinkEnabled: 'true',
+        ttsVoiceURI: '',
+        ttsEnabled: 'false',
+        soundEnabled: 'true'
+    };
+
+    // Default seed model list.
+    window.DEFAULT_AVAILABLE_MODELS = [
+        { id: 'local-qwen', name: 'Qwen (local backend)', targetApiUrl: 'http://127.0.0.1:8000/v1/chat/completions' },
+        { id: 'z-ai/glm-4.5-air:free', name: 'Z.AI: GLM 4.5 Air (free)' }
+    ];
+
+    // Runtime feature flags (mirrors of settings, read at request time).
+    window.runtimeFlags = {
+        soundEnabled: true,
+        thinkEnabled: true,
+        replyOptionsEnabled: true,
+        ttsEnabled: false,
+        replyLength: 'default',
+        suggestionModelId: '',
+        ttsVoiceURI: ''
+    };
+
+    // Curated categories (key, label, keyword set). 'All' has no key.
+    window.CATEGORIES = [
+        { key: null, label: 'All', keywords: [] },
+        { key: 'anime', label: 'Anime', keywords: ['anime', 'manga', 'waifu', 'isekai', 'shounen', 'shoujo', 'otaku'] },
+        { key: 'hero', label: 'Superheroes', keywords: ['hero', 'marvel', 'dc', 'superhero', 'avenger', 'spider', 'batman', 'super'] },
+        { key: 'kpop', label: 'K-pop', keywords: ['kpop', 'k-pop', 'idol', 'bts', 'blackpink', 'kdrama'] },
+        { key: 'music', label: 'Music', keywords: ['music', 'singer', 'band', 'rock', 'pop', 'rapper', 'musician'] },
+        { key: 'movies', label: 'Movies', keywords: ['movie', 'film', 'cinema', 'hollywood', 'actor', 'actress'] },
+        { key: 'games', label: 'Games', keywords: ['game', 'gaming', 'rpg', 'fps', 'minecraft', 'fortnite', 'gamer'] },
+        { key: 'oc', label: 'OC', keywords: ['oc', 'original', ' original character'] }
+    ];
+
+    window.MOOD_EMOJI = {
+        Happy: '😊', Sad: '😢', Angry: '😠', Excited: '🤩', Nervous: '😰',
+        Flirty: '😏', Tired: '😴', Curious: '🧐', Scared: '😨', Bored: '😑'
+    };
+})();

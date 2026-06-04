@@ -1,164 +1,217 @@
-// =============================================================
-// utils.js — pure helper functions (no app state, no DOM refs)
-// Loaded BEFORE script.js. All names are shared globals (variant A).
-// =============================================================
+/* utils.js — text formatting, sanitization, image conversion, small helpers. */
+(function () {
+    'use strict';
 
-// --- HTML / text ---
-
-// NOTE: previously defined twice in script.js. The second definition
-// (3-char escape, no String() coercion) was the one actually in effect,
-// so it is kept here verbatim to preserve behavior.
-function escapeHtml(s) {
-  return s
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;');
-}
-
-function formatSubString(text) {
-    if (!text) return '';
-
-    const markdownImageRegex = /!\[.*?\]\((https?:\/\/[^\s<>]+\.(?:jpg|jpeg|png|gif|webp|avif)[^\s<>]*)\)/gi;
-    const bareImageUrlRegex = /(https?:\/\/[^\s<>]+\.(?:jpg|jpeg|png|gif|webp|avif)[^\s<>]*)/gi;
-
-    let imagesHtml = '';
-    let processedText = text;
-
-    processedText = processedText.replace(markdownImageRegex, (match, url) => {
-        imagesHtml += `<div class="message-image-container"><img src="${url}" alt="Image from chat" loading="lazy"></div>`;
-        return '';
-    });
-
-    processedText = processedText.replace(bareImageUrlRegex, (url) => {
-        imagesHtml += `<div class="message-image-container"><img src="${url}" alt="Image from chat" loading="lazy"></div>`;
-        return '';
-    });
-
-    const safeRemainingText = escapeHtml(processedText.trim())
-        .replace(/"(.*?)"/g, '<span class="dialogue">"$1"</span>')
-        .replace(/“(.*?)”/g, '<span class="dialogue">“$1”</span>')
-        .replace(/\*(.*?)\*/g, '<em>$1</em>')
-        .replace(/((?:https?:\/\/|www\.)[^\s<>()]+)/gi, (url) => {
-            let href = url;
-            if (href.toLowerCase().startsWith('www.')) {
-                href = 'http://' + href;
-            }
-            return `<a href="${href}" target="_blank" style="text-decoration: underline; color: inherit;">${url}</a>`;
-        });
-
-    return imagesHtml + safeRemainingText;
-}
-
-// --- placeholders ---
-
-function applyCharPlaceholder(s, charName) {
-  return (s || '').replace(/{{\s*char\s*}}/g, charName);
-}
-
-function applyUserPlaceholder(s, persona) {
-    if (persona && persona.name) {
-        return (s || '').replace(/{{\s*user\s*}}/g, persona.name);
+    function escapeHtml(s) {
+        return String(s == null ? '' : s)
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
     }
-    return s || '';
-}
 
-// --- files / images ---
+    // Rich-text formatter: *italics*, "quoted dialogue", line breaks.
+    function formatSubString(text) {
+        if (text == null) return '';
+        let html = escapeHtml(text);
+        // Quoted dialogue -> .dialogue span (handles straight & curly quotes).
+        html = html.replace(/&quot;([^&]*?)&quot;/g, '<span class="dialogue">&quot;$1&quot;</span>');
+        html = html.replace(/[“]([^”]*?)[”]/g, '<span class="dialogue">“$1”</span>');
+        // *italics* and _italics_
+        html = html.replace(/\*([^*\n]+?)\*/g, '<em>$1</em>');
+        html = html.replace(/(^|\s)_([^_\n]+?)_(?=\s|$)/g, '$1<em>$2</em>');
+        // Line breaks
+        html = html.replace(/\r\n|\r|\n/g, '<br>');
+        return html;
+    }
 
-function fileToDataURL(file) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-    });
-}
+    // Strip C0/C1 control chars (keep \t \n \r) and known LLM special tokens.
+    function sanitizeModelText(text) {
+        if (text == null) return '';
+        let s = String(text);
+        s = s.replace(/<\|im_start\|>/g, '')
+            .replace(/<\|im_end\|>/g, '')
+            .replace(/<\|begin_of_text\|>/g, '')
+            .replace(/<\|end_of_text\|>/g, '')
+            .replace(/<\|eot_id\|>/g, '')
+            .replace(/<\|endoftext\|>/g, '')
+            .replace(/<\|start_header_id\|>[\s\S]*?<\|end_header_id\|>/g, '');
+        // Remove C0 (except \t \n \r) and C1 control chars.
+        s = s.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F-\x9F]/g, '');
+        return s;
+    }
 
-async function imageFileToWebp(file, quality = 0.80) {
-  const originalDataURL = await fileToDataURL(file);
+    function stripThinkTags(text) {
+        if (text == null) return '';
+        return String(text).replace(/<\/?think>/gi, '');
+    }
 
-  let source;
-  try {
-    source = await createImageBitmap(file);
-  } catch {
-    source = await new Promise((resolve, reject) => {
-      const url = URL.createObjectURL(file);
-      const img = new Image();
-      img.onload = () => { URL.revokeObjectURL(url); resolve(img); };
-      img.onerror = (e) => { URL.revokeObjectURL(url); reject(e); };
-      img.src = url;
-    });
-  }
+    // Extract <think>...</think> -> { think, main } handling streaming partials.
+    function splitThink(content) {
+        if (content == null) return { think: '', main: '' };
+        let s = String(content);
+        const open = s.indexOf('<think>');
+        const close = s.indexOf('</think>');
+        if (close !== -1 && open === -1) {
+            // Headless reasoning: everything before </think> is think.
+            return { think: s.slice(0, close).trim(), main: s.slice(close + 8) };
+        }
+        if (open !== -1 && close !== -1 && close > open) {
+            const think = s.slice(open + 7, close);
+            const main = (s.slice(0, open) + s.slice(close + 8));
+            return { think: think.trim(), main: main };
+        }
+        if (open !== -1 && close === -1) {
+            // Open but unclosed: keep think out of main.
+            return { think: s.slice(open + 7).trim(), main: s.slice(0, open), open: true };
+        }
+        return { think: '', main: s };
+    }
 
-  const width = source.width || source.naturalWidth;
-  const height = source.height || source.naturalHeight;
+    function estimateTokens(text) {
+        return Math.round((String(text || '').length) / 4);
+    }
 
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(source, 0, 0, width, height);
+    function compactNumber(n) {
+        n = Number(n) || 0;
+        if (n < 1000) return String(n);
+        const k = n / 1000;
+        if (n >= 10000) return Math.round(k) + 'k';
+        return (Math.round(k * 10) / 10) + 'k';
+    }
 
-  let blob = await new Promise((resolve) =>
-    canvas.toBlob(resolve, 'image/webp', quality)
-  );
+    function genMessageId(first) {
+        if (first) return 'msg-' + Date.now();
+        return 'msg-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8);
+    }
 
-  let dataURL;
-  if (blob) {
-    dataURL = await new Promise((resolve) => {
-      const r = new FileReader();
-      r.onload = () => resolve(r.result);
-      r.readAsDataURL(blob);
-    });
-    if (typeof source.close === 'function') source.close();
-    return { blob, dataURL, originalDataURL };
-  }
+    function tsFromId(id, prefix) {
+        if (!id) return 0;
+        const m = String(id).match(new RegExp('^' + prefix + '-(\\d+)'));
+        return m ? parseInt(m[1], 10) : 0;
+    }
 
-  blob = await new Promise((resolve, reject) =>
-    canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('Conversion failed'))), 'image/jpeg', 0.80)
-  );
-  dataURL = canvas.toDataURL('image/jpeg', 0.80);
-  if (typeof source.close === 'function') source.close();
-  return { blob, dataURL, originalDataURL };
-}
+    function getImageUrl(src) {
+        if (!src) return '';
+        return src;
+    }
 
-// --- object-fit helpers ---
+    // Convert a File to a WebP data-url (JPEG fallback). Returns {dataUrl, objectUrl}.
+    function imageFileToWebp(file, quality) {
+        quality = quality == null ? 0.80 : quality;
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => {
+                const img = new Image();
+                img.onload = () => {
+                    try {
+                        const canvas = document.createElement('canvas');
+                        canvas.width = img.naturalWidth || img.width;
+                        canvas.height = img.naturalHeight || img.height;
+                        const ctx = canvas.getContext('2d');
+                        ctx.drawImage(img, 0, 0);
+                        let dataUrl = canvas.toDataURL('image/webp', quality);
+                        if (!dataUrl || dataUrl.indexOf('data:image/webp') !== 0) {
+                            dataUrl = canvas.toDataURL('image/jpeg', quality);
+                        }
+                        canvas.toBlob((blob) => {
+                            const objectUrl = blob ? URL.createObjectURL(blob) : dataUrl;
+                            resolve({ dataUrl: dataUrl, objectUrl: objectUrl, original: reader.result });
+                        }, dataUrl.indexOf('webp') !== -1 ? 'image/webp' : 'image/jpeg', quality);
+                    } catch (e) { reject(e); }
+                };
+                img.onerror = reject;
+                img.src = reader.result;
+            };
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+        });
+    }
 
-function smartObjectFit(img) {
-  if (!img) return;
-  const apply = () => {
-    const w = img.naturalWidth, h = img.naturalHeight;
-    if (!w || !h) return;
-    img.style.objectFit = (w > h) ? 'cover' : 'contain';
-    img.style.objectPosition = 'center';
-  };
-  if (img.complete) apply();
-  else img.addEventListener('load', apply, { once: true });
-}
+    function autoResizeTextarea(elOrEvent) {
+        const el = elOrEvent && elOrEvent.target ? elOrEvent.target : elOrEvent;
+        if (!el || el.tagName !== 'TEXTAREA') return;
+        el.style.height = 'auto';
+        el.style.height = (el.scrollHeight) + 'px';
+    }
 
-function smartObjectFitAll(selector) {
-  document.querySelectorAll(selector).forEach(smartObjectFit);
-}
+    function autoResizeAll(selector, root) {
+        (root || document).querySelectorAll(selector).forEach(autoResizeTextarea);
+    }
 
-// --- layout freeze (modal scroll lock) ---
+    function handleTextareaEnter(e) {
+        if (e.key === 'Enter' && !e.shiftKey) {
+            e.preventDefault();
+            return true;
+        }
+        return false;
+    }
 
-let __freezeScrollY = 0;
+    function smartObjectFit(img) {
+        if (!img) return;
+        try {
+            const w = img.naturalWidth, h = img.naturalHeight;
+            if (!w || !h) return;
+            img.style.objectFit = 'cover';
+        } catch (e) { /* ignore */ }
+    }
 
-function freezeLayout() {
-  const docEl = document.documentElement;
-  const sbw = window.innerWidth - docEl.clientWidth;
-  __freezeScrollY = window.scrollY || docEl.scrollTop || 0;
+    function smartObjectFitAll(selector, root) {
+        (root || document).querySelectorAll(selector).forEach(smartObjectFit);
+    }
 
-  docEl.classList.add('freeze-layout');
-  document.body.classList.add('freeze-body');
+    // Shrink a name's font-size until it fits its container.
+    function adjustFontSizeToFit(el) {
+        if (!el) return;
+        const parent = el.parentElement;
+        if (!parent) return;
+        let size = 18;
+        el.style.fontSize = size + 'px';
+        let guard = 0;
+        while ((el.scrollWidth > parent.clientWidth || el.scrollHeight > parent.clientHeight) && size > 9 && guard < 40) {
+            size -= 1;
+            el.style.fontSize = size + 'px';
+            guard++;
+        }
+    }
 
-  document.body.style.top = `-${__freezeScrollY}px`;
-  if (sbw > 0) document.body.style.paddingRight = sbw + 'px';
-}
+    function freezeLayout() { /* layout-freeze hook (no-op safe stub) */ }
+    function unfreezeLayout() { /* layout-unfreeze hook */ }
 
-function unfreezeLayout() {
-  document.documentElement.classList.remove('freeze-layout');
-  document.body.classList.remove('freeze-body');
-  document.body.style.paddingRight = '';
-  document.body.style.top = '';
-  window.scrollTo(0, __freezeScrollY);
-}
+    function parseHex(hex) {
+        if (!hex) return null;
+        const m = String(hex).trim().match(/^#?([0-9a-fA-F]{6})$/);
+        if (!m) return null;
+        const n = parseInt(m[1], 16);
+        return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 };
+    }
+
+    function decodeHtmlEntities(str) {
+        const ta = document.createElement('textarea');
+        ta.innerHTML = str;
+        return ta.value;
+    }
+
+    window.escapeHtml = escapeHtml;
+    window.formatSubString = formatSubString;
+    window.sanitizeModelText = sanitizeModelText;
+    window.stripThinkTags = stripThinkTags;
+    window.splitThink = splitThink;
+    window.estimateTokens = estimateTokens;
+    window.compactNumber = compactNumber;
+    window.genMessageId = genMessageId;
+    window.tsFromId = tsFromId;
+    window.getImageUrl = getImageUrl;
+    window.imageFileToWebp = imageFileToWebp;
+    window.autoResizeTextarea = autoResizeTextarea;
+    window.autoResizeAll = autoResizeAll;
+    window.handleTextareaEnter = handleTextareaEnter;
+    window.smartObjectFit = smartObjectFit;
+    window.smartObjectFitAll = smartObjectFitAll;
+    window.adjustFontSizeToFit = adjustFontSizeToFit;
+    window.freezeLayout = freezeLayout;
+    window.unfreezeLayout = unfreezeLayout;
+    window.parseHex = parseHex;
+    window.decodeHtmlEntities = decodeHtmlEntities;
+})();
