@@ -67,6 +67,10 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             <input type="checkbox" checked={s.replyOptions} onChange={(e) => set('replyOptions', e.target.checked)} className="h-5 w-5 accent-em-accent" />
           </Row>
 
+          <Row label="Living relationship" hint="Character tracks affection / trust / tension and acts on it over time.">
+            <input type="checkbox" checked={s.relationship} onChange={(e) => set('relationship', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+          </Row>
+
           {ttsSupported() && (
             <Row label="Speak replies (TTS)" hint="Read each AI reply aloud.">
               <input type="checkbox" checked={s.tts} onChange={(e) => set('tts', e.target.checked)} className="h-5 w-5 accent-em-accent" />

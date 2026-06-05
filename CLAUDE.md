@@ -43,6 +43,9 @@ DONE (in `frontend-next/`):
 - Ambient particle effects (`src/lib/particles.js` + `components/ParticleField.jsx`) — per-character full-screen canvas effect (11 options: snow/rain/sparks/fireflies/sakura/fog/steam/aurora/leaves/darkness) with an ✨ Effects picker + intensity slider in the chat tools bar; persists to the character's `particleEffect` / `particleIntensityLevel`.
 - Group / multi-character chat (`buildGroupMessages` in `src/lib/chat.js`) — a 👥 Cast panel adds any library character to the scene; the speaker is either pinned or "Auto (rotate)". The group system prompt lists the whole cast, replies only as the active speaker, and history is speaker-labelled; AI bubbles show the speaker's name/avatar. Participants persist in `chat.participants`, the pinned speaker in `chat.activeSpeakerId`. (No separate "world character" type — any chat can become a group.)
 
+NEW (beyond legacy parity — "make it feel real" mechanics):
+- Living relationship state (`src/lib/relationship.js`, opt-in "Living relationship" setting) — a per-chat `chat.relationship` `{ affection, trust, tension, mood, beats[] }`. Injected as a system-prompt section (single + group) so the character behaves consistently without naming the numbers, and updated after each AI turn via a one-shot LLM call (`buildRelationshipUpdateMessages` / `parseRelationship`, gradual ±10 moves). A 💗 affection indicator shows in the chat header. Persists in AriaBD on the chat record.
+
 NOT YET PORTED (the remaining migration work — port from `my-frontend/js/` to `frontend-next/`):
 - (Feature parity reached.) Final step: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`) once you're happy after testing.
 

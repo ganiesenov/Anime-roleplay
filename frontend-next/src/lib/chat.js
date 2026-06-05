@@ -1,6 +1,7 @@
 // Chat helpers ported/adapted from the legacy js/chat.js so the new chat is
 // prompt- and storage-compatible with the backend and AriaBD.
 import { splitThink } from './format.js';
+import { relationshipSection } from './relationship.js';
 
 export function genId(first) {
   if (first) return 'msg-' + Date.now();
@@ -60,6 +61,9 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   if (chat.mood) sections.push('--- CHARACTER CURRENT MOOD (IMPORTANT) ---\n' + cName + ' is currently feeling ' + chat.mood + '.');
   if (chat.memories && chat.memories.trim()) {
     sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
+  }
+  if (opts.relationship && chat.relationship) {
+    sections.push(relationshipSection(chat.relationship, cName, uName));
   }
   if (REPLY_LEN_MAP[opts.replyLength]) {
     sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');
@@ -240,6 +244,9 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   if (chat.mood) sections.push('--- CURRENT MOOD (IMPORTANT) ---\n' + sName + ' is currently feeling ' + chat.mood + '.');
   if (chat.memories && chat.memories.trim()) {
     sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
+  }
+  if (opts.relationship && chat.relationship) {
+    sections.push(relationshipSection(chat.relationship, sName, uName));
   }
   if (REPLY_LEN_MAP[opts.replyLength]) {
     sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');

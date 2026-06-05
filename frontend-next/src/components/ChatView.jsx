@@ -5,8 +5,9 @@ import ParticleField from './ParticleField.jsx';
 import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
-  buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, suggestReplies,
+  buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, suggestReplies, collectCompletion,
 } from '../lib/chat.js';
+import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
 import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
@@ -202,8 +203,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const tempChat = { ...chat, history: chat.history.slice(0, idx + 1) };
     const instruction = original + '\n[Continue: drive the scene forward, complete any cut-off sentence, do not repeat.]';
     const messages = isGroup()
-      ? buildGroupMessages(speakerOf(msg), activeParticipants(), charsById, tempChat, personas, instruction, { replyLength: settings.replyLength })
-      : buildMessagesArray(char, tempChat, personas, instruction, { replyLength: settings.replyLength });
+      ? buildGroupMessages(speakerOf(msg), activeParticipants(), charsById, tempChat, personas, instruction, { replyLength: settings.replyLength, relationship: settings.relationship })
+      : buildMessagesArray(char, tempChat, personas, instruction, { replyLength: settings.replyLength, relationship: settings.relationship });
     setUndo(null);
     msg.isStreaming = true;
     msg.streamingVariant = msg.activeVariant || 0;
@@ -251,6 +252,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Stop any speech when the view unmounts.
   useEffect(() => () => cancelSpeech(), []);
+
+  // Ensure the chat has a relationship state so the header/prompt have something to show.
+  useEffect(() => {
+    if (chat && !chat.relationship) { chat.relationship = defaultRelationship(); rerender(); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId]);
 
   // ── Background music ──────────────────────────────────────────────────────
   // Load the saved/character music URL and stop any track from a prior character.
@@ -322,7 +329,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     };
 
     try {
-      await streamCompletion(opts.messages || buildMessagesArray(char, chat, personas, lastUserText, { replyLength: settings.replyLength }), {
+      await streamCompletion(opts.messages || buildMessagesArray(char, chat, personas, lastUserText, { replyLength: settings.replyLength, relationship: settings.relationship }), {
         signal: controller.signal,
         characterId: char.id,
         chatId: chat.id,
@@ -355,6 +362,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       rerender();
       if (mainAcc && !errored && !controller.signal.aborted) {
         maybeAutoSummarize();
+        maybeUpdateRelationship();
         generateSuggestions();
         if (settings.tts) {
           const ok = speak(getMessageText(aiMsg), { voiceURI: settings.ttsVoiceURI, onend: () => setSpeakingId(null) });
@@ -390,6 +398,27 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     } finally {
       autoSumRef.current = false;
     }
+  }
+
+  // Update the living relationship state from the latest exchange (fire-and-forget).
+  async function maybeUpdateRelationship() {
+    if (!settings.relationship || !chat) return;
+    const prev = chat.relationship || defaultRelationship();
+    const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'User';
+    const transcript = (chat.history || [])
+      .filter((m) => !m.isStreaming)
+      .slice(-8)
+      .map((m) => (m.sender === 'user' ? uName : displayName(speakerOf(m))) + ': ' + getMessageText(m))
+      .join('\n');
+    if (!transcript.trim()) return;
+    try {
+      const raw = await collectCompletion(
+        buildRelationshipUpdateMessages(displayName(char), uName, prev, transcript),
+        { model: settings.model },
+      );
+      const next = parseRelationship(raw, prev);
+      if (next) { chat.relationship = next; await saveCharacter(char); rerender(); }
+    } catch (e) { /* best effort */ }
   }
 
   async function send() {
@@ -489,7 +518,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   }
 
   function groupMessagesFor(speaker, lastUserText) {
-    return buildGroupMessages(speaker, activeParticipants(), charsById, chat, personas, lastUserText, { replyLength: settings.replyLength });
+    return buildGroupMessages(speaker, activeParticipants(), charsById, chat, personas, lastUserText, { replyLength: settings.replyLength, relationship: settings.relationship });
   }
 
   function addParticipant(id) {
@@ -541,6 +570,14 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           <div className="truncate font-semibold">{displayName(char)}</div>
           {chat && chat.memories && <div className="text-[11px] text-em-accent">🧠 memory active</div>}
         </div>
+        {settings.relationship && chat && chat.relationship && (
+          <div
+            title={`Affection ${chat.relationship.affection} · Trust ${chat.relationship.trust} · Tension ${chat.relationship.tension}${chat.relationship.mood ? ' · ' + chat.relationship.mood : ''}`}
+            className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim sm:flex"
+          >
+            💗 {chat.relationship.affection}
+          </div>
+        )}
         {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
         <button onClick={() => setShowChats((v) => !v)} className={'rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}>💬 Chats ({sessions.length})</button>
         <button onClick={startNewChat} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
