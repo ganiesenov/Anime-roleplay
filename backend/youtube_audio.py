@@ -127,11 +127,19 @@ async def yt_audio(url: str, request: Request):
         _cache.pop(_video_id(url), None)
         raise HTTPException(503, "stream URL expired, retry")
 
-    passthrough = {"Accept-Ranges": "bytes"}
-    for h in ("content-length", "content-range", "content-type"):
+    # NB: itag 18/22 are *progressive* MP4 (they carry a video track too), so the
+    # upstream content-type is `video/mp4`. Passing that through makes browser
+    # "download this video" extensions pop up over the page. We only use the audio
+    # track, so we relabel the response as audio/* and mark it inline — the <audio>
+    # element still decodes it, and video-grabbers no longer treat it as a video.
+    passthrough = {
+        "Accept-Ranges": "bytes",
+        "Content-Type": info["mime"],
+        "Content-Disposition": "inline",
+    }
+    for h in ("content-length", "content-range"):
         if h in upstream.headers:
             passthrough[h] = upstream.headers[h]
-    passthrough.setdefault("content-type", info["mime"])
 
     async def _body():
         try:

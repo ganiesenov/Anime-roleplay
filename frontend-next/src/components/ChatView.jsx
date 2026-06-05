@@ -57,6 +57,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showMusic, setShowMusic] = useState(false);   // background-music panel
   const [musicUrl, setMusicUrl] = useState('');
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [musicVolume, setMusicVolume] = useState(() => {
+    const v = parseFloat(localStorage.getItem('musicVolume'));
+    return Number.isFinite(v) ? v : 0.5;
+  });
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
   const [charsById, setCharsById] = useState({});        // whole library, for group casting
   const [showCast, setShowCast] = useState(false);       // group cast panel
@@ -279,6 +283,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   useEffect(() => () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; } }, []);
 
+  // Apply volume changes live to the playing track and remember the choice.
+  useEffect(() => {
+    if (audioRef.current) audioRef.current.volume = musicVolume;
+    try { localStorage.setItem('musicVolume', String(musicVolume)); } catch (e) { /* ignore */ }
+  }, [musicVolume]);
+
   function playMusic(url) {
     const u = String(url != null ? url : musicUrl).trim();
     if (!u) return;
@@ -290,6 +300,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       a.addEventListener('error', () => setMusicPlaying(false));
       audioRef.current = a;
     }
+    a.volume = musicVolume;
     a.src = audioSrcFor(u);
     a.play().then(() => setMusicPlaying(true)).catch(() => setMusicPlaying(false));
     try { localStorage.setItem(musicKey(char.id), u); } catch (e) { /* ignore */ }
@@ -848,6 +859,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               {musicPlaying ? '⏸ Pause' : '▶ Play'}
             </button>
             <button onClick={stopMusic} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">⏹ Stop</button>
+            <div className="flex items-center gap-2 text-em-text-dim" title="Volume">
+              <span className="text-base">🔉</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                value={musicVolume}
+                onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                className="h-1.5 w-28 cursor-pointer accent-em-accent"
+              />
+            </div>
           </div>
         )}
         </>
