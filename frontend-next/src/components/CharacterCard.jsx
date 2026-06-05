@@ -7,7 +7,7 @@ function proxied(url) {
   return '/api/img?url=' + encodeURIComponent(url);
 }
 
-export default function CharacterCard({ char, onOpen }) {
+export default function CharacterCard({ char, onOpen, onToggleFav }) {
   const [src, setSrc] = useState(char.avatar || '');
   const [stage, setStage] = useState('direct');
   const stats = characterStats(char);
@@ -57,12 +57,24 @@ export default function CharacterCard({ char, onOpen }) {
               💬 {stats.chats}
             </span>
           )}
-          {char.isFavorite && (
-            <span className="rounded-full bg-black/55 px-2 py-0.5 text-[11px] text-amber-300 backdrop-blur">
-              ★
-            </span>
-          )}
         </div>
+
+        {/* favorite toggle (not a <button> — this card itself is a button) */}
+        <span
+          role="button"
+          tabIndex={0}
+          title={char.isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+          onClick={(e) => { e.stopPropagation(); onToggleFav && onToggleFav(char); }}
+          onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); e.stopPropagation(); onToggleFav && onToggleFav(char); } }}
+          className={
+            'absolute right-2 top-2 z-10 grid h-7 w-7 place-items-center rounded-full text-[15px] backdrop-blur transition ' +
+            (char.isFavorite
+              ? 'bg-black/55 text-amber-300 hover:text-amber-200'
+              : 'bg-black/40 text-white/50 opacity-0 hover:text-amber-300 group-hover:opacity-100')
+          }
+        >
+          {char.isFavorite ? '★' : '☆'}
+        </span>
 
         {/* name + tags */}
         <div className="absolute inset-x-0 bottom-0 p-3">
