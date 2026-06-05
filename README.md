@@ -46,6 +46,25 @@ Ollama (localhost:11434)
 
 ## Запуск
 
+**Быстрый старт (одной командой):**
+
+```bash
+./dev.sh            # git pull + сборка frontend-next + запуск сервера
+# подкоманды:
+./dev.sh run        # просто поднять сервер (без pull/сборки)
+./dev.sh restart    # перезапустить сервер на :8000
+./dev.sh build      # только пересобрать frontend-next
+```
+
+После запуска открывай:
+- **http://localhost:8000/next/** — новый фронт (React, актуальный)
+- http://localhost:8000/ — старый фронт (legacy, пока жив до полного паритета)
+
+Логи сервера: `/tmp/aria-server.log`. Бэкенд раздаёт **собранный** `frontend-next/dist`,
+поэтому после правок в `frontend-next/src` нужен `./dev.sh build` (или `npm run build`).
+
+**Ручной запуск (первый раз / детали):**
+
 ```bash
 # 1. зависимости через uv
 cd roleplay-bot
