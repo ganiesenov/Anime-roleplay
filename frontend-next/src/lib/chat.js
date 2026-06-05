@@ -205,3 +205,75 @@ export async function suggestReplies(char, chat, personas, opts) {
 }
 
 export { splitThink };
+
+// ── Group / multi-character ───────────────────────────────────────────────
+// One character ("speaker") replies while aware of every cast member present.
+
+export function buildGroupSystemPrompt(speaker, participants, chat, personas, opts) {
+  opts = opts || {};
+  const uName = personaName(chat, personas);
+  const sName = displayName(speaker);
+  const exp = (t) => expandPlaceholders(t, sName, uName);
+  const names = participants.map((c) => displayName(c)).join(', ');
+  const sections = [];
+
+  sections.push(
+    '--- GROUP SCENE ---\n'
+    + 'This is a group roleplay. Characters present: ' + names + '.\n'
+    + 'The user is ' + uName + '.\n'
+    + 'You are ' + sName + '. Respond ONLY as ' + sName + ' — never write dialogue or '
+    + 'actions for the user or for the other characters.',
+  );
+
+  const cast = participants.map((c) => {
+    const d = (c.description || '').trim();
+    return '• ' + displayName(c) + (d ? ': ' + exp(d).slice(0, 400) : '');
+  }).join('\n');
+  sections.push('--- CAST ---\n' + cast);
+
+  if (chat.activePersonaId && personas[chat.activePersonaId]) {
+    const p = personas[chat.activePersonaId];
+    sections.push('--- EXACT USER PERSONA ---\n' + (p.name || 'User') + (p.description ? '\n' + exp(p.description) : ''));
+  }
+  if (speaker.instructions) sections.push('--- YOUR INSTRUCTIONS (' + sName + ') ---\n' + exp(speaker.instructions));
+  if (speaker.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(speaker.lore));
+  if (chat.mood) sections.push('--- CURRENT MOOD (IMPORTANT) ---\n' + sName + ' is currently feeling ' + chat.mood + '.');
+  if (chat.memories && chat.memories.trim()) {
+    sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
+  }
+  if (REPLY_LEN_MAP[opts.replyLength]) {
+    sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');
+  }
+  return sections.join('\n\n');
+}
+
+export function buildGroupMessages(speaker, participants, charsById, chat, personas, lastUserText, opts) {
+  opts = opts || {};
+  const sName = displayName(speaker);
+  const uName = personaName(chat, personas);
+  const messages = [{ role: 'system', content: buildGroupSystemPrompt(speaker, participants, chat, personas, opts) }];
+
+  let history = (chat.history || []).filter((m) => !m.isStreaming);
+  if (lastUserText != null && history.length && history[history.length - 1].sender === 'user') {
+    history = history.slice(0, -1);
+  }
+  history.forEach((m) => {
+    if (m.sender === 'user') {
+      messages.push({ role: 'user', content: getMessageText(m) });
+    } else {
+      // Label each assistant turn with its speaker so the model can follow who said what.
+      const spk = (charsById && charsById[m.speakerId]) || speaker;
+      messages.push({ role: 'assistant', content: displayName(spk) + ': ' + getMessageText(m) });
+    }
+  });
+
+  if (lastUserText != null) {
+    let content = lastUserText;
+    if (speaker.reminder) content += '\n[' + speaker.reminder + ']';
+    if (chat.mood) content += '[MOOD — TOP PRIORITY: right now ' + sName + ' is feeling ' + chat.mood + '. Make this emotion unmistakable in this reply.]';
+    content = expandPlaceholders(content, sName, uName);
+    content += '\n[Now respond as ' + sName + ' only.]';
+    messages.push({ role: 'user', content });
+  }
+  return messages;
+}

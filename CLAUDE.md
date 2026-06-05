@@ -41,12 +41,12 @@ DONE (in `frontend-next/`):
 - TTS (`src/lib/tts.js`, SpeechSynthesis) — opt-in "Speak replies" setting + voice picker (grouped en/de/ja); per-AI-message 🔊/⏹ toggle and auto-speak after each reply. Think/HTML/markdown stripped before speaking; speech cancelled on chat switch / unmount.
 - Background music (`src/lib/music.js`) — per-character music URL (direct audio or YouTube via the `/api/yt-audio` proxy) with a 🎵 panel in the chat tools bar (play/pause/stop); the URL persists under `userMusicUrl:<characterId>` in localStorage, matching the legacy app.
 - Ambient particle effects (`src/lib/particles.js` + `components/ParticleField.jsx`) — per-character full-screen canvas effect (11 options: snow/rain/sparks/fireflies/sakura/fog/steam/aurora/leaves/darkness) with an ✨ Effects picker + intensity slider in the chat tools bar; persists to the character's `particleEffect` / `particleIntensityLevel`.
+- Group / multi-character chat (`buildGroupMessages` in `src/lib/chat.js`) — a 👥 Cast panel adds any library character to the scene; the speaker is either pinned or "Auto (rotate)". The group system prompt lists the whole cast, replies only as the active speaker, and history is speaker-labelled; AI bubbles show the speaker's name/avatar. Participants persist in `chat.participants`, the pinned speaker in `chat.activeSpeakerId`. (No separate "world character" type — any chat can become a group.)
 
 NOT YET PORTED (the remaining migration work — port from `my-frontend/js/` to `frontend-next/`):
-- World / story / multi-character (group) chat prompt paths (legacy `buildSystemPrompt` has them). This is the last big piece and needs a UX decision on how multi-character chats are presented in the new app.
+- (Feature parity reached.) Final step: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`) once you're happy after testing.
 
 (Note: a structured keyword-scan "lorebook" has no source in the current legacy — lore is a single freeform field, already supported in the editor and prompt — so there is nothing to port there.)
-- Final step once at parity: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`).
 
 When porting a feature, read the legacy implementation in `my-frontend/js/` first to match prompt shape, data model, and AriaBD record structure exactly, so both UIs stay interoperable.
 

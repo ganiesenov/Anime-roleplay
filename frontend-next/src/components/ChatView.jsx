@@ -1,11 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { saveCharacter, getAllPersonas, savePersona } from '../lib/db.js';
+import { saveCharacter, getAllPersonas, savePersona, getAllCharacters } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
 import ParticleField from './ParticleField.jsx';
 import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
-  buildMessagesArray, streamCompletion, splitThink, summarizeChat, suggestReplies,
+  buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, suggestReplies,
 } from '../lib/chat.js';
 import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
@@ -52,6 +52,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [musicUrl, setMusicUrl] = useState('');
   const [musicPlaying, setMusicPlaying] = useState(false);
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
+  const [charsById, setCharsById] = useState({});        // whole library, for group casting
+  const [showCast, setShowCast] = useState(false);       // group cast panel
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -73,6 +75,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       const map = {};
       ps.forEach((p) => { if (p && p.id) map[p.id] = p; });
       setPersonas(map);
+    });
+    getAllCharacters().then((list) => {
+      const map = {};
+      list.forEach((c) => { if (c && c.id) map[c.id] = c; });
+      setCharsById(map);
     });
     const ids = Object.keys(chats);
     if (ids.length) {
@@ -194,7 +201,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     // of the assistant context; the continuation instruction goes as the user turn.
     const tempChat = { ...chat, history: chat.history.slice(0, idx + 1) };
     const instruction = original + '\n[Continue: drive the scene forward, complete any cut-off sentence, do not repeat.]';
-    const messages = buildMessagesArray(char, tempChat, personas, instruction, { replyLength: settings.replyLength });
+    const messages = isGroup()
+      ? buildGroupMessages(speakerOf(msg), activeParticipants(), charsById, tempChat, personas, instruction, { replyLength: settings.replyLength })
+      : buildMessagesArray(char, tempChat, personas, instruction, { replyLength: settings.replyLength });
     setUndo(null);
     msg.isStreaming = true;
     msg.streamingVariant = msg.activeVariant || 0;
@@ -389,14 +398,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setInput('');
     setUndo(null);
     autoScroll.current = true;
+    const speaker = resolveSpeaker();
     chat.history.push({ id: genId(), sender: 'user', main: text });
     const aiMsg = {
-      id: genId(), sender: 'ai', type: 'dialog', speakerId: char.id,
+      id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
       activeVariant: 0, variations: [{ main: '', think: null }], isStreaming: true, streamingVariant: 0,
     };
     chat.history.push(aiMsg);
     rerender();
-    await runStream(aiMsg, text);
+    const opts = isGroup() ? { messages: groupMessagesFor(speaker, text) } : {};
+    await runStream(aiMsg, text, opts);
   }
 
   async function regenerate(msg) {
@@ -413,7 +424,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const saved = chat.history;
     chat.history = prior;
     rerender();
-    await runStream(msg, lastUserText);
+    const opts = isGroup() ? { messages: groupMessagesFor(speakerOf(msg), lastUserText) } : {};
+    await runStream(msg, lastUserText, opts);
     chat.history = saved;
     rerender();
   }
@@ -440,6 +452,63 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   }
   function setEffectIntensity(level) {
     char.particleIntensityLevel = level;
+    saveCharacter(char);
+    rerender();
+  }
+
+  // ── Group / cast ──────────────────────────────────────────────────────────
+  function participantIds() {
+    const ids = Array.isArray(chat && chat.participants) ? chat.participants.slice() : [];
+    if (!ids.includes(char.id)) ids.unshift(char.id);
+    return ids;
+  }
+  function activeParticipants() {
+    return participantIds()
+      .map((id) => charsById[id] || (id === char.id ? char : null))
+      .filter(Boolean);
+  }
+  function isGroup() { return activeParticipants().length > 1; }
+
+  // Whose turn it is: the manually-pinned speaker, else auto-rotate to the next
+  // participant after whoever spoke last.
+  function resolveSpeaker() {
+    const parts = activeParticipants();
+    if (parts.length <= 1) return char;
+    if (chat.activeSpeakerId) {
+      const pinned = parts.find((c) => c.id === chat.activeSpeakerId);
+      if (pinned) return pinned;
+    }
+    const lastAi = [...chat.history].reverse().find((m) => m.sender !== 'user');
+    const idx = parts.findIndex((c) => c.id === (lastAi && lastAi.speakerId));
+    return parts[(idx + 1) % parts.length] || parts[0];
+  }
+
+  function speakerOf(msg) {
+    if (msg && msg.speakerId && charsById[msg.speakerId]) return charsById[msg.speakerId];
+    return char;
+  }
+
+  function groupMessagesFor(speaker, lastUserText) {
+    return buildGroupMessages(speaker, activeParticipants(), charsById, chat, personas, lastUserText, { replyLength: settings.replyLength });
+  }
+
+  function addParticipant(id) {
+    if (!id || !charsById[id]) return;
+    const ids = participantIds();
+    if (ids.includes(id)) return;
+    chat.participants = [...ids, id];
+    saveCharacter(char);
+    rerender();
+  }
+  function removeParticipant(id) {
+    if (id === char.id) return;          // the host always stays
+    chat.participants = participantIds().filter((x) => x !== id);
+    if (chat.activeSpeakerId === id) chat.activeSpeakerId = null;
+    saveCharacter(char);
+    rerender();
+  }
+  function setSpeaker(id) {
+    chat.activeSpeakerId = id || null;   // null = Auto (rotate)
     saveCharacter(char);
     rerender();
   }
@@ -554,7 +623,59 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           >
             ✨ Effects
           </button>
+
+          <button
+            onClick={() => setShowCast((v) => !v)}
+            className={'rounded-lg border px-2.5 py-1 transition ' + (isGroup() ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
+          >
+            👥 Cast{isGroup() ? ' (' + activeParticipants().length + ')' : ''}
+          </button>
         </div>
+
+        {showCast && (
+          <div className="border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
+            <div className="mb-2 flex flex-wrap items-center gap-2">
+              <span className="text-em-text-dim">In scene:</span>
+              {activeParticipants().map((c) => (
+                <span key={c.id} className="flex items-center gap-1 rounded-full border border-white/10 bg-em-panel px-2 py-1">
+                  {c.id === char.id ? '★ ' : ''}{displayName(c)}
+                  {c.id !== char.id && (
+                    <button onClick={() => removeParticipant(c.id)} className="text-em-text-dim transition hover:text-red-400" title="Remove from scene">✕</button>
+                  )}
+                </span>
+              ))}
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <label className="flex items-center gap-1.5 text-em-text-dim">
+                <span>＋ Add</span>
+                <select
+                  value=""
+                  onChange={(e) => { addParticipant(e.target.value); e.target.value = ''; }}
+                  className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
+                >
+                  <option value="">character…</option>
+                  {Object.values(charsById)
+                    .filter((c) => !participantIds().includes(c.id) && !c.isArchived)
+                    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                    .map((c) => <option key={c.id} value={c.id}>{displayName(c)}</option>)}
+                </select>
+              </label>
+              {isGroup() && (
+                <label className="flex items-center gap-1.5 text-em-text-dim">
+                  <span>🎙 Speaker</span>
+                  <select
+                    value={chat.activeSpeakerId || ''}
+                    onChange={(e) => setSpeaker(e.target.value)}
+                    className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
+                  >
+                    <option value="">Auto (rotate)</option>
+                    {activeParticipants().map((c) => <option key={c.id} value={c.id}>{displayName(c)}</option>)}
+                  </select>
+                </label>
+              )}
+            </div>
+          </div>
+        )}
 
         {showEffects && (
           <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
@@ -619,6 +740,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             onDelete={() => deleteMessage(m)}
             onSpeak={() => speakMessage(m)}
             speaking={speakingId === m.id}
+            speaker={speakerOf(m)}
+            group={isGroup()}
           />
         ))}
         {history.length === 0 && <div className="py-20 text-center text-em-text-dim">Say hello to start the scene…</div>}
@@ -678,7 +801,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   );
 }
 
-function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking }) {
+function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, speaker, group }) {
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -696,6 +819,14 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
 
   return (
     <div className={'flex flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
+      {!isUser && group && speaker && (
+        <div className="flex items-center gap-1.5 px-1 text-xs text-em-text-dim">
+          <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-em-panel">
+            {speaker.avatar ? <img src={avatarUrl(speaker.avatar)} alt="" className="h-full w-full object-cover" /> : '👤'}
+          </span>
+          <span className="font-medium text-em-text">{displayName(speaker)}</span>
+        </div>
+      )}
       <div
         className={
           'max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow ' +
