@@ -60,6 +60,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
   const [charsById, setCharsById] = useState({});        // whole library, for group casting
   const [showCast, setShowCast] = useState(false);       // group cast panel
+  const [showInner, setShowInner] = useState(false);     // relationship + diary viewer
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -661,12 +662,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           </span>
         )}
         {settings.relationship && chat && chat.relationship && (
-          <div
-            title={`Affection ${chat.relationship.affection} · Trust ${chat.relationship.trust} · Tension ${chat.relationship.tension}${chat.relationship.mood ? ' · ' + chat.relationship.mood : ''}`}
-            className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim sm:flex"
+          <button
+            onClick={() => setShowInner(true)}
+            title="Inner life — relationship & diary"
+            className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text sm:flex"
           >
             💗 {chat.relationship.affection}
-          </div>
+          </button>
         )}
         {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
         <button onClick={() => setShowChats((v) => !v)} className={'rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}>💬 Chats ({sessions.length})</button>
@@ -924,6 +926,64 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {showMemories && chat && (
         <MemoriesModal char={char} chat={chat} personas={personas} onSave={saveMemories} onClose={() => setShowMemories(false)} />
       )}
+
+      {showInner && chat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowInner(false)}>
+          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-em-panel/95 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">💗 {displayName(char)} — inner life</h2>
+              <button onClick={() => setShowInner(false)} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>
+            </div>
+
+            {chat.relationship ? (
+              <div className="space-y-3">
+                <Meter label="Affection" value={chat.relationship.affection} />
+                <Meter label="Trust" value={chat.relationship.trust} />
+                <Meter label="Tension" value={chat.relationship.tension} />
+                {chat.relationship.mood && (
+                  <div className="text-sm"><span className="text-em-text-dim">Current mood:</span> {chat.relationship.mood}</div>
+                )}
+                {chat.relationship.beats && chat.relationship.beats.length > 0 && (
+                  <div>
+                    <div className="mb-1 text-xs font-semibold uppercase tracking-wide text-em-text-dim">Ongoing between you</div>
+                    <ul className="space-y-1 text-sm">
+                      {chat.relationship.beats.map((b, i) => <li key={i} className="flex gap-2"><span className="text-em-accent">•</span><span>{b}</span></li>)}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <p className="text-sm text-em-text-dim">No relationship state yet — keep chatting.</p>
+            )}
+
+            {chat.diary && chat.diary.length > 0 && (
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-em-text-dim">📔 Diary (off-screen)</div>
+                <ul className="space-y-2 text-sm">
+                  {[...chat.diary].reverse().map((d, i) => (
+                    <li key={i} className="text-em-text-dim">
+                      <span className="text-[11px]">{new Date(d.ts).toLocaleString()}</span>
+                      <div className="text-em-text">{d.text}</div>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Meter({ label, value }) {
+  const v = Math.max(0, Math.min(100, Number(value) || 0));
+  return (
+    <div>
+      <div className="mb-1 flex justify-between text-xs text-em-text-dim"><span>{label}</span><span>{v}</span></div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-white/10">
+        <div className="h-full rounded-full bg-em-accent" style={{ width: v + '%' }} />
+      </div>
     </div>
   );
 }
