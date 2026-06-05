@@ -45,6 +45,7 @@ DONE (in `frontend-next/`):
 
 NEW (beyond legacy parity — "make it feel real" mechanics):
 - Living relationship state (`src/lib/relationship.js`, opt-in "Living relationship" setting) — a per-chat `chat.relationship` `{ affection, trust, tension, mood, beats[] }`. Injected as a system-prompt section (single + group) so the character behaves consistently without naming the numbers, and updated after each AI turn via a one-shot LLM call (`buildRelationshipUpdateMessages` / `parseRelationship`, gradual ±10 moves). A 💗 affection indicator shows in the chat header. Persists in AriaBD on the chat record.
+- Living presence / time (`src/lib/presence.js`, opt-in "Living presence" setting) — each character has a deterministic daily sleep schedule (🟢 online / 🌙 asleep badge in the header). A TIME & PRESENCE prompt section gives the speaker awareness of the real time of day and the gap since the last message (single + group, via `promptOpts`). On reopening a chat after a ~3h idle gap the character **texts first** — a proactive AI turn (`sendProactive`, flagged `proactive` so it never stacks) that reacts to the absence. No native push (web), so it triggers on open.
 
 NOT YET PORTED (the remaining migration work — port from `my-frontend/js/` to `frontend-next/`):
 - (Feature parity reached.) Final step: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`) once you're happy after testing.

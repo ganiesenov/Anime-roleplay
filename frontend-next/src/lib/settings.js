@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   showThink: true,
   replyOptions: true,        // suggest 2 user replies after each AI turn
   relationship: true,        // living relationship state (affection/trust/tension)
+  presence: true,            // living time/presence + proactive "texts first" on return
   tts: false,                // speak AI replies via SpeechSynthesis
   ttsVoiceURI: '',           // chosen voice (empty = browser default)
   autoSummarize: false,

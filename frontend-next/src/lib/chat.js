@@ -65,6 +65,7 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   if (opts.relationship && chat.relationship) {
     sections.push(relationshipSection(chat.relationship, cName, uName));
   }
+  if (opts.presenceText) sections.push(opts.presenceText);
   if (REPLY_LEN_MAP[opts.replyLength]) {
     sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');
   }
@@ -248,6 +249,7 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   if (opts.relationship && chat.relationship) {
     sections.push(relationshipSection(chat.relationship, sName, uName));
   }
+  if (opts.presenceText) sections.push(opts.presenceText);
   if (REPLY_LEN_MAP[opts.replyLength]) {
     sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');
   }

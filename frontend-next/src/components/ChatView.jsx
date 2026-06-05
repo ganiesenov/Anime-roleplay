@@ -8,6 +8,7 @@ import {
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, suggestReplies, collectCompletion,
 } from '../lib/chat.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
+import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
@@ -24,6 +25,9 @@ function chatTs(id) {
   const n = parseInt(String(id || '').replace('chat-', ''), 10);
   return Number.isNaN(n) ? 0 : n;
 }
+
+// After this idle gap, a character proactively reaches out when you reopen the chat.
+const PROACTIVE_GAP_MS = 3 * 60 * 60 * 1000;
 
 function newChat(char) {
   const greeting = (char.scenarios && char.scenarios[0] && char.scenarios[0].text) || char.first_mes || '';
@@ -62,6 +66,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const audioRef = useRef(null);          // background-music <audio>
+  const proactiveTriedRef = useRef(false); // ensures the "texts first" check fires once per open
   const autoScroll = useRef(true);
   const autoSumRef = useRef(false);
 
@@ -203,8 +208,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const tempChat = { ...chat, history: chat.history.slice(0, idx + 1) };
     const instruction = original + '\n[Continue: drive the scene forward, complete any cut-off sentence, do not repeat.]';
     const messages = isGroup()
-      ? buildGroupMessages(speakerOf(msg), activeParticipants(), charsById, tempChat, personas, instruction, { replyLength: settings.replyLength, relationship: settings.relationship })
-      : buildMessagesArray(char, tempChat, personas, instruction, { replyLength: settings.replyLength, relationship: settings.relationship });
+      ? buildGroupMessages(speakerOf(msg), activeParticipants(), charsById, tempChat, personas, instruction, promptOpts(speakerOf(msg)))
+      : buildMessagesArray(char, tempChat, personas, instruction, promptOpts(char));
     setUndo(null);
     msg.isStreaming = true;
     msg.streamingVariant = msg.activeVariant || 0;
@@ -329,7 +334,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     };
 
     try {
-      await streamCompletion(opts.messages || buildMessagesArray(char, chat, personas, lastUserText, { replyLength: settings.replyLength, relationship: settings.relationship }), {
+      await streamCompletion(opts.messages || buildMessagesArray(char, chat, personas, lastUserText, promptOpts(char)), {
         signal: controller.signal,
         characterId: char.id,
         chatId: chat.id,
@@ -420,6 +425,42 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       if (next) { chat.relationship = next; await saveCharacter(char); rerender(); }
     } catch (e) { /* best effort */ }
   }
+
+  // The character reaches out first after you've been away for a while.
+  async function sendProactive(gapMs) {
+    if (!chat || streaming) return;
+    const speaker = resolveSpeaker();
+    const aiMsg = {
+      id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
+      activeVariant: 0, variations: [{ main: '', think: null }], isStreaming: true, streamingVariant: 0, proactive: true,
+    };
+    chat.history.push(aiMsg);
+    autoScroll.current = true;
+    rerender();
+    const instruction = 'The user has just come back after being away for ' + formatElapsed(gapMs)
+      + '. As ' + displayName(speaker) + ', reach out to them FIRST — greet them and react to their absence and the time of day, in character. Keep it natural and fairly short.';
+    const messages = isGroup()
+      ? groupMessagesFor(speaker, instruction)
+      : buildMessagesArray(char, chat, personas, instruction, promptOpts(speaker));
+    await runStream(aiMsg, instruction, { messages });
+  }
+
+  // Reset the once-per-open guard whenever the active chat changes.
+  useEffect(() => { proactiveTriedRef.current = false; }, [chatId]);
+
+  // On (re)opening a chat after a long enough gap, let the character text first.
+  useEffect(() => {
+    if (!settings.presence || !chat || streaming || proactiveTriedRef.current) return;
+    const hist = chat.history.filter((m) => !m.isStreaming);
+    if (!hist.length) return;
+    const last = hist[hist.length - 1];
+    if (last.proactive) return;          // don't stack proactive on proactive
+    const ts = tsFromMsgId(last.id);
+    if (!ts || Date.now() - ts < PROACTIVE_GAP_MS) return;
+    proactiveTriedRef.current = true;
+    sendProactive(Date.now() - ts);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [chatId, chat, streaming, settings.presence]);
 
   async function send() {
     const text = input.trim();
@@ -518,7 +559,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   }
 
   function groupMessagesFor(speaker, lastUserText) {
-    return buildGroupMessages(speaker, activeParticipants(), charsById, chat, personas, lastUserText, { replyLength: settings.replyLength, relationship: settings.relationship });
+    return buildGroupMessages(speaker, activeParticipants(), charsById, chat, personas, lastUserText, promptOpts(speaker));
   }
 
   function addParticipant(id) {
@@ -540,6 +581,28 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     chat.activeSpeakerId = id || null;   // null = Auto (rotate)
     saveCharacter(char);
     rerender();
+  }
+
+  // ── Time / presence ───────────────────────────────────────────────────────
+  function tsFromMsgId(id) {
+    const n = parseInt(String(id || '').replace(/^msg-/, ''), 10);
+    return Number.isNaN(n) ? 0 : n;
+  }
+  function lastMsgTs() {
+    const hist = (chat && chat.history) || [];
+    for (let i = hist.length - 1; i >= 0; i--) {
+      if (!hist[i].isStreaming) return tsFromMsgId(hist[i].id);
+    }
+    return 0;
+  }
+  // Shared prompt options (reply length + the living-relationship & presence layers).
+  function promptOpts(speaker) {
+    const spk = speaker || char;
+    return {
+      replyLength: settings.replyLength,
+      relationship: settings.relationship,
+      presenceText: settings.presence ? buildPresenceText(displayName(spk), spk.id, new Date(), lastMsgTs()) : '',
+    };
   }
   function saveMemories(text) { chat.memories = text; setShowMemories(false); saveCharacter(char); rerender(); }
 
@@ -570,6 +633,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           <div className="truncate font-semibold">{displayName(char)}</div>
           {chat && chat.memories && <div className="text-[11px] text-em-accent">🧠 memory active</div>}
         </div>
+        {settings.presence && (
+          <span title={`${displayName(char)} is ${presenceFor(char.id).label}`} className="hidden text-sm sm:inline" aria-label="presence">
+            {presenceFor(char.id).badge}
+          </span>
+        )}
         {settings.relationship && chat && chat.relationship && (
           <div
             title={`Affection ${chat.relationship.affection} · Trust ${chat.relationship.trust} · Tension ${chat.relationship.tension}${chat.relationship.mood ? ' · ' + chat.relationship.mood : ''}`}
