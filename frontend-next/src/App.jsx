@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { getAllCharacters, characterStats } from './lib/db.js';
 import CharacterCard from './components/CharacterCard.jsx';
 import ChatView from './components/ChatView.jsx';
 import CharacterEditor from './components/CharacterEditor.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import { loadSettings, saveSettings } from './lib/settings.js';
+import { exportBackup, importFile } from './lib/io.js';
 
 const CATEGORIES = [
   { key: null, label: 'All', keywords: [] },
@@ -39,8 +40,18 @@ export default function App() {
   const [editing, setEditing] = useState(null); // null=closed, {} or char=open
   const [settings, setSettings] = useState(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const fileRef = useRef(null);
 
   function onSaveSettings(next) { setSettings(next); saveSettings(next); setShowSettings(false); }
+
+  async function onImportFile(e) {
+    const file = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!file) return;
+    try { await importFile(file); }
+    catch (err) { window.alert('Import failed: ' + (err && err.message ? err.message : err)); }
+    refresh();
+  }
 
   function refresh() {
     return getAllCharacters().then((list) => {
@@ -104,6 +115,13 @@ export default function App() {
             <a href="/" className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
               ← Classic UI
             </a>
+            <input ref={fileRef} type="file" accept=".json,.png" className="hidden" onChange={onImportFile} />
+            <button onClick={() => fileRef.current && fileRef.current.click()} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Import backup (.json) or character card (.png / .json)">
+              ⬆ Import
+            </button>
+            <button onClick={exportBackup} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Export all characters & personas as a .json backup">
+              ⬇ Export
+            </button>
             <button onClick={() => setShowSettings(true)} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Settings">
               ⚙
             </button>
