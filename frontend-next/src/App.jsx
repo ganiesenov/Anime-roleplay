@@ -4,6 +4,7 @@ import CharacterCard from './components/CharacterCard.jsx';
 import ChatView from './components/ChatView.jsx';
 import CharacterEditor from './components/CharacterEditor.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
+import TutorialModal, { TUTORIAL_FLAG } from './components/TutorialModal.jsx';
 import { loadSettings, saveSettings } from './lib/settings.js';
 import { applyDesignSettings } from './lib/design.js';
 import { exportBackup, importFile } from './lib/io.js';
@@ -41,6 +42,13 @@ export default function App() {
   const [editing, setEditing] = useState(null); // null=closed, {} or char=open
   const [settings, setSettings] = useState(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(() => {
+    try { return !localStorage.getItem(TUTORIAL_FLAG); } catch (e) { return false; }
+  });
+  function closeTutorial() {
+    setShowTutorial(false);
+    try { localStorage.setItem(TUTORIAL_FLAG, '1'); } catch (e) { /* ignore */ }
+  }
   const fileRef = useRef(null);
 
   function onSaveSettings(next) { setSettings(next); saveSettings(next); applyDesignSettings(next); setShowSettings(false); }
@@ -106,6 +114,7 @@ export default function App() {
     <>
       {editing !== null && <CharacterEditor char={editing} settings={settings} onClose={() => setEditing(null)} onSaved={onEditorSaved} />}
       {showSettings && <SettingsModal settings={settings} onSave={onSaveSettings} onClose={() => setShowSettings(false)} />}
+      {showTutorial && <TutorialModal onClose={closeTutorial} />}
     </>
   );
 
@@ -135,6 +144,9 @@ export default function App() {
             </button>
             <button onClick={exportBackup} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Export all characters & personas as a .json backup">
               ⬇ Export
+            </button>
+            <button onClick={() => setShowTutorial(true)} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="How it works">
+              ?
             </button>
             <button onClick={() => setShowSettings(true)} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Settings">
               ⚙

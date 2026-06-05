@@ -122,6 +122,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                     <input value={m.id || ''} onChange={(e) => setRemote(i, 'id', e.target.value)} placeholder="model id (e.g. z-ai/glm-4.5-air:free)" className={inputCls} />
                     <input value={m.apiUrl || ''} onChange={(e) => setRemote(i, 'apiUrl', e.target.value)} placeholder="API URL" className={inputCls + ' col-span-2'} />
                     <input type="password" value={m.apiKey || ''} onChange={(e) => setRemote(i, 'apiKey', e.target.value)} placeholder="API key (optional — falls back to above)" className={inputCls + ' col-span-2'} />
+                    <input type="number" min="512" step="512" value={m.numCtx || ''} onChange={(e) => setRemote(i, 'numCtx', e.target.value)} placeholder="num_ctx (optional)" className={inputCls + ' col-span-2'} />
                   </div>
                 </div>
               ))}

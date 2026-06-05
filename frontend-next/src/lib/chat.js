@@ -123,7 +123,7 @@ export async function streamCompletion(messages, opts) {
     stream: true,
     character_id: opts.characterId,
     chat_id: opts.chatId,
-    options: { num_ctx: 131072, top_p: 0.95 },
+    options: { num_ctx: opts.numCtx || 131072, top_p: 0.95 },
   };
   const headers = { 'Content-Type': 'application/json' };
   if (!local && opts.apiKey) {

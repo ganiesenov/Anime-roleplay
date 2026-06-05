@@ -48,7 +48,13 @@ export function resolveModel(settings, modelId) {
   const id = modelId || (settings && settings.model) || 'local-qwen';
   const remote = ((settings && settings.remoteModels) || []).find((m) => m && m.id === id);
   if (remote && remote.apiUrl) {
-    return { model: remote.id, endpoint: remote.apiUrl, apiKey: remote.apiKey || (settings && settings.apiKey) || '' };
+    const numCtx = parseInt(remote.numCtx, 10);
+    return {
+      model: remote.id,
+      endpoint: remote.apiUrl,
+      apiKey: remote.apiKey || (settings && settings.apiKey) || '',
+      numCtx: Number.isFinite(numCtx) && numCtx > 0 ? numCtx : undefined,
+    };
   }
   return { model: id, endpoint: LOCAL_ENDPOINT, apiKey: '' };
 }
