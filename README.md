@@ -57,8 +57,8 @@ Ollama (localhost:11434)
 ```
 
 После запуска открывай:
-- **http://localhost:8000/next/** — новый фронт (React, актуальный)
-- http://localhost:8000/ — старый фронт (legacy, пока жив до полного паритета)
+- **http://localhost:8000/** — новый фронт (React, основной); также доступен на `/next/`
+- http://localhost:8000/legacy/ — старый фронт (legacy, сохранён, не удалён)
 
 Логи сервера: `/tmp/aria-server.log`. Бэкенд раздаёт **собранный** `frontend-next/dist`,
 поэтому после правок в `frontend-next/src` нужен `./dev.sh build` (или `npm run build`).
