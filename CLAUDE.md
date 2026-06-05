@@ -40,10 +40,10 @@ DONE (in `frontend-next/`):
 - Import / export (`src/lib/io.js`) — navbar Import/Export: JSON backup `{version:3, characters, personas, appSettings}` (filename `aria_export_<date>.json`, merge-by-id keeps existing), plus SillyTavern V2 character cards from PNG `tEXt chara` chunks (JSON or base64) and `chara_card_v*` JSON, mapped into the internal character model. Writes straight to AriaBD.
 - TTS (`src/lib/tts.js`, SpeechSynthesis) — opt-in "Speak replies" setting + voice picker (grouped en/de/ja); per-AI-message 🔊/⏹ toggle and auto-speak after each reply. Think/HTML/markdown stripped before speaking; speech cancelled on chat switch / unmount.
 - Background music (`src/lib/music.js`) — per-character music URL (direct audio or YouTube via the `/api/yt-audio` proxy) with a 🎵 panel in the chat tools bar (play/pause/stop); the URL persists under `userMusicUrl:<characterId>` in localStorage, matching the legacy app.
+- Ambient particle effects (`src/lib/particles.js` + `components/ParticleField.jsx`) — per-character full-screen canvas effect (11 options: snow/rain/sparks/fireflies/sakura/fog/steam/aurora/leaves/darkness) with an ✨ Effects picker + intensity slider in the chat tools bar; persists to the character's `particleEffect` / `particleIntensityLevel`.
 
 NOT YET PORTED (the remaining migration work — port from `my-frontend/js/` to `frontend-next/`):
-- World / story / multi-character (group) chat prompt paths (legacy `buildSystemPrompt` has them).
-- Particle / ambient background effects (legacy `js/effects.js`: 11 per-character canvas animations).
+- World / story / multi-character (group) chat prompt paths (legacy `buildSystemPrompt` has them). This is the last big piece and needs a UX decision on how multi-character chats are presented in the new app.
 
 (Note: a structured keyword-scan "lorebook" has no source in the current legacy — lore is a single freeform field, already supported in the editor and prompt — so there is nothing to port there.)
 - Final step once at parity: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`).

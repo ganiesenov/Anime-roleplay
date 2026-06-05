@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveCharacter, getAllPersonas, savePersona } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
+import ParticleField from './ParticleField.jsx';
+import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
   buildMessagesArray, streamCompletion, splitThink, summarizeChat, suggestReplies,
@@ -49,6 +51,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showMusic, setShowMusic] = useState(false);   // background-music panel
   const [musicUrl, setMusicUrl] = useState('');
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -428,6 +431,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   function setMood(v) { chat.mood = v || null; saveCharacter(char); rerender(); }
   function setPersona(id) { chat.activePersonaId = id || null; saveCharacter(char); rerender(); }
+
+  function setEffect(key) {
+    char.particleEffect = key;
+    if (char.particleIntensityLevel == null) char.particleIntensityLevel = 50;
+    saveCharacter(char);
+    rerender();
+  }
+  function setEffectIntensity(level) {
+    char.particleIntensityLevel = level;
+    saveCharacter(char);
+    rerender();
+  }
   function saveMemories(text) { chat.memories = text; setShowMemories(false); saveCharacter(char); rerender(); }
 
   async function createPersona() {
@@ -446,6 +461,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   return (
     <div className="flex h-screen flex-col">
+      <ParticleField effect={char.particleEffect} intensity={char.particleIntensityLevel} />
       {/* Header */}
       <header className="relative flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
         <button onClick={onBack} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">← Back</button>
@@ -531,7 +547,44 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           >
             🎵 Music
           </button>
+
+          <button
+            onClick={() => setShowEffects((v) => !v)}
+            className={'rounded-lg border px-2.5 py-1 transition ' + (char.particleEffect && char.particleEffect !== 'none' ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
+          >
+            ✨ Effects
+          </button>
         </div>
+
+        {showEffects && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
+            {PARTICLE_EFFECTS.map((fx) => {
+              const active = (char.particleEffect || 'none') === fx.key;
+              return (
+                <button
+                  key={fx.key}
+                  onClick={() => setEffect(fx.key)}
+                  title={fx.label}
+                  className={'rounded-lg border px-2.5 py-1 transition ' + (active ? 'border-em-accent/60 bg-em-accent/15 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
+                >
+                  {fx.emoji} {fx.label}
+                </button>
+              );
+            })}
+            {char.particleEffect && char.particleEffect !== 'none' && (
+              <label className="ml-auto flex items-center gap-2 text-em-text-dim">
+                <span>Intensity</span>
+                <input
+                  type="range" min="10" max="150" step="5"
+                  value={char.particleIntensityLevel || 50}
+                  onChange={(e) => setEffectIntensity(parseInt(e.target.value, 10))}
+                  className="w-36 accent-em-accent"
+                />
+                <span className="w-8 text-right">{char.particleIntensityLevel || 50}</span>
+              </label>
+            )}
+          </div>
+        )}
 
         {showMusic && (
           <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
