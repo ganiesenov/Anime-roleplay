@@ -9,9 +9,10 @@ API to a local **Ollama** server and serves the frontend(s). All chat data lives
 - **Backend** (`backend/`, FastAPI, run with `uv`):
   - `POST /v1/chat/completions` — OpenAI-compatible, streams from Ollama. `openai_compat.py` injects the roleplay anchor, a depth reminder, RAG snippets (`rag.py`, nomic-embed-text), and a rolling "story so far" summary (`summarize.py`).
   - `/api/*` — health, characters (`character.py` → `data/characters/<id>.json`), chats (`history.py` → `data/chats/<cid>/<chat>.json`), image proxy (`media_proxy.py`, `GET /api/img?url=`).
-  - Serves **two** frontends as static files (mount order matters — `/next` before the catch-all `/`):
-    - `/`      → `my-frontend/`            (legacy, see below)
-    - `/next/` → `frontend-next/dist/`     (new, see below)
+  - Serves **two** frontends as static files (mount order matters — specific paths before the catch-all `/`):
+    - `/` and `/next/` → `frontend-next/dist/`  (new, primary; see below)
+    - `/legacy/`       → `my-frontend/`         (legacy, kept; see below)
+    - `/starter_pack_data.js` → explicit route serving `my-frontend/starter_pack_data.js` (new app self-seeds from it)
 - **Data**: browser IndexedDB **`AriaBD`** (v3), stores `characters` / `personas` / `settings`. The 130 starter characters are seeded from `my-frontend/starter_pack_data.js` (~38 MB, avatars are base64 — **no external URLs**). `data/` is git-ignored (personal).
 - **Model**: Ollama at `:11434`. The `/v1` path resolves model id `''`/`local`/`local-qwen` → the `OLLAMA_MODEL` env default; any other id → that exact Ollama tag.
 
@@ -50,8 +51,8 @@ NEW (beyond legacy parity — "make it feel real" mechanics):
 - Off-screen life (`src/lib/offscreen.js`, opt-in "Off-screen life" setting) — when the proactive return turn fires, a one-shot LLM call first writes a short private diary note of what the character did while you were away (`buildOffscreenMessages` / `cleanOffscreen`). It's stored on `chat.diary[]`, stamped onto the proactive message (`msg.offscreen`, shown as a muted "📔 While you were away…" line), and woven into the greeting so "texts first" is grounded in real off-screen events.
 - Inner-life viewer — the header 💗 pill opens a read-only panel with affection/trust/tension meters, current mood, the relationship "beats", and the off-screen diary entries. Zero prompt cost; also handy for verifying the living-state mechanics while testing.
 
-NOT YET PORTED (the remaining migration work — port from `my-frontend/js/` to `frontend-next/`):
-- (Feature parity reached.) Final step: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`) once you're happy after testing.
+MIGRATION COMPLETE:
+- Feature parity reached and `/` has been flipped to the new app. The new React frontend is now served at the site root `/` (built with Vite `base: '/'`), and still at `/next/` for old bookmarks. The legacy app moved to `/legacy` (kept, not deleted). `backend/main.py` mounts dist at `/next` + `/` and `my-frontend` at `/legacy`, plus an explicit `/starter_pack_data.js` route so the new app can self-seed its starter pack regardless of mount layout.
 
 (Note: a structured keyword-scan "lorebook" has no source in the current legacy — lore is a single freeform field, already supported in the editor and prompt — so there is nothing to port there.)
 
@@ -59,7 +60,7 @@ When porting a feature, read the legacy implementation in `my-frontend/js/` firs
 
 ## Running locally
 
-`./dev.sh` — pull + build `frontend-next` + ensure the server runs (see the script for subcommands `pull`/`build`/`run`/`restart`). Then open **http://localhost:8000/next/** (new) or `/` (legacy). Requires a local Ollama with a chat model and `nomic-embed-text` pulled. Env: `.env` (see `.env.example`).
+`./dev.sh` — pull + build `frontend-next` + ensure the server runs (see the script for subcommands `pull`/`build`/`run`/`restart`). Then open **http://localhost:8000/** (new app; also at `/next/`) or `/legacy` (legacy). Requires a local Ollama with a chat model and `nomic-embed-text` pulled. Env: `.env` (see `.env.example`).
 
 Manual: `uv run uvicorn backend.main:app --host 127.0.0.1 --port 8000 --reload`, and `cd frontend-next && npm install && npm run build`.
 
