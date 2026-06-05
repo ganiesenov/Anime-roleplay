@@ -103,8 +103,18 @@ export function buildMessagesArray(char, chat, personas, lastUserText, opts) {
 }
 
 // Stream a completion from the local backend. onContent/onReasoning get deltas.
+// A request targets the local backend (default) unless opts.endpoint points
+// elsewhere. Remote endpoints (e.g. OpenRouter) get a Bearer key from opts.apiKey
+// and the OpenRouter attribution headers, and the request goes straight from the
+// browser — so the backend RAG/summary/depth only apply to local models.
+function isLocalEndpoint(url) {
+  return !url || url.startsWith('/') || /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(url);
+}
+
 export async function streamCompletion(messages, opts) {
   opts = opts || {};
+  const endpoint = opts.endpoint || '/v1/chat/completions';
+  const local = isLocalEndpoint(endpoint);
   const body = {
     model: opts.model || 'local-qwen',
     messages,
@@ -115,9 +125,17 @@ export async function streamCompletion(messages, opts) {
     chat_id: opts.chatId,
     options: { num_ctx: 131072, top_p: 0.95 },
   };
-  const resp = await fetch('/v1/chat/completions', {
+  const headers = { 'Content-Type': 'application/json' };
+  if (!local && opts.apiKey) {
+    headers['Authorization'] = 'Bearer ' + opts.apiKey;
+    if (endpoint.indexOf('openrouter') !== -1) {
+      headers['HTTP-Referer'] = (typeof location !== 'undefined' && location.origin) || 'https://aria.local';
+      headers['X-Title'] = 'Aria';
+    }
+  }
+  const resp = await fetch(endpoint, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers,
     body: JSON.stringify(body),
     signal: opts.signal,
   });
@@ -159,7 +177,10 @@ export async function collectCompletion(messages, opts) {
 }
 
 // Summarize the recent transcript into memory bullets (manual "summarize now").
-export async function summarizeChat(char, chat, personas, signal) {
+// opts: { signal, model, endpoint, apiKey } — model routing for the summary call
+// (defaults to the local backend). Back-compat: a bare AbortSignal is still accepted.
+export async function summarizeChat(char, chat, personas, opts) {
+  opts = (opts && typeof opts.aborted === 'boolean') ? { signal: opts } : (opts || {});
   const uName = personaName(chat, personas);
   const transcript = (chat.history || [])
     .filter((m) => !m.isStreaming)
@@ -169,7 +190,10 @@ export async function summarizeChat(char, chat, personas, signal) {
   if (!transcript.trim()) return '';
   const sys = 'Summarize the conversation into 5-10 concise bullet points capturing key events, '
     + 'facts, relationships and unresolved threads. No markdown headers, no intro/outro — bullets only.';
-  return collectCompletion([{ role: 'system', content: sys }, { role: 'user', content: transcript }], { signal });
+  return collectCompletion(
+    [{ role: 'system', content: sys }, { role: 'user', content: transcript }],
+    { signal: opts.signal, model: opts.model, endpoint: opts.endpoint, apiKey: opts.apiKey },
+  );
 }
 
 // Parse the model's reply-suggestion output into up to 2 strings. Tolerates
@@ -212,7 +236,7 @@ export async function suggestReplies(char, chat, personas, opts) {
 
   const raw = await collectCompletion(
     [{ role: 'system', content: sys }, { role: 'user', content: user }],
-    { model: opts.model, temperature: 0.7, signal: opts.signal },
+    { model: opts.model, endpoint: opts.endpoint, apiKey: opts.apiKey, temperature: 0.7, signal: opts.signal },
   );
   return parseReplyOptions(raw);
 }

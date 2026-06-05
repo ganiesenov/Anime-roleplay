@@ -16,7 +16,41 @@ export const DEFAULT_SETTINGS = {
   ttsVoiceURI: '',           // chosen voice (empty = browser default)
   autoSummarize: false,
   autoSummarizeEvery: 30,
+
+  // ── Remote models / providers (e.g. OpenRouter). Local Ollama still routes
+  // through the backend at /v1 (so RAG/summary fire); remote models POST straight
+  // from the browser to their own endpoint with a Bearer key, like the legacy app. ──
+  apiKey: '',                // global API key fallback (used when a model has none)
+  remoteModels: [],          // [{ id, name, apiUrl, apiKey }] — id is the model tag sent upstream
+  suggestionModelId: '',     // '' = same as chat model; else a model id (local or remote)
+  summaryModelId: '',        // '' = same as chat model; used for auto-summarize + memory
+
+  // ── Appearance / design (applied as CSS variables, see lib/design.js). ──
+  fontSize: 15,              // chat message font size (px)
+  messageSpacing: 20,        // vertical gap between messages (px)
+  mainTextColor: '#e9f5ef',  // narration / main text
+  dialogueColor: '#ffd952',  // "quoted speech"
+  userBubbleColor: '#2ee6a0',
+  userBubbleOpacity: 0.15,
+  aiBubbleColor: '#ffffff',
+  aiBubbleOpacity: 0.04,
+  blur: 0,                   // backdrop blur behind message bubbles (px)
 };
+
+export const LOCAL_ENDPOINT = '/v1/chat/completions';
+
+// Resolve a model id to a concrete request target. Local ids go through the
+// backend (/v1, where RAG/summary/depth fire); a remote model (matched in
+// settings.remoteModels) carries its own endpoint URL + API key so the browser
+// talks straight to it (e.g. OpenRouter), exactly like the legacy app did.
+export function resolveModel(settings, modelId) {
+  const id = modelId || (settings && settings.model) || 'local-qwen';
+  const remote = ((settings && settings.remoteModels) || []).find((m) => m && m.id === id);
+  if (remote && remote.apiUrl) {
+    return { model: remote.id, endpoint: remote.apiUrl, apiKey: remote.apiKey || (settings && settings.apiKey) || '' };
+  }
+  return { model: id, endpoint: LOCAL_ENDPOINT, apiKey: '' };
+}
 
 export function loadSettings() {
   try {

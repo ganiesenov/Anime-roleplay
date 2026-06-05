@@ -10,7 +10,7 @@ import {
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
-import { DEFAULT_SETTINGS } from '../lib/settings.js';
+import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
 import { audioSrcFor, musicKey } from '../lib/music.js';
@@ -237,7 +237,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setSuggestions([]);
     setSuggesting(true);
     try {
-      const opts = await suggestReplies(char, chat, personas, { model: settings.model });
+      const opts = await suggestReplies(char, chat, personas, resolveModel(settings, settings.suggestionModelId || settings.model));
       if (reqId !== suggestReqRef.current) return;
       setSuggestions(opts || []);
     } catch (e) {
@@ -351,7 +351,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         signal: controller.signal,
         characterId: char.id,
         chatId: chat.id,
-        model: settings.model,
+        ...resolveModel(settings, settings.model),
         temperature: settings.temperature,
         onContent: (c) => { mainAcc += c; schedule(); },
         onReasoning: (r) => { reasonAcc += r; schedule(); },
@@ -401,7 +401,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     autoSumRef.current = true;
     chat._lastAutoSummaryLen = len;
     try {
-      const bullets = await summarizeChat(char, chat, personas);
+      const bullets = await summarizeChat(char, chat, personas, resolveModel(settings, settings.summaryModelId || settings.model));
       if (bullets && bullets.trim()) {
         const header = '--- Auto-summary (' + new Date().toLocaleDateString() + ') ---\n';
         chat.memories = (chat.memories || '').trim();
@@ -432,7 +432,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     try {
       const raw = await collectCompletion(
         buildRelationshipUpdateMessages(displayName(char), uName, prev, transcript),
-        { model: settings.model },
+        resolveModel(settings, settings.model),
       );
       const next = parseRelationship(raw, prev);
       if (next) { chat.relationship = next; await saveCharacter(char); rerender(); }
@@ -453,7 +453,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       try {
         const raw = await collectCompletion(
           buildOffscreenMessages(displayName(speaker), uName, gapText, mood),
-          { model: settings.model },
+          resolveModel(settings, settings.model),
         );
         offscreen = cleanOffscreen(raw);
       } catch (e) { /* best effort */ }
@@ -877,7 +877,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       )}
 
       {/* Messages */}
-      <div ref={scrollRef} onScroll={onScroll} className="mx-auto w-full max-w-3xl flex-1 space-y-5 overflow-y-auto px-4 py-6">
+      <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)' }} className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-y-auto px-4 py-6">
         {history.map((m) => (
           <MessageBubble
             key={m.id}
@@ -1042,8 +1042,8 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
       )}
       <div
         className={
-          'max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow ' +
-          (isUser ? 'bg-em-accent/15 text-em-text' : 'border border-white/10 bg-white/[0.04] text-em-text')
+          'max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
+          (isUser ? 'msg-bubble-user' : 'msg-bubble-ai border border-white/10')
         }
       >
         {!isUser && think && !editing && (

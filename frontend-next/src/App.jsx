@@ -5,6 +5,7 @@ import ChatView from './components/ChatView.jsx';
 import CharacterEditor from './components/CharacterEditor.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import { loadSettings, saveSettings } from './lib/settings.js';
+import { applyDesignSettings } from './lib/design.js';
 import { exportBackup, importFile } from './lib/io.js';
 
 const CATEGORIES = [
@@ -42,7 +43,10 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const fileRef = useRef(null);
 
-  function onSaveSettings(next) { setSettings(next); saveSettings(next); setShowSettings(false); }
+  function onSaveSettings(next) { setSettings(next); saveSettings(next); applyDesignSettings(next); setShowSettings(false); }
+
+  // Apply appearance settings (CSS vars) once on load; saves re-apply via onSaveSettings.
+  useEffect(() => { applyDesignSettings(settings); }, []);
 
   async function onImportFile(e) {
     const file = e.target.files && e.target.files[0];

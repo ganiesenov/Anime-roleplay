@@ -40,10 +40,25 @@ body {
   pointer-events: none;
 }
 
+/* Appearance design vars (overridden live by lib/design.js applyDesignSettings). */
+:root {
+  --chat-font-size: 15px;
+  --message-spacing: 20px;
+  --main-text-color: #e9f5ef;
+  --dialogue-color: #ffd952;
+  --user-bubble-color: rgba(46, 230, 160, 0.15);
+  --ai-bubble-color: rgba(255, 255, 255, 0.04);
+  --message-blur: 0px;
+}
+
 /* Chat markdown rendering (ported palette: dialogue gold, italics mint). */
-.chat-md { white-space: normal; word-break: break-word; }
-.chat-md .dlg { color: #ffd952; }
+.chat-md { white-space: normal; word-break: break-word; font-size: var(--chat-font-size); color: var(--main-text-color); }
+.chat-md .dlg { color: var(--dialogue-color); }
 .chat-md em { font-style: italic; color: #5cffc4; }
+
+/* Message bubble fills — driven by the design vars so colour/opacity/blur are live. */
+.msg-bubble-user { background: var(--user-bubble-color); backdrop-filter: blur(var(--message-blur)); }
+.msg-bubble-ai { background: var(--ai-bubble-color); backdrop-filter: blur(var(--message-blur)); }
 
 /* Thin emerald scrollbars. */
 * { scrollbar-width: thin; scrollbar-color: rgba(46,230,160,0.35) transparent; }
