@@ -31,7 +31,7 @@ export default function CharacterCard({ char, onOpen, onToggleFav }) {
   return (
     <button
       onClick={() => onOpen && onOpen(char)}
-      className="group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] text-left shadow-lg shadow-black/40 backdrop-blur transition duration-200 hover:-translate-y-1 hover:border-em-accent/50 hover:shadow-em-accent/10 focus:outline-none focus-visible:ring-2 focus-visible:ring-em-accent"
+      className="char-card group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] text-left shadow-lg shadow-black/40 backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-em-accent"
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-em-panel">
         {src ? (

@@ -124,14 +124,11 @@ export default function App() {
       {/* Navbar */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-em-bg/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
-          <a href="/" className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
-            <span className="bg-gradient-to-r from-em-accent to-emerald-300 bg-clip-text text-transparent">Aria</span>
-            <span className="rounded-md bg-em-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-em-accent">NEXT</span>
+          <a href="/" className="group flex items-center gap-2 text-xl font-extrabold tracking-tight">
+            <img src="/favicon.svg" alt="" className="h-7 w-7 drop-shadow-[0_0_10px_rgba(46,230,160,0.45)] transition group-hover:rotate-[8deg]" />
+            <span className="bg-gradient-to-r from-em-accent to-emerald-200 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(46,230,160,0.25)]">Aria</span>
           </a>
           <nav className="flex items-center gap-2 text-sm">
-            <a href="/" className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
-              ← Classic UI
-            </a>
             <input ref={fileRef} type="file" accept=".json,.png" className="hidden" onChange={onImportFile} />
             <button onClick={() => fileRef.current && fileRef.current.click()} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Import backup (.json) or character card (.png / .json)">
               ⬆ Import
@@ -151,8 +148,10 @@ export default function App() {
 
       {/* Hero */}
       <section className="starfield relative overflow-hidden">
-        <div className="mx-auto max-w-7xl px-5 py-16 text-center">
-          <h1 className="bg-gradient-to-b from-white to-em-text-dim bg-clip-text text-5xl font-black tracking-tight text-transparent sm:text-6xl">
+        {/* soft emerald aurora glow behind the headline */}
+        <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-[40rem] -translate-x-1/2 rounded-full bg-em-accent/20 blur-[100px] animate-pulse-slow" />
+        <div className="relative mx-auto max-w-7xl px-5 py-16 text-center">
+          <h1 className="bg-gradient-to-b from-white via-emerald-100 to-em-text-dim bg-clip-text text-5xl font-black tracking-tight text-transparent drop-shadow-[0_2px_30px_rgba(46,230,160,0.15)] sm:text-6xl">
             Your characters. Your stories.
           </h1>
           <p className="mx-auto mt-4 max-w-xl text-em-text-dim">
@@ -245,7 +244,7 @@ export default function App() {
         {chars === null ? (
           <GridSkeleton />
         ) : filtered.length === 0 ? (
-          <EmptyState />
+          <EmptyState onCreate={() => setEditing({})} />
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {filtered.map((c) => (
@@ -268,15 +267,15 @@ function GridSkeleton() {
   );
 }
 
-function EmptyState() {
+function EmptyState({ onCreate }) {
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-24 text-center text-em-text-dim">
       <span className="text-5xl">🪐</span>
-      <p className="text-lg font-medium text-em-text">No characters here yet</p>
+      <p className="text-lg font-medium text-em-text">No characters match</p>
       <p className="max-w-sm text-sm">
-        If your library lives in the Classic UI, open it once on this origin so the new app can read the same local database.
+        Try clearing the search or category filter — or create your own character to start a new story.
       </p>
-      <a href="/" className="mt-2 rounded-lg bg-em-accent px-4 py-2 font-semibold text-em-bg">Open Classic UI</a>
+      {onCreate && <button onClick={onCreate} className="mt-2 rounded-lg bg-em-accent px-4 py-2 font-semibold text-em-bg transition hover:bg-emerald-300">+ Create a character</button>}
     </div>
   );
 }

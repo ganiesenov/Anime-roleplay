@@ -69,6 +69,23 @@ select option, select optgroup {
 }
 select optgroup { font-weight: 700; }
 
+/* Slow ambient glow pulse for the hero aurora. */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 0.55; transform: translateX(-50%) scale(1); }
+  50% { opacity: 0.9; transform: translateX(-50%) scale(1.08); }
+}
+.animate-pulse-slow { animation: pulse-slow 7s ease-in-out infinite; }
+
+/* Character-card hover lift + emerald ring glow. */
+.char-card {
+  transition: transform 0.18s ease, box-shadow 0.25s ease, border-color 0.2s ease;
+}
+.char-card:hover {
+  transform: translateY(-4px);
+  border-color: rgba(46, 230, 160, 0.45);
+  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(46, 230, 160, 0.25), 0 0 28px -6px rgba(46, 230, 160, 0.35);
+}
+
 /* Thin emerald scrollbars. */
 * { scrollbar-width: thin; scrollbar-color: rgba(46,230,160,0.35) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; }

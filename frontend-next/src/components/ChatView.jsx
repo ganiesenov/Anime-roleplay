@@ -1041,7 +1041,7 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
             : <div className="flex h-full w-full items-center justify-center text-em-text-dim">👤</div>}
         </div>
       )}
-      <div className={'flex min-w-0 flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
+      <div className={'flex min-w-0 flex-1 flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
       {!isUser && msg.offscreen && (
         <div className="max-w-[85%] px-1 text-[11px] italic text-em-text-dim">📔 While you were away: {msg.offscreen}</div>
       )}
