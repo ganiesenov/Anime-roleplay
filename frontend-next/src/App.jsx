@@ -104,7 +104,7 @@ export default function App() {
 
   const overlays = (
     <>
-      {editing !== null && <CharacterEditor char={editing} onClose={() => setEditing(null)} onSaved={onEditorSaved} />}
+      {editing !== null && <CharacterEditor char={editing} settings={settings} onClose={() => setEditing(null)} onSaved={onEditorSaved} />}
       {showSettings && <SettingsModal settings={settings} onSave={onSaveSettings} onClose={() => setShowSettings(false)} />}
     </>
   );

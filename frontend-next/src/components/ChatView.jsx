@@ -30,8 +30,9 @@ function chatTs(id) {
 // After this idle gap, a character proactively reaches out when you reopen the chat.
 const PROACTIVE_GAP_MS = 3 * 60 * 60 * 1000;
 
-function newChat(char) {
-  const greeting = (char.scenarios && char.scenarios[0] && char.scenarios[0].text) || char.first_mes || '';
+function newChat(char, scenarioIndex = 0) {
+  const sc = char.scenarios && char.scenarios[scenarioIndex];
+  const greeting = (sc && sc.text) || (char.scenarios && char.scenarios[0] && char.scenarios[0].text) || char.first_mes || '';
   const history = [];
   if (greeting) {
     history.push({
@@ -50,6 +51,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [input, setInput] = useState('');
   const [showMemories, setShowMemories] = useState(false);
   const [showChats, setShowChats] = useState(false);   // chat-session list panel
+  const [showScenarioPick, setShowScenarioPick] = useState(false); // greeting picker on + New chat
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
   const [suggestions, setSuggestions] = useState([]);  // suggested user replies
   const [suggesting, setSuggesting] = useState(false);
@@ -118,16 +120,23 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     autoScroll.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
   }
 
-  function startNewChat() {
-    const c = newChat(char);
+  function startNewChat(scenarioIndex = 0) {
+    const c = newChat(char, scenarioIndex);
     chats[c.id] = c;
     setChatId(c.id);
     setShowChats(false);
+    setShowScenarioPick(false);
     setUndo(null);
     clearSuggestions();
     cancelSpeech();
     setSpeakingId(null);
     saveCharacter(char);
+  }
+
+  // With multiple greetings, ask which to open; otherwise start straight away.
+  function newChatClicked() {
+    if ((char.scenarios || []).length > 1) setShowScenarioPick(true);
+    else startNewChat(0);
   }
 
   // ── Chat session list (switch / rename / delete) ──────────────────────────
@@ -655,7 +664,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const sessions = Object.values(chats).sort((a, b) => chatTs(b.id) - chatTs(a.id));
 
   return (
-    <div className="flex h-screen flex-col">
+    <div className="relative isolate flex h-screen flex-col">
+      {char.background && (
+        <div className="pointer-events-none absolute inset-0 -z-10">
+          <img src={avatarUrl(char.background)} alt="" className="h-full w-full object-cover opacity-30" />
+          <div className="absolute inset-0 bg-em-bg/75" />
+        </div>
+      )}
       <ParticleField effect={char.particleEffect} intensity={char.particleIntensityLevel} />
       {/* Header */}
       <header className="relative flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
@@ -684,7 +699,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
         {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">⚙</button>}
         <button onClick={() => setShowChats((v) => !v)} className={'rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}>💬 Chats ({sessions.length})</button>
-        <button onClick={startNewChat} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
+        <button onClick={newChatClicked} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
 
         {/* Chat session list */}
         {showChats && (
@@ -693,7 +708,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             <div className="absolute right-3 top-full z-40 mt-1 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
               <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-em-text-dim">
                 <span>Chats</span>
-                <button onClick={startNewChat} className="rounded-md px-2 py-0.5 text-em-accent transition hover:bg-em-accent/10">＋ New</button>
+                <button onClick={newChatClicked} className="rounded-md px-2 py-0.5 text-em-accent transition hover:bg-em-accent/10">＋ New</button>
               </div>
               {sessions.length === 0 && <p className="px-2 py-3 text-center text-sm text-em-text-dim">No chats yet.</p>}
               {sessions.map((s) => {
@@ -949,6 +964,30 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
       {showMemories && chat && (
         <MemoriesModal char={char} chat={chat} personas={personas} onSave={saveMemories} onClose={() => setShowMemories(false)} />
+      )}
+
+      {showScenarioPick && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowScenarioPick(false)}>
+          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-em-panel/95 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-bold">Start a new chat</h2>
+              <button onClick={() => setShowScenarioPick(false)} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>
+            </div>
+            <p className="mb-3 text-sm text-em-text-dim">Choose a greeting to open with:</p>
+            <div className="space-y-2">
+              {(char.scenarios || []).map((s, i) => (
+                <button
+                  key={i}
+                  onClick={() => startNewChat(i)}
+                  className="block w-full rounded-xl border border-white/10 bg-white/[0.03] p-3 text-left transition hover:border-em-accent/50 hover:bg-em-accent/5"
+                >
+                  <div className="mb-1 text-sm font-semibold text-em-text">{s.name || 'Scenario ' + (i + 1)}</div>
+                  <div className="line-clamp-2 text-xs text-em-text-dim">{(s.text || '').slice(0, 160)}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
 
       {showInner && chat && (

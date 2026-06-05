@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import { saveCharacter } from '../lib/db.js';
 import { syncCharacterToServer, fileToDataUrl } from '../lib/api.js';
+import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
+import { generateCharacter, generateScenario, formatGenError } from '../lib/aigen.js';
 
 function avatarSrc(url) {
   if (!url) return '';
@@ -21,53 +23,121 @@ function Field({ label, hint, children }) {
 const inputCls =
   'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none';
 
-export default function CharacterEditor({ char, onClose, onSaved }) {
+// Normalize a character's scenarios into an editable [{name, text}] list.
+function initialScenarios(char) {
+  if (char?.scenarios && char.scenarios.length) {
+    return char.scenarios.map((s, i) => ({ name: s.name || ('Scenario ' + (i + 1)), text: s.text || '' }));
+  }
+  const text = char?.first_mes || '';
+  return [{ name: 'Greeting', text }];
+}
+
+export default function CharacterEditor({ char, onClose, onSaved, settings = DEFAULT_SETTINGS }) {
   const editing = !!(char && char.id);
   const [name, setName] = useState(char?.name || '');
   const [avatar, setAvatar] = useState(char?.avatar || '');
+  const [background, setBackground] = useState(char?.background || '');
   const [tags, setTags] = useState(char?.tags || '');
   const [description, setDescription] = useState(char?.description || '');
-  const [greeting, setGreeting] = useState(
-    (char?.scenarios && char.scenarios[0] && char.scenarios[0].text) || char?.first_mes || ''
-  );
+  const [scenarios, setScenarios] = useState(() => initialScenarios(char));
   const [lore, setLore] = useState(char?.lore || '');
   const [instructions, setInstructions] = useState(char?.instructions || '');
   const [reminder, setReminder] = useState(char?.reminder || '');
+  const [narratorReminder, setNarratorReminder] = useState(char?.narratorReminder || '');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
+
+  // AI generation
+  const [concept, setConcept] = useState('');
+  const [aiBusy, setAiBusy] = useState('');   // '' | 'char' | 'scenario'
+  const [aiError, setAiError] = useState('');
 
   async function pickAvatar(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     try { setAvatar(await fileToDataUrl(file)); } catch (err) { /* ignore */ }
   }
+  async function pickBackground(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try { setBackground(await fileToDataUrl(file)); } catch (err) { /* ignore */ }
+  }
 
-  async function save() {
-    if (!name.trim() || busy) return;
-    setBusy(true);
-    const base = editing
-      ? { ...char }
-      : { id: 'char-' + Date.now(), chats: {}, isFavorite: false, isArchived: false, particleEffect: 'none', particleIntensityLevel: 50 };
-    const updated = {
+  // ── Scenario list helpers ──
+  const setScenario = (i, k, v) => setScenarios((prev) => prev.map((s, j) => (j === i ? { ...s, [k]: v } : s)));
+  const addScenario = () => setScenarios((prev) => [...prev, { name: 'Scenario ' + (prev.length + 1), text: '' }]);
+  const removeScenario = (i) => setScenarios((prev) => (prev.length <= 1 ? prev : prev.filter((_, j) => j !== i)));
+
+  // ── AI generation ──
+  async function aiGenerateCharacter() {
+    if (aiBusy) return;
+    setAiBusy('char'); setAiError('');
+    try {
+      const out = await generateCharacter(concept, resolveModel(settings, settings.model));
+      if (out.name) setName(out.name);
+      if (out.description) setDescription(out.description);
+      if (out.tags) setTags(out.tags);
+      if (out.instructions) setInstructions(out.instructions);
+    } catch (err) {
+      setAiError(formatGenError(err));
+    } finally { setAiBusy(''); }
+  }
+  async function aiGenerateScenario(i) {
+    if (aiBusy) return;
+    setAiBusy('scenario'); setAiError('');
+    try {
+      const text = await generateScenario({ name, description, lore }, resolveModel(settings, settings.model));
+      if (text) setScenario(i, 'text', text);
+    } catch (err) {
+      setAiError(formatGenError(err));
+    } finally { setAiBusy(''); }
+  }
+
+  function buildRecord(forceNewId) {
+    const base = (editing && !forceNewId) ? { ...char } : {
+      id: 'char-' + Date.now() + (forceNewId ? '-copy' : ''),
+      chats: {}, isFavorite: false, isArchived: false, particleEffect: 'none', particleIntensityLevel: 50,
+    };
+    const cleanScenarios = scenarios.map((s) => ({ name: (s.name || 'Scenario').trim(), text: s.text }))
+      .filter((s) => s.text.trim());
+    return {
       ...base,
       name: name.trim(),
       chatName: (char?.chatName || '').trim() || name.trim(),
       avatar,
-      background: base.background || '',
+      background,
       description,
       lore,
       tags,
       instructions,
       reminder,
-      narratorReminder: base.narratorReminder || '',
-      scenarios: greeting.trim() ? [{ name: 'Greeting', text: greeting }] : (base.scenarios || []),
+      narratorReminder,
+      scenarios: cleanScenarios.length ? cleanScenarios : (base.scenarios || []),
       type: 'character',
       characterIds: base.characterIds || [],
     };
+  }
+
+  async function save() {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    const updated = buildRecord(false);
     await saveCharacter(updated);
     syncCharacterToServer(updated);
     setBusy(false);
     onSaved && onSaved(updated);
+  }
+
+  async function duplicate() {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    const copy = buildRecord(true);
+    copy.name = copy.name + ' (copy)';
+    copy.chats = {};
+    await saveCharacter(copy);
+    syncCharacterToServer(copy);
+    setBusy(false);
+    onSaved && onSaved(copy);
   }
 
   return (
@@ -79,6 +149,28 @@ export default function CharacterEditor({ char, onClose, onSaved }) {
         </div>
 
         <div className="space-y-4">
+          {/* AI generate */}
+          <div className="rounded-2xl border border-em-accent/25 bg-em-accent/[0.06] p-3">
+            <div className="mb-2 text-sm font-semibold text-em-accent">✨ Generate with AI</div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input
+                value={concept}
+                onChange={(e) => setConcept(e.target.value)}
+                placeholder="Concept (e.g. a cynical space-pirate captain) — or leave blank for random"
+                className={inputCls + ' flex-1'}
+              />
+              <button
+                onClick={aiGenerateCharacter}
+                disabled={!!aiBusy}
+                className="shrink-0 rounded-xl bg-em-accent px-4 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-50"
+              >
+                {aiBusy === 'char' ? 'Generating…' : 'Generate card'}
+              </button>
+            </div>
+            <p className="mt-1 text-xs text-em-text-dim">Fills name, description, tags & instructions. Existing images are kept.</p>
+            {aiError && <p className="mt-1 text-xs text-red-400">{aiError}</p>}
+          </div>
+
           <div className="flex gap-4">
             <div className="flex flex-col items-center gap-2">
               <div className="h-24 w-24 overflow-hidden rounded-2xl border border-white/10 bg-em-bg">
@@ -99,6 +191,20 @@ export default function CharacterEditor({ char, onClose, onSaved }) {
             </div>
           </div>
 
+          <Field label="Background image" hint="Optional scene backdrop shown behind the chat. Upload or paste a URL.">
+            <div className="flex items-center gap-3">
+              <div className="h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-em-bg">
+                {background ? <img src={avatarSrc(background)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs text-em-text-dim/50">none</div>}
+              </div>
+              <input value={/^https?:\/\//i.test(background) ? background : ''} onChange={(e) => setBackground(e.target.value)} placeholder="https://…" className={inputCls} />
+              <label className="shrink-0 cursor-pointer rounded-lg border border-white/10 px-2 py-1.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
+                Upload
+                <input type="file" accept="image/*" className="hidden" onChange={pickBackground} />
+              </label>
+              {background && <button onClick={() => setBackground('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
+            </div>
+          </Field>
+
           <Field label="Tags" hint="Comma-separated, e.g. anime, dark fantasy, assassin">
             <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="anime, isekai" className={inputCls} />
           </Field>
@@ -107,9 +213,28 @@ export default function CharacterEditor({ char, onClose, onSaved }) {
             <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className={inputCls} />
           </Field>
 
-          <Field label="Greeting" hint="First message the character sends when a new chat starts.">
-            <textarea value={greeting} onChange={(e) => setGreeting(e.target.value)} rows={3} className={inputCls} />
-          </Field>
+          {/* Scenarios (greetings) */}
+          <div>
+            <div className="mb-1 flex items-center justify-between">
+              <span className="text-sm font-medium text-em-text">Greetings / scenarios</span>
+              <button onClick={addScenario} className="rounded-lg border border-white/10 px-2 py-0.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ Add</button>
+            </div>
+            <p className="mb-2 text-xs text-em-text-dim">The first message of a new chat. With more than one, you pick which when starting a chat.</p>
+            <div className="space-y-3">
+              {scenarios.map((s, i) => (
+                <div key={i} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                  <div className="mb-2 flex items-center gap-2">
+                    <input value={s.name} onChange={(e) => setScenario(i, 'name', e.target.value)} placeholder="Scenario name" className={inputCls + ' max-w-[14rem] py-1.5'} />
+                    <button onClick={() => aiGenerateScenario(i)} disabled={!!aiBusy} title="Generate this scenario with AI" className="rounded-lg border border-em-accent/40 px-2 py-1.5 text-xs text-em-accent transition enabled:hover:bg-em-accent/10 disabled:opacity-50">
+                      {aiBusy === 'scenario' ? '…' : '✨ AI'}
+                    </button>
+                    {scenarios.length > 1 && <button onClick={() => removeScenario(i)} className="ml-auto text-xs text-em-text-dim transition hover:text-red-400">Remove</button>}
+                  </div>
+                  <textarea value={s.text} onChange={(e) => setScenario(i, 'text', e.target.value)} rows={3} placeholder="First message…" className={inputCls} />
+                </div>
+              ))}
+            </div>
+          </div>
 
           <Field label="Lore" hint="Background facts. Lines starting with [key1, key2] inject only when a key appears recently.">
             <textarea value={lore} onChange={(e) => setLore(e.target.value)} rows={3} className={inputCls} />
@@ -126,11 +251,15 @@ export default function CharacterEditor({ char, onClose, onSaved }) {
               <Field label="Reminder" hint="Appended near the end of each turn (strong nudge).">
                 <textarea value={reminder} onChange={(e) => setReminder(e.target.value)} rows={2} className={inputCls} />
               </Field>
+              <Field label="Narrator reminder" hint="Extra nudge used when this character narrates a group/world scene.">
+                <textarea value={narratorReminder} onChange={(e) => setNarratorReminder(e.target.value)} rows={2} className={inputCls} />
+              </Field>
             </div>
           )}
         </div>
 
-        <div className="mt-6 flex justify-end gap-2">
+        <div className="mt-6 flex items-center justify-end gap-2">
+          {editing && <button onClick={duplicate} disabled={!name.trim() || busy} className="mr-auto rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40" title="Save a copy as a new character">⧉ Duplicate</button>}
           <button onClick={() => onClose()} className="rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition hover:text-em-text">Cancel</button>
           <button onClick={save} disabled={!name.trim() || busy} className="rounded-xl bg-em-accent px-5 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-40">
             {busy ? 'Saving…' : editing ? 'Save' : 'Create'}
