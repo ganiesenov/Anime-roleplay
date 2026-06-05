@@ -33,13 +33,14 @@ DONE (in `frontend-next/`):
 - Character editor (create/edit, avatar upload→base64 or URL, lore/greeting/advanced) + backend sync.
 - Chat tools: persona switcher/create, mood selector, memories editor + "summarize now".
 - Settings (`src/lib/settings.js`, localStorage): model picker (from `/api/health`), temperature, reply length, show-think, auto-summarize toggle + threshold.
+- Chat session list (switch / rename / delete) — header "Chats" panel listing all of a character's chats, newest first, with active highlight and "＋ New". Deleting the active chat falls back to the newest remaining chat (or a fresh one).
+- Per-message edit / delete — inline edit (writes to the active variant for AI, `main` for user) and delete-this-and-following with an "Undo delete" action; mirrors the legacy AriaBD record mutations.
 
 NOT YET PORTED (the remaining migration work — port from `my-frontend/js/` to `frontend-next/`):
 - World / story / multi-character (group) chat prompt paths (legacy `buildSystemPrompt` has them).
 - Lorebook keyword-scan + token budget (legacy `js/lorebook.js`).
 - Reply suggestions, TTS, ambient effects/music.
-- Per-message edit / delete / continue.
-- Chat session list (rename/delete/switch) — new app currently shows only most-recent + "new chat".
+- Per-message continue (extend the last AI turn in place).
 - Import / export (legacy `js/io.js`: JSON backup + SillyTavern V2 PNG/JSON cards).
 - Final step once at parity: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`).
 

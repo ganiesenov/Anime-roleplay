@@ -14,6 +14,12 @@ function avatarUrl(url) {
   return url;
 }
 
+// Parse the creation timestamp baked into a `chat-<ms>` id (newest first).
+function chatTs(id) {
+  const n = parseInt(String(id || '').replace('chat-', ''), 10);
+  return Number.isNaN(n) ? 0 : n;
+}
+
 function newChat(char) {
   const greeting = (char.scenarios && char.scenarios[0] && char.scenarios[0].text) || char.first_mes || '';
   const history = [];
@@ -33,6 +39,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState('');
   const [showMemories, setShowMemories] = useState(false);
+  const [showChats, setShowChats] = useState(false);   // chat-session list panel
+  const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -81,7 +89,77 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const c = newChat(char);
     chats[c.id] = c;
     setChatId(c.id);
+    setShowChats(false);
+    setUndo(null);
     saveCharacter(char);
+  }
+
+  // ── Chat session list (switch / rename / delete) ──────────────────────────
+  function switchChat(id) {
+    if (!chats[id] || id === chatId) { setShowChats(false); return; }
+    setUndo(null);
+    setChatId(id);
+    setShowChats(false);
+  }
+
+  function renameChat(id) {
+    const c = chats[id];
+    if (!c) return;
+    const name = window.prompt('Rename chat:', c.name || '');
+    if (name == null) return;
+    c.name = name.trim() || c.name;
+    saveCharacter(char);
+    rerender();
+  }
+
+  function deleteChatSession(id) {
+    if (!chats[id]) return;
+    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
+    delete chats[id];
+    if (id === chatId) {
+      const ids = Object.keys(chats).sort((a, b) => chatTs(b) - chatTs(a));
+      if (ids.length) {
+        setChatId(ids[0]);
+      } else {
+        const c = newChat(char);
+        chats[c.id] = c;
+        setChatId(c.id);
+      }
+      setUndo(null);
+    }
+    saveCharacter(char);
+    rerender();
+  }
+
+  // ── Per-message edit / delete (+ undo) ────────────────────────────────────
+  function saveMessageEdit(msg, text) {
+    if (msg.sender === 'ai') {
+      const v = msg.variations[msg.activeVariant || 0];
+      if (v) v.main = text;
+    } else {
+      msg.main = text;
+    }
+    saveCharacter(char);
+    rerender();
+  }
+
+  function deleteMessage(msg) {
+    if (streaming || !chat) return;
+    const idx = chat.history.indexOf(msg);
+    if (idx === -1) return;
+    if (!window.confirm('Delete this message and all following messages?')) return;
+    const removed = chat.history.splice(idx);
+    setUndo({ fromIndex: idx, messages: removed });
+    saveCharacter(char);
+    rerender();
+  }
+
+  function undoDelete() {
+    if (!undo || !chat) return;
+    chat.history.splice(undo.fromIndex, 0, ...undo.messages);
+    setUndo(null);
+    saveCharacter(char);
+    rerender();
   }
 
   async function runStream(aiMsg, lastUserText) {
@@ -169,6 +247,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const text = input.trim();
     if (!text || streaming || !chat) return;
     setInput('');
+    setUndo(null);
     autoScroll.current = true;
     chat.history.push({ id: genId(), sender: 'user', main: text });
     const aiMsg = {
@@ -226,11 +305,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const MOODS = ['happy', 'sad', 'angry', 'flirty', 'scared', 'calm', 'excited', 'nervous'];
 
   const history = chat ? chat.history : [];
+  const sessions = Object.values(chats).sort((a, b) => chatTs(b.id) - chatTs(a.id));
 
   return (
     <div className="flex h-screen flex-col">
       {/* Header */}
-      <header className="flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
+      <header className="relative flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
         <button onClick={onBack} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">← Back</button>
         <div className="h-9 w-9 overflow-hidden rounded-full bg-em-panel">
           {char.avatar ? <img src={avatarUrl(char.avatar)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center">👤</div>}
@@ -240,7 +320,36 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           {chat && chat.memories && <div className="text-[11px] text-em-accent">🧠 memory active</div>}
         </div>
         {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
+        <button onClick={() => setShowChats((v) => !v)} className={'rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}>💬 Chats ({sessions.length})</button>
         <button onClick={startNewChat} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
+
+        {/* Chat session list */}
+        {showChats && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowChats(false)} />
+            <div className="absolute right-3 top-full z-40 mt-1 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
+              <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-em-text-dim">
+                <span>Chats</span>
+                <button onClick={startNewChat} className="rounded-md px-2 py-0.5 text-em-accent transition hover:bg-em-accent/10">＋ New</button>
+              </div>
+              {sessions.length === 0 && <p className="px-2 py-3 text-center text-sm text-em-text-dim">No chats yet.</p>}
+              {sessions.map((s) => {
+                const active = s.id === chatId;
+                const count = (s.history || []).length;
+                return (
+                  <div key={s.id} className={'group flex items-center gap-1 rounded-lg px-2 py-1.5 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
+                    <button onClick={() => switchChat(s.id)} className="min-w-0 flex-1 text-left">
+                      <div className={'truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.name || 'Chat'}</div>
+                      <div className="text-[11px] text-em-text-dim">{count} message{count === 1 ? '' : 's'}</div>
+                    </button>
+                    <button onClick={() => renameChat(s.id)} title="Rename chat" className="rounded p-1 text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100">✏️</button>
+                    <button onClick={() => deleteChatSession(s.id)} title="Delete chat" className="rounded p-1 text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100">🗑️</button>
+                  </div>
+                );
+              })}
+            </div>
+          </>
+        )}
       </header>
 
       {/* Tools: persona · mood · memories */}
@@ -291,10 +400,21 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             showThink={settings.showThink}
             onRegenerate={() => regenerate(m)}
             onSwipe={(d) => swipe(m, d)}
+            onEditSave={(text) => saveMessageEdit(m, text)}
+            onDelete={() => deleteMessage(m)}
           />
         ))}
         {history.length === 0 && <div className="py-20 text-center text-em-text-dim">Say hello to start the scene…</div>}
       </div>
+
+      {/* Undo a delete */}
+      {undo && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-24 z-30 flex justify-center">
+          <button onClick={undoDelete} className="pointer-events-auto rounded-full border border-white/10 bg-em-panel px-4 py-2 text-sm font-medium text-em-text shadow-2xl transition hover:border-em-accent/50">
+            ↩ Undo delete ({undo.messages.length})
+          </button>
+        </div>
+      )}
 
       {/* Composer */}
       <div className="border-t border-white/10 bg-em-bg/70 backdrop-blur-xl">
@@ -322,8 +442,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   );
 }
 
-function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onSwipe }) {
+function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onSwipe, onEditSave, onDelete }) {
   const [showThink, setShowThink] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
   const isUser = msg.sender === 'user';
   const text = getMessageText(msg);
   const think = showThinkSetting ? getMessageThink(msg) : '';
@@ -331,6 +453,10 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
   const isStreamingThis = msg.isStreaming;
 
   const html = isStreamingThis ? renderStreaming(text) : renderFinal(text);
+
+  function beginEdit() { setDraft(getMessageText(msg)); setEditing(true); }
+  function commitEdit() { onEditSave(draft); setEditing(false); }
+  function cancelEdit() { setEditing(false); }
 
   return (
     <div className={'flex flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
@@ -340,13 +466,31 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
           (isUser ? 'bg-em-accent/15 text-em-text' : 'border border-white/10 bg-white/[0.04] text-em-text')
         }
       >
-        {!isUser && think && (
+        {!isUser && think && !editing && (
           <details open={showThink} onToggle={(e) => setShowThink(e.target.open)} className="mb-2 rounded-lg bg-black/30 text-xs text-em-text-dim">
             <summary className="cursor-pointer select-none px-2 py-1">💭 Thoughts</summary>
             <div className="px-2 pb-2" dangerouslySetInnerHTML={{ __html: escapeHtml(think).replace(/\n/g, '<br>') }} />
           </details>
         )}
-        {isStreamingThis && !text ? (
+        {editing ? (
+          <div className="flex w-[min(70vw,40rem)] max-w-full flex-col gap-2">
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit(); }
+                else if (e.key === 'Escape') cancelEdit();
+              }}
+              rows={Math.min(14, Math.max(2, draft.split('\n').length))}
+              className="w-full resize-y rounded-lg border border-white/10 bg-em-bg/60 px-3 py-2 text-em-text focus:border-em-accent/50 focus:outline-none"
+            />
+            <div className="flex items-center justify-end gap-2 text-sm">
+              <button onClick={cancelEdit} className="rounded-lg px-3 py-1 text-em-text-dim transition hover:text-em-text">Cancel</button>
+              <button onClick={commitEdit} className="rounded-lg bg-em-accent px-3 py-1 font-semibold text-em-bg transition hover:bg-emerald-300">Save</button>
+            </div>
+          </div>
+        ) : isStreamingThis && !text ? (
           <span className="inline-flex gap-1">
             <span className="h-2 w-2 animate-bounce rounded-full bg-em-text-dim [animation-delay:-0.2s]" />
             <span className="h-2 w-2 animate-bounce rounded-full bg-em-text-dim [animation-delay:-0.1s]" />
@@ -357,17 +501,19 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
         )}
       </div>
 
-      {/* Controls (AI, not streaming) */}
-      {!isUser && !isStreamingThis && (
-        <div className="flex items-center gap-2 px-1 text-em-text-dim">
-          {nVariants > 1 && (
+      {/* Controls (not while this message streams or is being edited) */}
+      {!isStreamingThis && !editing && (
+        <div className="flex items-center gap-2 px-1 text-em-text-dim opacity-70 transition hover:opacity-100">
+          {!isUser && nVariants > 1 && (
             <span className="flex items-center gap-1 text-xs">
               <button onClick={() => onSwipe(-1)} className="hover:text-em-text">‹</button>
               {(msg.activeVariant || 0) + 1}/{nVariants}
               <button onClick={() => onSwipe(1)} className="hover:text-em-text">›</button>
             </span>
           )}
-          <button onClick={onRegenerate} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Regenerate">🔄</button>
+          {!isUser && <button onClick={onRegenerate} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Regenerate">🔄</button>}
+          <button onClick={beginEdit} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Edit message">✎</button>
+          <button onClick={onDelete} disabled={streaming} className="text-sm transition hover:text-red-400 disabled:opacity-40" title="Delete this and following messages">🗑</button>
         </div>
       )}
     </div>
