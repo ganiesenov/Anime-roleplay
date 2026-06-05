@@ -53,6 +53,7 @@ NEW (beyond legacy parity — "make it feel real" mechanics):
 
 MIGRATION COMPLETE:
 - Feature parity reached and `/` has been flipped to the new app. The new React frontend is now served at the site root `/` (built with Vite `base: '/'`), and still at `/next/` for old bookmarks. The legacy app moved to `/legacy` (kept, not deleted). `backend/main.py` mounts dist at `/next` + `/` and `my-frontend` at `/legacy`, plus an explicit `/starter_pack_data.js` route so the new app can self-seed its starter pack regardless of mount layout.
+- Later parity round (ported the last legacy gaps): AI-generate character/scenario (`src/lib/aigen.js`, ✨ in the editor), per-character background image (editor field + backdrop behind the chat), multiple named greetings/scenarios with a picker on `＋ New chat`, duplicate-character, narrator-reminder field, onboarding tutorial (`TutorialModal.jsx`, first-visit + `?` button), and per-remote-model `num_ctx`. Intentionally NOT ported: UI sound effects (user opt-out), legacy "world/narrator" card type (replaced by group chats), per-model global instruction/reminder overrides (the per-character Instructions/Reminder cover this).
 
 (Note: a structured keyword-scan "lorebook" has no source in the current legacy — lore is a single freeform field, already supported in the editor and prompt — so there is nothing to port there.)
 
