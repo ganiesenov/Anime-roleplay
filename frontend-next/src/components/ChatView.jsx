@@ -3,7 +3,7 @@ import { saveCharacter, getAllPersonas, savePersona } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
-  buildMessagesArray, streamCompletion, splitThink, summarizeChat,
+  buildMessagesArray, streamCompletion, splitThink, summarizeChat, suggestReplies,
 } from '../lib/chat.js';
 import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
@@ -41,9 +41,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showMemories, setShowMemories] = useState(false);
   const [showChats, setShowChats] = useState(false);   // chat-session list panel
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
+  const [suggestions, setSuggestions] = useState([]);  // suggested user replies
+  const [suggesting, setSuggesting] = useState(false);
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
+  const suggestReqRef = useRef(0);        // cancels stale suggestion requests
+  const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const autoScroll = useRef(true);
   const autoSumRef = useRef(false);
@@ -91,6 +95,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setChatId(c.id);
     setShowChats(false);
     setUndo(null);
+    clearSuggestions();
     saveCharacter(char);
   }
 
@@ -98,6 +103,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   function switchChat(id) {
     if (!chats[id] || id === chatId) { setShowChats(false); return; }
     setUndo(null);
+    clearSuggestions();
     setChatId(id);
     setShowChats(false);
   }
@@ -183,12 +189,43 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     await runStream(msg, instruction, { seed: original, messages });
   }
 
+  // ── Suggested replies ─────────────────────────────────────────────────────
+  function clearSuggestions() {
+    suggestReqRef.current++;        // invalidate any in-flight request
+    setSuggestions([]);
+    setSuggesting(false);
+  }
+
+  async function generateSuggestions() {
+    if (!settings.replyOptions || !chat) return;
+    const reqId = ++suggestReqRef.current;
+    setSuggestions([]);
+    setSuggesting(true);
+    try {
+      const opts = await suggestReplies(char, chat, personas, { model: settings.model });
+      if (reqId !== suggestReqRef.current) return;
+      setSuggestions(opts || []);
+    } catch (e) {
+      if (reqId !== suggestReqRef.current) return;
+      setSuggestions([]);
+    } finally {
+      if (reqId === suggestReqRef.current) setSuggesting(false);
+    }
+  }
+
+  function pickSuggestion(text) {
+    setInput(text);
+    clearSuggestions();
+    if (inputRef.current) inputRef.current.focus();
+  }
+
   async function runStream(aiMsg, lastUserText, opts = {}) {
     const variantIndex = aiMsg.streamingVariant != null ? aiMsg.streamingVariant : aiMsg.activeVariant;
     const seed = opts.seed || '';                 // existing text to keep + append onto (continue)
     const controller = new AbortController();
     controllerRef.current = controller;
     setStreaming(true);
+    clearSuggestions();
     let mainAcc = '';
     let reasonAcc = '';
     let rafPending = false;
@@ -241,7 +278,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       setStreaming(false);
       await saveCharacter(char);
       rerender();
-      if (mainAcc) maybeAutoSummarize();
+      if (mainAcc && !errored && !controller.signal.aborted) {
+        maybeAutoSummarize();
+        generateSuggestions();
+      }
     }
   }
 
@@ -449,8 +489,27 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
       {/* Composer */}
       <div className="border-t border-white/10 bg-em-bg/70 backdrop-blur-xl">
+        {settings.replyOptions && !streaming && chat && (suggesting || suggestions.length > 0) && (
+          <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2 px-4 pt-3">
+            {suggesting && suggestions.length === 0 ? (
+              <span className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-em-text-dim">💡 thinking of replies…</span>
+            ) : (
+              suggestions.map((sug, i) => (
+                <button
+                  key={i}
+                  onClick={() => pickSuggestion(sug)}
+                  className="max-w-full truncate rounded-full border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-left text-sm text-em-text transition hover:border-em-accent/60 hover:bg-em-accent/20"
+                  title={sug}
+                >
+                  💬 {sug}
+                </button>
+              ))
+            )}
+          </div>
+        )}
         <div className="mx-auto flex w-full max-w-3xl items-end gap-2 px-4 py-3">
           <textarea
+            ref={inputRef}
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}

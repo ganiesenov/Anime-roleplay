@@ -36,10 +36,12 @@ DONE (in `frontend-next/`):
 - Chat session list (switch / rename / delete) — header "Chats" panel listing all of a character's chats, newest first, with active highlight and "＋ New". Deleting the active chat falls back to the newest remaining chat (or a fresh one).
 - Per-message edit / delete / continue — inline edit (writes to the active variant for AI, `main` for user), delete-this-and-following with an "Undo delete" action, and continue (extends an AI turn in place: keeps its text as a seed and streams a continuation onto the same variant, prompting from history up to that turn). Mirrors the legacy AriaBD record mutations.
 
+- Reply suggestions — after each AI turn (opt-in via the "Suggest replies" setting) a one-shot LLM call returns 2 short first-person user replies, shown as chips above the composer; clicking one drops it into the input. Stale requests are cancelled by id; helper in `src/lib/chat.js` (`suggestReplies` / `parseReplyOptions`).
+
 NOT YET PORTED (the remaining migration work — port from `my-frontend/js/` to `frontend-next/`):
 - World / story / multi-character (group) chat prompt paths (legacy `buildSystemPrompt` has them).
 - Lorebook keyword-scan + token budget (legacy `js/lorebook.js`).
-- Reply suggestions, TTS, ambient effects/music.
+- TTS, ambient effects/music.
 - Import / export (legacy `js/io.js`: JSON backup + SillyTavern V2 PNG/JSON cards).
 - Final step once at parity: flip `/` to the new app (change the StaticFiles mount in `backend/main.py`).
 

@@ -56,6 +56,10 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             <input type="checkbox" checked={s.showThink} onChange={(e) => set('showThink', e.target.checked)} className="h-5 w-5 accent-em-accent" />
           </Row>
 
+          <Row label="Suggest replies" hint="Offer 2 quick user replies after each AI turn.">
+            <input type="checkbox" checked={s.replyOptions} onChange={(e) => set('replyOptions', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+          </Row>
+
           <Row label="Auto-summarize to memory" hint="Distill old turns into memory automatically.">
             <input type="checkbox" checked={s.autoSummarize} onChange={(e) => set('autoSummarize', e.target.checked)} className="h-5 w-5 accent-em-accent" />
           </Row>

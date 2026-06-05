@@ -159,4 +159,49 @@ export async function summarizeChat(char, chat, personas, signal) {
   return collectCompletion([{ role: 'system', content: sys }, { role: 'user', content: transcript }], { signal });
 }
 
+// Parse the model's reply-suggestion output into up to 2 strings. Tolerates
+// stray prose around the JSON array (think tags, lead-in text) via a bracket scan.
+export function parseReplyOptions(raw) {
+  let s = String(raw || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  try { const arr = JSON.parse(s); if (Array.isArray(arr)) return arr.slice(0, 2).map(String); } catch (e) { /* fallback */ }
+  const starts = [];
+  for (let i = 0; i < s.length; i++) if (s[i] === '[') starts.push(i);
+  for (const start of starts) {
+    for (let end = s.length; end > start; end--) {
+      if (s[end - 1] !== ']') continue;
+      try {
+        const arr = JSON.parse(s.slice(start, end));
+        if (Array.isArray(arr) && arr.length) return arr.slice(0, 2).map(String);
+      } catch (e) { /* keep scanning */ }
+    }
+  }
+  return [];
+}
+
+// Ask the model for 2 short first-person user replies to the last AI turn.
+export async function suggestReplies(char, chat, personas, opts) {
+  opts = opts || {};
+  const lastAi = [...(chat.history || [])].reverse().find((m) => m.sender !== 'user' && !m.isStreaming);
+  if (!lastAi) return [];
+  const aiText = getMessageText(lastAi);
+  if (!aiText || aiText.length < 5) return [];
+
+  let personaCtx = '';
+  if (chat.activePersonaId && personas[chat.activePersonaId]) {
+    const p = personas[chat.activePersonaId];
+    personaCtx = '\nThe user is roleplaying as "' + (p.name || 'User') + '": ' + String(p.description || '').slice(0, 200);
+  }
+  const sys = 'You generate exactly 2 short reply options spoken by the human user (first person, single sentence each, '
+    + 'specific to the scene, two distinct directions, no narration).' + personaCtx
+    + '\nOutput strictly a JSON array of 2 strings, e.g. ["...","..."].';
+  const user = 'Character: ' + displayName(char) + '\nLast message: ' + aiText.slice(0, 600)
+    + '\nGenerate the 2 user replies now as a JSON array.';
+
+  const raw = await collectCompletion(
+    [{ role: 'system', content: sys }, { role: 'user', content: user }],
+    { model: opts.model, temperature: 0.7, signal: opts.signal },
+  );
+  return parseReplyOptions(raw);
+}
+
 export { splitThink };

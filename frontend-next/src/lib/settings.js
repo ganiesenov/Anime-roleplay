@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   temperature: 0.7,
   replyLength: 'default',    // default | short | medium | long | verylong
   showThink: true,
+  replyOptions: true,        // suggest 2 user replies after each AI turn
   autoSummarize: false,
   autoSummarizeEvery: 30,
 };
