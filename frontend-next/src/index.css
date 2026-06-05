@@ -42,6 +42,7 @@ body {
 
 /* Appearance design vars (overridden live by lib/design.js applyDesignSettings). */
 :root {
+  --ai-avatar-size: 40px;
   --chat-font-size: 15px;
   --message-spacing: 20px;
   --main-text-color: #e9f5ef;
@@ -59,6 +60,14 @@ body {
 /* Message bubble fills — driven by the design vars so colour/opacity/blur are live. */
 .msg-bubble-user { background: var(--user-bubble-color); backdrop-filter: blur(var(--message-blur)); }
 .msg-bubble-ai { background: var(--ai-bubble-color); backdrop-filter: blur(var(--message-blur)); }
+
+/* Native <select> popups render on a white background by default, which makes the
+   light theme text nearly invisible — force readable dark options. */
+select option, select optgroup {
+  background-color: #0a241a;
+  color: #e9f5ef;
+}
+select optgroup { font-weight: 700; }
 
 /* Thin emerald scrollbars. */
 * { scrollbar-width: thin; scrollbar-color: rgba(46,230,160,0.35) transparent; }

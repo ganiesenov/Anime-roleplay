@@ -168,6 +168,9 @@ export default function SettingsModal({ settings, onSave, onClose }) {
           </Section>
 
           <Section title="Appearance">
+            <Row label={`AI avatar size: ${s.avatarSize || 40}px`} hint="Avatar shown beside each reply.">
+              <input type="range" min="24" max="96" step="2" value={s.avatarSize || 40} onChange={(e) => set('avatarSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
+            </Row>
             <Row label={`Font size: ${s.fontSize || 15}px`}>
               <input type="range" min="11" max="28" step="1" value={s.fontSize || 15} onChange={(e) => set('fontSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
             </Row>

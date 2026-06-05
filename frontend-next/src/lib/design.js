@@ -22,6 +22,7 @@ export function applyDesignSettings(s) {
   s = s || {};
   const root = document.documentElement.style;
   const num = (v, d) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : d);
+  root.setProperty('--ai-avatar-size', num(s.avatarSize, 40) + 'px');
   root.setProperty('--chat-font-size', num(s.fontSize, 15) + 'px');
   root.setProperty('--message-spacing', num(s.messageSpacing, 20) + 'px');
   root.setProperty('--main-text-color', s.mainTextColor || '#e9f5ef');

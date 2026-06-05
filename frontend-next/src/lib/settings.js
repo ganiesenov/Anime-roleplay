@@ -26,6 +26,7 @@ export const DEFAULT_SETTINGS = {
   summaryModelId: '',        // '' = same as chat model; used for auto-summarize + memory
 
   // ── Appearance / design (applied as CSS variables, see lib/design.js). ──
+  avatarSize: 40,            // AI speaker avatar beside each reply (px)
   fontSize: 15,              // chat message font size (px)
   messageSpacing: 20,        // vertical gap between messages (px)
   mainTextColor: '#e9f5ef',  // narration / main text

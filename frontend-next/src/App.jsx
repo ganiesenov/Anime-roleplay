@@ -113,7 +113,7 @@ export default function App() {
     return (
       <>
         {overlays}
-        <ChatView character={activeChar} settings={settings} onBack={() => setActiveChar(null)} onEdit={(c) => setEditing(c)} />
+        <ChatView character={activeChar} settings={settings} onBack={() => setActiveChar(null)} onEdit={(c) => setEditing(c)} onOpenSettings={() => setShowSettings(true)} />
       </>
     );
   }

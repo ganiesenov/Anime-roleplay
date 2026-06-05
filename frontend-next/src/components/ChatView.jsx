@@ -42,7 +42,7 @@ function newChat(char) {
   return { id: 'chat-' + Date.now(), name: 'Chat ' + new Date().toLocaleString(), history, memories: '', participants: [char.id], activePersonaId: null, mood: null };
 }
 
-export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS }) {
+export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings }) {
   const [char, setChar] = useState(character);
   const [personas, setPersonas] = useState({});
   const [chatId, setChatId] = useState(null);
@@ -682,6 +682,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           </button>
         )}
         {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
+        {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">⚙</button>}
         <button onClick={() => setShowChats((v) => !v)} className={'rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}>💬 Chats ({sessions.length})</button>
         <button onClick={startNewChat} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
 
@@ -1027,18 +1028,25 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
   function commitEdit() { onEditSave(draft); setEditing(false); }
   function cancelEdit() { setEditing(false); }
 
+  const avChar = group ? speaker : char;
   return (
-    <div className={'flex flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
+    <div className={'flex w-full items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}>
+      {!isUser && (
+        <div
+          className="shrink-0 overflow-hidden rounded-full bg-em-panel"
+          style={{ width: 'var(--ai-avatar-size)', height: 'var(--ai-avatar-size)' }}
+        >
+          {avChar && avChar.avatar
+            ? <img src={avatarUrl(avChar.avatar)} alt="" className="h-full w-full object-cover" />
+            : <div className="flex h-full w-full items-center justify-center text-em-text-dim">👤</div>}
+        </div>
+      )}
+      <div className={'flex min-w-0 flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
       {!isUser && msg.offscreen && (
         <div className="max-w-[85%] px-1 text-[11px] italic text-em-text-dim">📔 While you were away: {msg.offscreen}</div>
       )}
       {!isUser && group && speaker && (
-        <div className="flex items-center gap-1.5 px-1 text-xs text-em-text-dim">
-          <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-em-panel">
-            {speaker.avatar ? <img src={avatarUrl(speaker.avatar)} alt="" className="h-full w-full object-cover" /> : '👤'}
-          </span>
-          <span className="font-medium text-em-text">{displayName(speaker)}</span>
-        </div>
+        <div className="px-1 text-xs font-medium text-em-text-dim">{displayName(speaker)}</div>
       )}
       <div
         className={
@@ -1098,6 +1106,7 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
           <button onClick={onDelete} disabled={streaming} className="text-sm transition hover:text-red-400 disabled:opacity-40" title="Delete this and following messages">🗑</button>
         </div>
       )}
+      </div>
     </div>
   );
 }
