@@ -75,6 +75,10 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             <input type="checkbox" checked={s.presence} onChange={(e) => set('presence', e.target.checked)} className="h-5 w-5 accent-em-accent" />
           </Row>
 
+          <Row label="Off-screen life" hint="Character lives their own day while you're away; it colours how they greet you back.">
+            <input type="checkbox" checked={s.offscreenLife} onChange={(e) => set('offscreenLife', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+          </Row>
+
           {ttsSupported() && (
             <Row label="Speak replies (TTS)" hint="Read each AI reply aloud.">
               <input type="checkbox" checked={s.tts} onChange={(e) => set('tts', e.target.checked)} className="h-5 w-5 accent-em-accent" />

@@ -9,6 +9,7 @@ import {
 } from '../lib/chat.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
+import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
 import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
@@ -426,19 +427,39 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     } catch (e) { /* best effort */ }
   }
 
-  // The character reaches out first after you've been away for a while.
+  // The character reaches out first after you've been away for a while — grounded
+  // in what they "did" off-screen while you were gone.
   async function sendProactive(gapMs) {
     if (!chat || streaming) return;
     const speaker = resolveSpeaker();
+    const gapText = formatElapsed(gapMs);
+
+    let offscreen = '';
+    if (settings.offscreenLife) {
+      const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'User';
+      const mood = chat.relationship && chat.relationship.mood;
+      try {
+        const raw = await collectCompletion(
+          buildOffscreenMessages(displayName(speaker), uName, gapText, mood),
+          { model: settings.model },
+        );
+        offscreen = cleanOffscreen(raw);
+      } catch (e) { /* best effort */ }
+    }
+
     const aiMsg = {
       id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
-      activeVariant: 0, variations: [{ main: '', think: null }], isStreaming: true, streamingVariant: 0, proactive: true,
+      activeVariant: 0, variations: [{ main: '', think: null }], isStreaming: true, streamingVariant: 0,
+      proactive: true, offscreen: offscreen || undefined,
     };
+    if (offscreen) chat.diary = [...(chat.diary || []), { ts: Date.now(), text: offscreen }].slice(-10);
     chat.history.push(aiMsg);
     autoScroll.current = true;
     rerender();
-    const instruction = 'The user has just come back after being away for ' + formatElapsed(gapMs)
-      + '. As ' + displayName(speaker) + ', reach out to them FIRST — greet them and react to their absence and the time of day, in character. Keep it natural and fairly short.';
+
+    const instruction = 'The user has just come back after being away for ' + gapText + '.'
+      + (offscreen ? ' While they were gone, you (' + displayName(speaker) + ') were busy with your own life: "' + offscreen + '". Let that colour how you greet them — you may mention it naturally.' : '')
+      + ' As ' + displayName(speaker) + ', reach out to them FIRST — greet them and react to their absence and the time of day, in character. Keep it natural and fairly short.';
     const messages = isGroup()
       ? groupMessagesFor(speaker, instruction)
       : buildMessagesArray(char, chat, personas, instruction, promptOpts(speaker));
@@ -924,6 +945,9 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
 
   return (
     <div className={'flex flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
+      {!isUser && msg.offscreen && (
+        <div className="max-w-[85%] px-1 text-[11px] italic text-em-text-dim">📔 While you were away: {msg.offscreen}</div>
+      )}
       {!isUser && group && speaker && (
         <div className="flex items-center gap-1.5 px-1 text-xs text-em-text-dim">
           <span className="flex h-5 w-5 items-center justify-center overflow-hidden rounded-full bg-em-panel">
