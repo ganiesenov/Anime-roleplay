@@ -90,3 +90,63 @@ select optgroup { font-weight: 700; }
 * { scrollbar-width: thin; scrollbar-color: rgba(46,230,160,0.35) transparent; }
 *::-webkit-scrollbar { width: 9px; height: 9px; }
 *::-webkit-scrollbar-thumb { background: rgba(46,230,160,0.30); border-radius: 999px; }
+
+/* ── Logo mark ─────────────────────────────────────────────────────────────
+   Gentle continuous float + a glow that breathes, so the brand feels alive. */
+@keyframes logo-float {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  50%      { transform: translateY(-2px) rotate(-3deg); }
+}
+.logo-mark { animation: logo-float 5s ease-in-out infinite; will-change: transform; }
+.group:hover .logo-mark { animation-duration: 1.6s; }
+
+/* ── Music: the character "dances" ─────────────────────────────────────────
+   Applied to avatars while a track is playing. transform-origin at the bottom
+   so it reads as a body sway/bounce rather than a spin. */
+@keyframes avatar-dance {
+  0%   { transform: rotate(-7deg) translateY(0)    scale(1);    }
+  20%  { transform: rotate(6deg)  translateY(-4px) scale(1.05); }
+  40%  { transform: rotate(-5deg) translateY(0)    scale(1);    }
+  60%  { transform: rotate(7deg)  translateY(-3px) scale(1.04); }
+  80%  { transform: rotate(-4deg) translateY(0)    scale(1.01); }
+  100% { transform: rotate(-7deg) translateY(0)    scale(1);    }
+}
+.avatar-dancing {
+  animation: avatar-dance 0.85s ease-in-out infinite;
+  transform-origin: 50% 90%;
+  will-change: transform;
+}
+/* Soft beat-glow ring behind a dancing avatar. */
+@keyframes beat-glow {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(46,230,160,0.0),   0 0 14px -2px rgba(46,230,160,0.35); }
+  50%      { box-shadow: 0 0 0 4px rgba(46,230,160,0.18), 0 0 26px  2px rgba(46,230,160,0.65); }
+}
+.beat-ring { animation: beat-glow 0.85s ease-in-out infinite; }
+
+/* Mini equalizer bars (now-playing indicator). */
+@keyframes eq-bar {
+  0%, 100% { transform: scaleY(0.35); }
+  50%      { transform: scaleY(1); }
+}
+.eq { display: inline-flex; align-items: flex-end; gap: 2px; height: 14px; }
+.eq > i {
+  display: block; width: 3px; height: 100%;
+  background: var(--color-em-accent); border-radius: 2px;
+  transform-origin: bottom; animation: eq-bar 0.8s ease-in-out infinite;
+}
+.eq > i:nth-child(2) { animation-delay: 0.18s; }
+.eq > i:nth-child(3) { animation-delay: 0.36s; }
+.eq > i:nth-child(4) { animation-delay: 0.10s; }
+
+/* Dancer entrance pop-in. */
+@keyframes dancer-in {
+  from { transform: translateY(24px) scale(0.8); opacity: 0; }
+  to   { transform: translateY(0)    scale(1);   opacity: 1; }
+}
+.dancer-in { animation: dancer-in 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
+
+/* Respect reduced-motion for ambient/decorative loops, but keep the deliberate
+   "dance under music" feature alive — it's an explicit, user-triggered effect. */
+@media (prefers-reduced-motion: reduce) {
+  .avatar-dancing, .beat-ring, .logo-mark, .dancer-in { animation: none; }
+}

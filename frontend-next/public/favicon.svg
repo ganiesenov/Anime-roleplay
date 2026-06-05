@@ -1,22 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
   <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#2ee6a0"/>
-      <stop offset="1" stop-color="#0f7a55"/>
+    <linearGradient id="tile" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0d3527"/>
+      <stop offset="1" stop-color="#05100b"/>
     </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.25" r="0.9">
-      <stop offset="0" stop-color="#5cffc4" stop-opacity="0.55"/>
+    <linearGradient id="a" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#5cffc4"/>
+      <stop offset="1" stop-color="#1ba97a"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.2" r="0.95">
+      <stop offset="0" stop-color="#5cffc4" stop-opacity="0.5"/>
       <stop offset="1" stop-color="#5cffc4" stop-opacity="0"/>
     </radialGradient>
   </defs>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="#05100b"/>
-  <rect x="2" y="2" width="60" height="60" rx="16" fill="url(#glow)"/>
-  <rect x="2.5" y="2.5" width="59" height="59" rx="15.5" fill="none" stroke="#2ee6a0" stroke-opacity="0.35"/>
+  <!-- squircle tile -->
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#tile)"/>
+  <rect x="2" y="2" width="60" height="60" rx="18" fill="url(#glow)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="17.25" fill="none" stroke="#2ee6a0" stroke-opacity="0.4"/>
   <!-- speech-bubble tail -->
-  <path d="M22 48 l0 8 l9 -7 z" fill="url(#g)"/>
-  <!-- stylized A monogram -->
-  <path d="M32 14 L46 50 H38.5 L36 43 H28 L25.5 50 H18 Z M30 36 H34 L32 26 Z"
-        fill="url(#g)" stroke="#5cffc4" stroke-width="0.6" stroke-opacity="0.5"/>
-  <!-- spark -->
-  <circle cx="47" cy="18" r="2.4" fill="#ffd952"/>
+  <path d="M20 47 l0 9 l10 -7.5 z" fill="url(#a)"/>
+  <!-- geometric A monogram -->
+  <path d="M32 13 L47 51 H39.6 L36.9 43.6 H27.1 L24.4 51 H17 Z M29.3 36.9 H34.7 L32 28.6 Z"
+        fill="url(#a)"/>
+  <!-- crossbar cut -->
+  <rect x="27.6" y="38.4" width="8.8" height="2.4" rx="1.2" fill="#05100b" opacity="0.55"/>
+  <!-- orbiting spark -->
+  <circle cx="46.5" cy="17.5" r="3" fill="#ffd952"/>
+  <circle cx="46.5" cy="17.5" r="6" fill="none" stroke="#ffd952" stroke-opacity="0.35" stroke-width="1.2"/>
 </svg>

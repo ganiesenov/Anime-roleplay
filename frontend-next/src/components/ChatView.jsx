@@ -21,6 +21,11 @@ function avatarUrl(url) {
   return url;
 }
 
+// A dance clip URL that points at a <video>-playable file (vs a GIF/image).
+function isVideoUrl(url) {
+  return /\.(mp4|webm|ogg|ogv|mov|m4v)(\?|#|$)/i.test(String(url || ''));
+}
+
 // Parse the creation timestamp baked into a `chat-<ms>` id (newest first).
 function chatTs(id) {
   const n = parseInt(String(id || '').replace('chat-', ''), 10);
@@ -43,12 +48,23 @@ function newChat(char, scenarioIndex = 0) {
   return { id: 'chat-' + Date.now(), name: 'Chat ' + new Date().toLocaleString(), history, memories: '', participants: [char.id], activePersonaId: null, mood: null };
 }
 
+// Slash commands surfaced in the composer (type "/" to filter). arg='' = runs immediately.
+const SLASH_COMMANDS = [
+  { cmd: 'me',       arg: '<action>', icon: '🎬', desc: 'Send an action in italics' },
+  { cmd: 'ooc',      arg: '<note>',   icon: '💬', desc: 'Out-of-character aside' },
+  { cmd: 'roll',     arg: '[NdM]',    icon: '🎲', desc: 'Roll dice — e.g. 2d6, d20, 3d8+1' },
+  { cmd: 'retry',    arg: '',         icon: '↻',  desc: 'Regenerate the last reply' },
+  { cmd: 'continue', arg: '',         icon: '⏩', desc: 'Continue the last reply' },
+  { cmd: 'new',      arg: '',         icon: '✚',  desc: 'Start a new chat' },
+];
+
 export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings }) {
   const [char, setChar] = useState(character);
   const [personas, setPersonas] = useState({});
   const [chatId, setChatId] = useState(null);
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState('');
+  const [slashIdx, setSlashIdx] = useState(0); // highlighted slash-command suggestion
   const [showMemories, setShowMemories] = useState(false);
   const [showChats, setShowChats] = useState(false);   // chat-session list panel
   const [showScenarioPick, setShowScenarioPick] = useState(false); // greeting picker on + New chat
@@ -59,6 +75,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showMusic, setShowMusic] = useState(false);   // background-music panel
   const [musicUrl, setMusicUrl] = useState('');
   const [musicPlaying, setMusicPlaying] = useState(false);
+  const [showDancer, setShowDancer] = useState(true); // the floating "now dancing" portrait
   const [musicVolume, setMusicVolume] = useState(() => {
     const v = parseFloat(localStorage.getItem('musicVolume'));
     return Number.isFinite(v) ? v : 0.5;
@@ -263,6 +280,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (inputRef.current) inputRef.current.focus();
   }
 
+  // Auto-grow the composer textarea to fit its content (capped at max-height).
+  useEffect(() => {
+    const el = inputRef.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = Math.min(el.scrollHeight, 160) + 'px';
+  }, [input]);
+  // Keep the highlighted slash suggestion in range as the query narrows.
+  useEffect(() => { setSlashIdx(0); }, [input]);
+
   // ── Text-to-speech ────────────────────────────────────────────────────────
   function speakMessage(msg) {
     if (speakingId === msg.id) { cancelSpeech(); setSpeakingId(null); return; }
@@ -311,7 +338,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     }
     a.volume = musicVolume;
     a.src = audioSrcFor(u);
-    a.play().then(() => setMusicPlaying(true)).catch(() => setMusicPlaying(false));
+    a.play().then(() => { setMusicPlaying(true); setShowDancer(true); }).catch(() => setMusicPlaying(false));
     try { localStorage.setItem(musicKey(char.id), u); } catch (e) { /* ignore */ }
   }
 
@@ -504,8 +531,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, chat, streaming, settings.presence]);
 
-  async function send() {
-    const text = input.trim();
+  // Actually push a user turn + stream the reply. `send` wraps this with slash-command parsing.
+  async function sendText(raw) {
+    const text = String(raw || '').trim();
     if (!text || streaming || !chat) return;
     setInput('');
     setUndo(null);
@@ -520,6 +548,76 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     rerender();
     const opts = isGroup() ? { messages: groupMessagesFor(speaker, text) } : {};
     await runStream(aiMsg, text, opts);
+  }
+
+  function send() {
+    const raw = input.trim();
+    if (!raw || streaming || !chat) return;
+    if (raw.startsWith('/') && handleSlash(raw)) { setInput(''); return; }
+    sendText(raw);
+  }
+
+  function lastAiMessage() {
+    const h = (chat && chat.history) || [];
+    for (let i = h.length - 1; i >= 0; i--) if (h[i].sender === 'ai' && !h[i].isStreaming) return h[i];
+    return null;
+  }
+
+  // Returns true if the raw text was a recognised slash command (and was handled).
+  function handleSlash(raw) {
+    const m = raw.match(/^\/(\w+)\s*([\s\S]*)$/);
+    if (!m) return false;
+    return runSlashCommand(m[1].toLowerCase(), (m[2] || '').trim());
+  }
+
+  function runSlashCommand(cmd, rest) {
+    switch (cmd) {
+      case 'me':       if (rest) sendText('*' + rest + '*'); return true;
+      case 'ooc':      if (rest) sendText('(OOC: ' + rest + ')'); return true;
+      case 'roll':     sendText(rollDice(rest || 'd20')); return true;
+      case 'retry':
+      case 'regen':    { const last = lastAiMessage(); if (last) regenerate(last); return true; }
+      case 'continue': { const last = lastAiMessage(); if (last) continueMessage(last); return true; }
+      case 'new':      newChatClicked(); return true;
+      default:         return false;
+    }
+  }
+
+  // Parse a dice spec like "2d6", "d20", "3d8+1" and return an italic action string.
+  function rollDice(spec) {
+    const m = String(spec).replace(/\s+/g, '').match(/^(\d*)d(\d+)([+-]\d+)?$/i);
+    if (!m) return '*rolls the dice*';
+    const n = Math.min(Math.max(parseInt(m[1] || '1', 10), 1), 20);
+    const sides = Math.min(Math.max(parseInt(m[2], 10), 2), 1000);
+    const mod = parseInt(m[3] || '0', 10);
+    const rolls = [];
+    let sum = 0;
+    for (let i = 0; i < n; i++) { const r = 1 + Math.floor(Math.random() * sides); rolls.push(r); sum += r; }
+    sum += mod;
+    const detail = rolls.join(' + ') + (mod ? ' ' + m[3] : '');
+    const breakdown = (n > 1 || mod) ? ` (${detail})` : '';
+    return `*rolls ${n}d${sides}${m[3] || ''} → **${sum}**${breakdown}*`;
+  }
+
+  // Focus the composer and drop the caret at the very end of its current value.
+  function focusInputEnd() {
+    setTimeout(() => {
+      const el = inputRef.current;
+      if (!el) return;
+      el.focus();
+      const n = el.value.length;
+      try { el.setSelectionRange(n, n); } catch (e) { /* ignore */ }
+    }, 0);
+  }
+
+  function pickCommand(c) {
+    if (c.arg) { setInput('/' + c.cmd + ' '); focusInputEnd(); }
+    else { runSlashCommand(c.cmd, ''); setInput(''); }
+  }
+
+  function insertAction() {
+    setInput((v) => (v ? v.replace(/\s*$/, '') + ' *action*' : '*action*'));
+    focusInputEnd();
   }
 
   async function regenerate(msg) {
@@ -663,6 +761,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const history = chat ? chat.history : [];
   const sessions = Object.values(chats).sort((a, b) => chatTs(b.id) - chatTs(a.id));
 
+  // Slash-command autocomplete: only while typing the command word (no space yet).
+  const slashQuery = (() => { const m = input.match(/^\/(\w*)$/); return m ? m[1].toLowerCase() : null; })();
+  const slashMatches = slashQuery != null ? SLASH_COMMANDS.filter((c) => c.cmd.startsWith(slashQuery)) : [];
+  const slashActive = Math.min(slashIdx, Math.max(0, slashMatches.length - 1));
+
   return (
     <div className="relative isolate flex h-screen flex-col">
       {char.background && (
@@ -675,18 +778,35 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {/* Header */}
       <header className="relative flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
         <button onClick={onBack} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">← Back</button>
-        <div className="h-9 w-9 overflow-hidden rounded-full bg-em-panel">
-          {char.avatar ? <img src={avatarUrl(char.avatar)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center">👤</div>}
+        <div className={'h-9 w-9 overflow-hidden rounded-full bg-em-panel ' + (musicPlaying ? 'beat-ring' : '')}>
+          {char.avatar
+            ? <img src={avatarUrl(char.avatar)} alt="" className={'h-full w-full object-cover ' + (musicPlaying ? 'avatar-dancing' : '')} />
+            : <div className="flex h-full w-full items-center justify-center">👤</div>}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="truncate font-semibold">{displayName(char)}</div>
+          <div className="flex items-center gap-2">
+            <span className="truncate font-semibold">{displayName(char)}</span>
+            {musicPlaying && (
+              <span className="eq shrink-0" title="Music playing" aria-label="music playing"><i /><i /><i /><i /></span>
+            )}
+          </div>
           {chat && chat.memories && <div className="text-[11px] text-em-accent">🧠 memory active</div>}
         </div>
-        {settings.presence && (
-          <span title={`${displayName(char)} is ${presenceFor(char.id).label}`} className="hidden text-sm sm:inline" aria-label="presence">
-            {presenceFor(char.id).badge}
-          </span>
-        )}
+        {settings.presence && (() => {
+          const p = presenceFor(char.id);
+          const asleep = p.state === 'asleep';
+          return (
+            <span
+              title={`${displayName(char)} is ${p.label}`}
+              aria-label={`presence: ${p.label}`}
+              className={'hidden items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium capitalize sm:flex ' +
+                (asleep ? 'border-indigo-400/30 bg-indigo-400/10 text-indigo-200' : 'border-em-accent/30 bg-em-accent/10 text-em-accent')}
+            >
+              <span className={'h-1.5 w-1.5 rounded-full ' + (asleep ? 'bg-indigo-300' : 'bg-em-accent')} />
+              {p.label}
+            </span>
+          );
+        })()}
         {settings.relationship && chat && chat.relationship && (
           <button
             onClick={() => setShowInner(true)}
@@ -915,6 +1035,37 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {history.length === 0 && <div className="py-20 text-center text-em-text-dim">Say hello to start the scene…</div>}
       </div>
 
+      {/* Now-playing corner: a real dance clip if the character has one, else a calm framed avatar. */}
+      {musicPlaying && showDancer && (char.danceUrl || char.avatar) && (
+        <div className="dancer-in pointer-events-none absolute bottom-28 left-4 z-20 flex flex-col items-center sm:left-6">
+          <div className="group/dancer pointer-events-auto relative">
+            <button
+              onClick={() => setShowDancer(false)}
+              title="Hide"
+              className="absolute -right-2 -top-2 z-10 grid h-6 w-6 place-items-center rounded-full border border-white/15 bg-em-bg/80 text-xs text-em-text-dim opacity-0 backdrop-blur transition hover:text-em-text group-hover/dancer:opacity-100"
+            >
+              ✕
+            </button>
+            {char.danceUrl ? (
+              isVideoUrl(char.danceUrl) ? (
+                <video src={char.danceUrl} autoPlay loop muted playsInline className="beat-ring h-40 w-32 rounded-2xl border border-em-accent/30 object-cover shadow-2xl" />
+              ) : (
+                <img src={avatarUrl(char.danceUrl)} alt="" className="beat-ring h-40 w-32 rounded-2xl border border-em-accent/30 object-cover shadow-2xl" />
+              )
+            ) : (
+              <div className="beat-ring h-28 w-28 overflow-hidden rounded-2xl border border-em-accent/30 bg-em-panel shadow-2xl sm:h-32 sm:w-32">
+                <img src={avatarUrl(char.avatar)} alt="" className="h-full w-full object-cover" />
+              </div>
+            )}
+          </div>
+          {/* now-playing pill */}
+          <div className="pointer-events-auto mt-2 flex items-center gap-2 rounded-full border border-white/10 bg-em-bg/70 px-3 py-1 shadow-lg backdrop-blur">
+            <span className="eq"><i /><i /><i /><i /></span>
+            <span className="max-w-[7rem] truncate text-xs font-medium text-em-text">{displayName(char)}</span>
+          </div>
+        </div>
+      )}
+
       {/* Undo a delete */}
       {undo && (
         <div className="pointer-events-none fixed inset-x-0 bottom-24 z-30 flex justify-center">
@@ -944,21 +1095,56 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             )}
           </div>
         )}
-        <div className="mx-auto flex w-full max-w-3xl items-end gap-2 px-4 py-3">
-          <textarea
-            ref={inputRef}
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); } }}
-            rows={1}
-            placeholder={`Message ${displayName(char)}…`}
-            className="max-h-40 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
-          />
-          {streaming ? (
-            <button onClick={stop} className="rounded-xl bg-red-500/80 px-5 py-3 font-semibold text-white transition hover:bg-red-500">■ Stop</button>
-          ) : (
-            <button onClick={send} disabled={!input.trim()} className="rounded-xl bg-em-accent px-5 py-3 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-40">Send ↵</button>
+        <div className="relative mx-auto w-full max-w-3xl px-4 py-3">
+          {/* Slash-command autocomplete */}
+          {slashMatches.length > 0 && (
+            <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl border border-white/10 bg-em-panel/95 p-1.5 shadow-2xl backdrop-blur">
+              <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">Commands</div>
+              {slashMatches.map((c, i) => (
+                <button
+                  key={c.cmd}
+                  onMouseDown={(e) => { e.preventDefault(); pickCommand(c); }}
+                  onMouseEnter={() => setSlashIdx(i)}
+                  className={'flex w-full items-center gap-3 rounded-lg px-2.5 py-2 text-left text-sm transition ' + (i === slashActive ? 'bg-em-accent/15' : 'hover:bg-white/5')}
+                >
+                  <span className="w-5 text-center">{c.icon}</span>
+                  <span className={'font-medium ' + (i === slashActive ? 'text-em-accent' : 'text-em-text')}>/{c.cmd}</span>
+                  {c.arg && <span className="text-xs text-em-text-dim/80">{c.arg}</span>}
+                  <span className="ml-auto truncate text-xs text-em-text-dim">{c.desc}</span>
+                </button>
+              ))}
+            </div>
           )}
+          <div className="flex items-end gap-2">
+            {/* quick tools */}
+            <div className="flex items-center gap-1 pb-0.5">
+              <button onClick={() => { setInput((v) => (v === '/' ? '' : '/')); focusInputEnd(); }} title="Commands (/)" className={'grid h-9 w-9 place-items-center rounded-xl border transition ' + (input === '/' ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}>⌘</button>
+              <button onClick={insertAction} title="Insert action (*…*)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent"><span className="italic">A</span></button>
+              <button onClick={() => sendText(rollDice('d20'))} disabled={streaming} title="Roll a d20" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">🎲</button>
+            </div>
+            <textarea
+              ref={inputRef}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (slashMatches.length > 0) {
+                  if (e.key === 'ArrowDown') { e.preventDefault(); setSlashIdx((slashActive + 1) % slashMatches.length); return; }
+                  if (e.key === 'ArrowUp') { e.preventDefault(); setSlashIdx((slashActive - 1 + slashMatches.length) % slashMatches.length); return; }
+                  if (e.key === 'Tab' || (e.key === 'Enter' && !e.shiftKey)) { e.preventDefault(); pickCommand(slashMatches[slashActive]); return; }
+                  if (e.key === 'Escape') { e.preventDefault(); setInput(''); return; }
+                }
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); send(); }
+              }}
+              rows={1}
+              placeholder={`Message ${displayName(char)}…   ( / for commands )`}
+              className="max-h-40 min-h-[44px] flex-1 resize-none rounded-xl border border-white/10 bg-white/[0.04] px-4 py-3 text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
+            />
+            {streaming ? (
+              <button onClick={stop} className="flex items-center gap-2 rounded-xl bg-red-500/80 px-5 py-3 font-semibold text-white transition hover:bg-red-500"><StopIcon /> Stop</button>
+            ) : (
+              <button onClick={send} disabled={!input.trim()} className="flex items-center gap-2 rounded-xl bg-em-accent px-5 py-3 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-40">Send <SendIcon /></button>
+            )}
+          </div>
         </div>
       </div>
 
@@ -1051,6 +1237,49 @@ function Meter({ label, value }) {
   );
 }
 
+// Compact icon button for the per-message action row.
+function CtrlBtn({ onClick, disabled, title, active, danger, children }) {
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-label={title}
+      className={
+        'grid h-7 w-7 place-items-center rounded-lg transition disabled:opacity-30 ' +
+        (active ? 'text-em-accent ' : '') +
+        (danger ? 'hover:bg-red-500/10 hover:text-red-400' : 'hover:bg-white/5 hover:text-em-accent')
+      }
+    >
+      {children}
+    </button>
+  );
+}
+
+// Message-action glyphs (16px, stroke = currentColor).
+const ICO = 'h-4 w-4';
+function RegenIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 15.5-6.2L21 8" /><path d="M21 3v5h-5" /><path d="M21 12a9 9 0 0 1-15.5 6.2L3 16" /><path d="M3 21v-5h5" /></svg>;
+}
+function ContinueIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="currentColor"><path d="M5 5l8 7-8 7z" /><path d="M14 5l6 7-6 7z" /></svg>;
+}
+function SpeakIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M11 5 6 9H3v6h3l5 4z" /><path d="M15.5 8.5a5 5 0 0 1 0 7" /><path d="M18.5 5.5a9 9 0 0 1 0 13" /></svg>;
+}
+function StopIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="6" width="12" height="12" rx="2" /></svg>;
+}
+function SendIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3 10l12 2-12 2z" /></svg>;
+}
+function PencilIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>;
+}
+function TrashIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" /><path d="M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14" /><path d="M10 11v6M14 11v6" /></svg>;
+}
+
 function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, speaker, group }) {
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -1069,7 +1298,7 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
 
   const avChar = group ? speaker : char;
   return (
-    <div className={'flex w-full items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}>
+    <div className={'group flex w-full items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}>
       {!isUser && (
         <div
           className="shrink-0 overflow-hidden rounded-full bg-em-panel"
@@ -1130,19 +1359,19 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
 
       {/* Controls (not while this message streams or is being edited) */}
       {!isStreamingThis && !editing && (
-        <div className="flex items-center gap-2 px-1 text-em-text-dim opacity-70 transition hover:opacity-100">
+        <div className="flex items-center gap-0.5 px-1 text-em-text-dim opacity-60 transition group-hover:opacity-100 hover:opacity-100">
           {!isUser && nVariants > 1 && (
-            <span className="flex items-center gap-1 text-xs">
-              <button onClick={() => onSwipe(-1)} className="hover:text-em-text">‹</button>
-              {(msg.activeVariant || 0) + 1}/{nVariants}
-              <button onClick={() => onSwipe(1)} className="hover:text-em-text">›</button>
+            <span className="mr-1 flex items-center gap-1 text-xs">
+              <button onClick={() => onSwipe(-1)} className="rounded p-1 transition hover:bg-white/5 hover:text-em-text">‹</button>
+              <span className="tabular-nums">{(msg.activeVariant || 0) + 1}/{nVariants}</span>
+              <button onClick={() => onSwipe(1)} className="rounded p-1 transition hover:bg-white/5 hover:text-em-text">›</button>
             </span>
           )}
-          {!isUser && <button onClick={onRegenerate} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Regenerate">🔄</button>}
-          {!isUser && <button onClick={onContinue} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Continue this reply">⏩</button>}
-          {!isUser && ttsSupported() && <button onClick={onSpeak} className={'text-sm transition hover:text-em-accent ' + (speaking ? 'text-em-accent' : '')} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? '⏹' : '🔊'}</button>}
-          <button onClick={beginEdit} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Edit message">✎</button>
-          <button onClick={onDelete} disabled={streaming} className="text-sm transition hover:text-red-400 disabled:opacity-40" title="Delete this and following messages">🗑</button>
+          {!isUser && <CtrlBtn onClick={onRegenerate} disabled={streaming} title="Regenerate"><RegenIcon /></CtrlBtn>}
+          {!isUser && <CtrlBtn onClick={onContinue} disabled={streaming} title="Continue this reply"><ContinueIcon /></CtrlBtn>}
+          {!isUser && ttsSupported() && <CtrlBtn onClick={onSpeak} active={speaking} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? <StopIcon /> : <SpeakIcon />}</CtrlBtn>}
+          <CtrlBtn onClick={beginEdit} disabled={streaming} title="Edit message"><PencilIcon /></CtrlBtn>
+          <CtrlBtn onClick={onDelete} disabled={streaming} danger title="Delete this and following messages"><TrashIcon /></CtrlBtn>
         </div>
       )}
       </div>

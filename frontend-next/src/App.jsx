@@ -42,6 +42,7 @@ export default function App() {
   const [editing, setEditing] = useState(null); // null=closed, {} or char=open
   const [settings, setSettings] = useState(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
   const [showTutorial, setShowTutorial] = useState(() => {
     try { return !localStorage.getItem(TUTORIAL_FLAG); } catch (e) { return false; }
   });
@@ -133,27 +134,40 @@ export default function App() {
       {/* Navbar */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-em-bg/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
-          <a href="/" className="group flex items-center gap-2 text-xl font-extrabold tracking-tight">
-            <img src="/favicon.svg" alt="" className="h-7 w-7 drop-shadow-[0_0_10px_rgba(46,230,160,0.45)] transition group-hover:rotate-[8deg]" />
-            <span className="bg-gradient-to-r from-em-accent to-emerald-200 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(46,230,160,0.25)]">Aria</span>
+          <a href="/" className="group flex items-center gap-2.5">
+            <img src="/favicon.svg" alt="" className="logo-mark h-9 w-9 drop-shadow-[0_0_12px_rgba(46,230,160,0.5)]" />
+            <span className="flex flex-col leading-none">
+              <span className="text-xl font-extrabold tracking-tight bg-gradient-to-r from-em-accent to-emerald-200 bg-clip-text text-transparent drop-shadow-[0_0_18px_rgba(46,230,160,0.25)]">Aria</span>
+              <span className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.2em] text-em-text-dim/70">Roleplay</span>
+            </span>
           </a>
           <nav className="flex items-center gap-2 text-sm">
             <input ref={fileRef} type="file" accept=".json,.png" className="hidden" onChange={onImportFile} />
-            <button onClick={() => fileRef.current && fileRef.current.click()} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Import backup (.json) or character card (.png / .json)">
-              ⬆ Import
+            <button onClick={() => setEditing({})} className="flex items-center gap-1.5 rounded-lg bg-em-accent px-3.5 py-1.5 font-semibold text-em-bg shadow-lg shadow-em-accent/20 transition hover:bg-emerald-300">
+              <PlusIcon className="h-4 w-4" /> Create
             </button>
-            <button onClick={exportBackup} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Export all characters & personas as a .json backup">
-              ⬇ Export
-            </button>
-            <button onClick={() => setShowTutorial(true)} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="How it works">
-              ?
-            </button>
-            <button onClick={() => setShowSettings(true)} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text" title="Settings">
-              ⚙
-            </button>
-            <button onClick={() => setEditing({})} className="rounded-lg bg-em-accent px-3 py-1.5 font-semibold text-em-bg transition hover:bg-emerald-300">
-              + Create
-            </button>
+            {/* Overflow menu — Import / Export / How it works live here to keep the bar clean */}
+            <div className="relative">
+              <button
+                onClick={() => setMenuOpen((v) => !v)}
+                aria-label="More"
+                className={'grid h-8 w-8 place-items-center rounded-lg border transition ' + (menuOpen ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}
+              >
+                <DotsIcon className="h-5 w-5" />
+              </button>
+              {menuOpen && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
+                  <div className="absolute right-0 top-full z-40 mt-1.5 w-56 overflow-hidden rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
+                    <MenuItem onClick={() => { setMenuOpen(false); setShowSettings(true); }} icon={<GearIcon className="h-4 w-4" />} label="Settings" />
+                    <MenuItem onClick={() => { setMenuOpen(false); fileRef.current && fileRef.current.click(); }} icon={<UploadIcon className="h-4 w-4" />} label="Import…" hint="backup / card" />
+                    <MenuItem onClick={() => { setMenuOpen(false); exportBackup(); }} icon={<DownloadIcon className="h-4 w-4" />} label="Export backup" />
+                    <div className="my-1 border-t border-white/10" />
+                    <MenuItem onClick={() => { setMenuOpen(false); setShowTutorial(true); }} icon={<HelpIcon className="h-4 w-4" />} label="How it works" />
+                  </div>
+                </>
+              )}
+            </div>
           </nav>
         </div>
       </header>
@@ -245,7 +259,7 @@ export default function App() {
           <h2 className="mb-3 text-lg font-bold">Favorites ({favorites.length})</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {favorites.slice(0, 12).map((c) => (
-              <CharacterCard key={c.id} char={c} onOpen={openCharacter} onToggleFav={toggleFavorite} />
+              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
             ))}
           </div>
         </section>
@@ -260,13 +274,43 @@ export default function App() {
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {filtered.map((c) => (
-              <CharacterCard key={c.id} char={c} onOpen={openCharacter} onToggleFav={toggleFavorite} />
+              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
             ))}
           </div>
         )}
       </main>
     </div>
   );
+}
+
+function MenuItem({ onClick, icon, label, hint }) {
+  return (
+    <button onClick={onClick} className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-em-text transition hover:bg-white/5">
+      <span className="text-em-text-dim">{icon}</span>
+      <span className="flex-1">{label}</span>
+      {hint && <span className="text-[11px] text-em-text-dim/70">{hint}</span>}
+    </button>
+  );
+}
+
+/* Crisp inline icons (stroke = currentColor) so they inherit theme colours. */
+function PlusIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round"><path d="M12 5v14M5 12h14" /></svg>;
+}
+function DotsIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9" /><circle cx="12" cy="12" r="1.9" /><circle cx="19" cy="12" r="1.9" /></svg>;
+}
+function GearIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3" /><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" /></svg>;
+}
+function UploadIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg>;
+}
+function DownloadIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" /></svg>;
+}
+function HelpIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12" y2="17" /></svg>;
 }
 
 function GridSkeleton() {

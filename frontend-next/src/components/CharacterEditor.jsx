@@ -37,6 +37,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [name, setName] = useState(char?.name || '');
   const [avatar, setAvatar] = useState(char?.avatar || '');
   const [background, setBackground] = useState(char?.background || '');
+  const [danceUrl, setDanceUrl] = useState(char?.danceUrl || '');
   const [tags, setTags] = useState(char?.tags || '');
   const [description, setDescription] = useState(char?.description || '');
   const [scenarios, setScenarios] = useState(() => initialScenarios(char));
@@ -106,6 +107,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       chatName: (char?.chatName || '').trim() || name.trim(),
       avatar,
       background,
+      danceUrl: danceUrl.trim(),
       description,
       lore,
       tags,
@@ -202,6 +204,13 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
                 <input type="file" accept="image/*" className="hidden" onChange={pickBackground} />
               </label>
               {background && <button onClick={() => setBackground('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
+            </div>
+          </Field>
+
+          <Field label="Dance clip URL" hint="Optional video (.mp4/.webm) or GIF that loops in the corner while music plays. A real clip — not a still.">
+            <div className="flex items-center gap-3">
+              <input value={danceUrl} onChange={(e) => setDanceUrl(e.target.value)} placeholder="https://…/dance.mp4 or .gif" className={inputCls} />
+              {danceUrl && <button onClick={() => setDanceUrl('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
             </div>
           </Field>
 
