@@ -8,6 +8,7 @@ import {
 import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
+import { audioSrcFor, musicKey } from '../lib/music.js';
 
 function avatarUrl(url) {
   if (!url) return '';
@@ -45,12 +46,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [suggestions, setSuggestions] = useState([]);  // suggested user replies
   const [suggesting, setSuggesting] = useState(false);
   const [speakingId, setSpeakingId] = useState(null);  // id of the message being read aloud
+  const [showMusic, setShowMusic] = useState(false);   // background-music panel
+  const [musicUrl, setMusicUrl] = useState('');
+  const [musicPlaying, setMusicPlaying] = useState(false);
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
   const suggestReqRef = useRef(0);        // cancels stale suggestion requests
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
+  const audioRef = useRef(null);          // background-music <audio>
   const autoScroll = useRef(true);
   const autoSumRef = useRef(false);
 
@@ -234,6 +239,48 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Stop any speech when the view unmounts.
   useEffect(() => () => cancelSpeech(), []);
+
+  // ── Background music ──────────────────────────────────────────────────────
+  // Load the saved/character music URL and stop any track from a prior character.
+  useEffect(() => {
+    let saved = '';
+    try { saved = localStorage.getItem(musicKey(char.id)) || ''; } catch (e) { /* ignore */ }
+    setMusicUrl(saved || char.musicUrl || '');
+    if (audioRef.current) { audioRef.current.pause(); audioRef.current.removeAttribute('src'); }
+    setMusicPlaying(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [char.id]);
+
+  useEffect(() => () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; } }, []);
+
+  function playMusic(url) {
+    const u = String(url != null ? url : musicUrl).trim();
+    if (!u) return;
+    let a = audioRef.current;
+    if (!a) {
+      a = new Audio();
+      a.loop = true;
+      a.addEventListener('ended', () => setMusicPlaying(false));
+      a.addEventListener('error', () => setMusicPlaying(false));
+      audioRef.current = a;
+    }
+    a.src = audioSrcFor(u);
+    a.play().then(() => setMusicPlaying(true)).catch(() => setMusicPlaying(false));
+    try { localStorage.setItem(musicKey(char.id), u); } catch (e) { /* ignore */ }
+  }
+
+  function toggleMusic() {
+    const a = audioRef.current;
+    if (!a || !a.src) { playMusic(); return; }
+    if (a.paused) { a.play().then(() => setMusicPlaying(true)).catch(() => {}); }
+    else { a.pause(); setMusicPlaying(false); }
+  }
+
+  function stopMusic() {
+    const a = audioRef.current;
+    if (a) { a.pause(); a.currentTime = 0; }
+    setMusicPlaying(false);
+  }
 
   async function runStream(aiMsg, lastUserText, opts = {}) {
     const variantIndex = aiMsg.streamingVariant != null ? aiMsg.streamingVariant : aiMsg.activeVariant;
@@ -442,8 +489,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         )}
       </header>
 
-      {/* Tools: persona · mood · memories */}
+      {/* Tools: persona · mood · memories · music */}
       {chat && (
+        <>
         <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
           <label className="flex items-center gap-1.5 text-em-text-dim">
             <span>👤 You as</span>
@@ -476,7 +524,30 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           >
             🧠 Memories
           </button>
+
+          <button
+            onClick={() => setShowMusic((v) => !v)}
+            className={'rounded-lg border px-2.5 py-1 transition ' + (musicPlaying ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
+          >
+            🎵 Music
+          </button>
         </div>
+
+        {showMusic && (
+          <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
+            <input
+              value={musicUrl}
+              onChange={(e) => setMusicUrl(e.target.value)}
+              placeholder="Music URL (direct audio or YouTube)…"
+              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-em-panel px-3 py-1.5 text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
+            />
+            <button onClick={() => (musicPlaying ? toggleMusic() : playMusic())} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
+              {musicPlaying ? '⏸ Pause' : '▶ Play'}
+            </button>
+            <button onClick={stopMusic} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">⏹ Stop</button>
+          </div>
+        )}
+        </>
       )}
 
       {/* Messages */}
