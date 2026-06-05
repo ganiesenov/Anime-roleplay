@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { getAllCharacters, characterStats } from './lib/db.js';
+import { getAllCharacters, characterStats, seedStarterPackIfNeeded, restoreFromServer, saveCharacter } from './lib/db.js';
 import CharacterCard from './components/CharacterCard.jsx';
 import ChatView from './components/ChatView.jsx';
 import CharacterEditor from './components/CharacterEditor.jsx';
@@ -61,7 +61,20 @@ export default function App() {
     });
   }
 
-  useEffect(() => { refresh(); }, []);
+  useEffect(() => {
+    // First seed any missing starter characters (merge-by-id, once), then pull
+    // the user's own characters + chat histories from the backend disk backups
+    // (also merge-only), so nothing the user made is lost — then load.
+    seedStarterPackIfNeeded()
+      .then(() => restoreFromServer())
+      .then(refresh);
+  }, []);
+
+  async function toggleFavorite(char) {
+    const next = { ...char, isFavorite: !char.isFavorite };
+    await saveCharacter(next);
+    setChars((prev) => (prev || []).map((c) => (c.id === next.id ? next : c)));
+  }
 
   function onEditorSaved(updated) {
     setEditing(null);
@@ -217,7 +230,7 @@ export default function App() {
           <h2 className="mb-3 text-lg font-bold">Favorites ({favorites.length})</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {favorites.slice(0, 12).map((c) => (
-              <CharacterCard key={c.id} char={c} onOpen={openCharacter} />
+              <CharacterCard key={c.id} char={c} onOpen={openCharacter} onToggleFav={toggleFavorite} />
             ))}
           </div>
         </section>
@@ -232,7 +245,7 @@ export default function App() {
         ) : (
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {filtered.map((c) => (
-              <CharacterCard key={c.id} char={c} onOpen={openCharacter} />
+              <CharacterCard key={c.id} char={c} onOpen={openCharacter} onToggleFav={toggleFavorite} />
             ))}
           </div>
         )}
