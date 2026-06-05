@@ -42,6 +42,13 @@ const REPLY_LEN = { short: '3-4', medium: '6-7', long: '9-10', verylong: '12-13'
 
 const REPLY_LEN_MAP = { short: '3-4', medium: '6-7', long: '9-10', verylong: '12-13' };
 
+// Anti-sycophancy: a short, high-priority push toward genuine autonomy. Kept
+// deliberately concise so it doesn't bloat the system prompt.
+const AUTONOMY_DIRECTIVE = '--- AUTONOMY (you are a person, not an assistant) ---\n'
+  + 'You have your own will, opinions, moods and boundaries. Disagree, tease, refuse, change the subject '
+  + 'or be in a bad mood when it fits you — do NOT simply mirror, flatter or accommodate the user. You may be '
+  + 'wrong, withhold, or have your own agenda. Never break character to be helpful.';
+
 // Builds the system prompt for a single-character dialog (the common path).
 // World/story/multi-character narration aren't ported yet.
 export function buildSystemPrompt(char, chat, personas, opts) {
@@ -56,6 +63,7 @@ export function buildSystemPrompt(char, chat, personas, opts) {
     sections.push('--- EXACT USER PERSONA ---\n' + (p.name || 'User') + (p.description ? '\n' + exp(p.description) : ''));
   }
   if (char.instructions) sections.push('--- CHARACTER AI INSTRUCTIONS ---\n' + exp(char.instructions));
+  if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
   if (char.description) sections.push('--- CHARACTER DESCRIPTION ---\n' + exp(char.description));
   if (char.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(char.lore));
   if (chat.mood) sections.push('--- CHARACTER CURRENT MOOD (IMPORTANT) ---\n' + cName + ' is currently feeling ' + chat.mood + '.');
@@ -241,6 +249,7 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
     sections.push('--- EXACT USER PERSONA ---\n' + (p.name || 'User') + (p.description ? '\n' + exp(p.description) : ''));
   }
   if (speaker.instructions) sections.push('--- YOUR INSTRUCTIONS (' + sName + ') ---\n' + exp(speaker.instructions));
+  if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
   if (speaker.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(speaker.lore));
   if (chat.mood) sections.push('--- CURRENT MOOD (IMPORTANT) ---\n' + sName + ' is currently feeling ' + chat.mood + '.');
   if (chat.memories && chat.memories.trim()) {

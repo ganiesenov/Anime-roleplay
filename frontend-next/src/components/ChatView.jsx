@@ -622,6 +622,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     return {
       replyLength: settings.replyLength,
       relationship: settings.relationship,
+      autonomy: settings.autonomy,
       presenceText: settings.presence ? buildPresenceText(displayName(spk), spk.id, new Date(), lastMsgTs()) : '',
     };
   }

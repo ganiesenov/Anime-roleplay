@@ -71,6 +71,10 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             <input type="checkbox" checked={s.relationship} onChange={(e) => set('relationship', e.target.checked)} className="h-5 w-5 accent-em-accent" />
           </Row>
 
+          <Row label="Autonomy (no people-pleasing)" hint="Character keeps its own will, opinions and boundaries instead of mirroring you.">
+            <input type="checkbox" checked={s.autonomy} onChange={(e) => set('autonomy', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+          </Row>
+
           <Row label="Living presence" hint="Time-of-day awareness, a sleep schedule, and proactive messages when you return.">
             <input type="checkbox" checked={s.presence} onChange={(e) => set('presence', e.target.checked)} className="h-5 w-5 accent-em-accent" />
           </Row>
