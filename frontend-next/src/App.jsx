@@ -120,7 +120,7 @@ export default function App() {
       {/* Navbar */}
       <header className="sticky top-0 z-20 border-b border-white/10 bg-em-bg/70 backdrop-blur-xl">
         <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-3">
-          <a href="/next/" className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
+          <a href="/" className="flex items-center gap-2 text-xl font-extrabold tracking-tight">
             <span className="bg-gradient-to-r from-em-accent to-emerald-300 bg-clip-text text-transparent">Aria</span>
             <span className="rounded-md bg-em-accent/15 px-1.5 py-0.5 text-[10px] font-bold text-em-accent">NEXT</span>
           </a>

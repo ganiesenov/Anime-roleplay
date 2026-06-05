@@ -10,13 +10,14 @@ FastAPI бэкенд roleplay-чатбота.
   POST /api/chat                — сгенерировать ответ (полный)
   POST /api/chat/stream         — сгенерировать ответ (стрим, SSE)
 
-Фронт (модульный) раздаётся статикой из ../my-frontend
+Фронт: новый React-фронт (../frontend-next/dist) раздаётся на корне "/" и на /next;
+legacy-фронт (../my-frontend) — на /legacy.
 """
 import os
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -152,13 +153,35 @@ async def get_chat_history(character_id: str, chat_id: str):
 # html=True → "/" отдаёт index.html, а ассеты (js/, style.css, gallery/, *.html)
 # доступны по их относительным путям. Монтируется ПОСЛЕДНИМ, поэтому /api/* и
 # /v1/* (объявленные выше) перехватываются раньше этого catch-all.
-# Новый React/Vite/Tailwind фронт (инкрементальный ребилд). Раздаётся на /next,
-# тот же origin → читает ту же IndexedDB AriaBD и ходит в /api + /v1. Монтируется
-# РАНЬШЕ catch-all "/" — иначе корневой mount перехватил бы /next.
+# Новый React/Vite/Tailwind фронт — теперь основной, раздаётся на корне "/".
+# Тот же origin → читает ту же IndexedDB AriaBD и ходит в /api + /v1. Собран с
+# base "/", поэтому ассеты резолвятся от корня. Дополнительно остаётся на /next
+# для старых закладок. Legacy-фронт переехал на /legacy (не удалён — см. ниже).
+# Порядок монтирования: специфичные пути (/next, /legacy) РАНЬШЕ catch-all "/".
 FRONTEND_NEXT_DIR = Path(__file__).parent.parent / "frontend-next" / "dist"
-if FRONTEND_NEXT_DIR.exists():
-    app.mount("/next", StaticFiles(directory=str(FRONTEND_NEXT_DIR), html=True), name="frontend-next")
 
 FRONTEND_DIR = Path(__file__).parent.parent / "my-frontend"
+
+
+# The new app seeds its starter pack by fetching `/starter_pack_data.js` (the 38 MB
+# `const STARTER_PACK_DATA = {…}`). It used to be served from the root legacy mount;
+# now that the root is the new app, expose it explicitly so seeding works regardless
+# of the frontend mount layout. Registered before the catch-all "/" mount.
+@app.get("/starter_pack_data.js")
+async def starter_pack_data():
+    f = FRONTEND_DIR / "starter_pack_data.js"
+    if not f.exists():
+        raise HTTPException(404, "starter pack not found")
+    return FileResponse(str(f), media_type="application/javascript")
+
+
 if FRONTEND_DIR.exists():
-    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend")
+    app.mount("/legacy", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend-legacy")
+
+if FRONTEND_NEXT_DIR.exists():
+    # /next kept for old bookmarks; "/" is the primary mount (must be last).
+    app.mount("/next", StaticFiles(directory=str(FRONTEND_NEXT_DIR), html=True), name="frontend-next")
+    app.mount("/", StaticFiles(directory=str(FRONTEND_NEXT_DIR), html=True), name="frontend")
+elif FRONTEND_DIR.exists():
+    # Fallback: if the new app isn't built, serve legacy at the root.
+    app.mount("/", StaticFiles(directory=str(FRONTEND_DIR), html=True), name="frontend-root")
