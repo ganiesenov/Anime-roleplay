@@ -7,6 +7,7 @@ import {
 } from '../lib/chat.js';
 import { DEFAULT_SETTINGS } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
+import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
 
 function avatarUrl(url) {
   if (!url) return '';
@@ -43,6 +44,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
   const [suggestions, setSuggestions] = useState([]);  // suggested user replies
   const [suggesting, setSuggesting] = useState(false);
+  const [speakingId, setSpeakingId] = useState(null);  // id of the message being read aloud
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -96,6 +98,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setShowChats(false);
     setUndo(null);
     clearSuggestions();
+    cancelSpeech();
+    setSpeakingId(null);
     saveCharacter(char);
   }
 
@@ -104,6 +108,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (!chats[id] || id === chatId) { setShowChats(false); return; }
     setUndo(null);
     clearSuggestions();
+    cancelSpeech();
+    setSpeakingId(null);
     setChatId(id);
     setShowChats(false);
   }
@@ -219,6 +225,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (inputRef.current) inputRef.current.focus();
   }
 
+  // ── Text-to-speech ────────────────────────────────────────────────────────
+  function speakMessage(msg) {
+    if (speakingId === msg.id) { cancelSpeech(); setSpeakingId(null); return; }
+    const ok = speak(getMessageText(msg), { voiceURI: settings.ttsVoiceURI, onend: () => setSpeakingId(null) });
+    setSpeakingId(ok ? msg.id : null);
+  }
+
+  // Stop any speech when the view unmounts.
+  useEffect(() => () => cancelSpeech(), []);
+
   async function runStream(aiMsg, lastUserText, opts = {}) {
     const variantIndex = aiMsg.streamingVariant != null ? aiMsg.streamingVariant : aiMsg.activeVariant;
     const seed = opts.seed || '';                 // existing text to keep + append onto (continue)
@@ -281,6 +297,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       if (mainAcc && !errored && !controller.signal.aborted) {
         maybeAutoSummarize();
         generateSuggestions();
+        if (settings.tts) {
+          const ok = speak(getMessageText(aiMsg), { voiceURI: settings.ttsVoiceURI, onend: () => setSpeakingId(null) });
+          if (ok) setSpeakingId(aiMsg.id);
+        }
       }
     }
   }
@@ -473,6 +493,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             onSwipe={(d) => swipe(m, d)}
             onEditSave={(text) => saveMessageEdit(m, text)}
             onDelete={() => deleteMessage(m)}
+            onSpeak={() => speakMessage(m)}
+            speaking={speakingId === m.id}
           />
         ))}
         {history.length === 0 && <div className="py-20 text-center text-em-text-dim">Say hello to start the scene…</div>}
@@ -532,7 +554,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   );
 }
 
-function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete }) {
+function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking }) {
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -603,6 +625,7 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
           )}
           {!isUser && <button onClick={onRegenerate} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Regenerate">🔄</button>}
           {!isUser && <button onClick={onContinue} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Continue this reply">⏩</button>}
+          {!isUser && ttsSupported() && <button onClick={onSpeak} className={'text-sm transition hover:text-em-accent ' + (speaking ? 'text-em-accent' : '')} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? '⏹' : '🔊'}</button>}
           <button onClick={beginEdit} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Edit message">✎</button>
           <button onClick={onDelete} disabled={streaming} className="text-sm transition hover:text-red-400 disabled:opacity-40" title="Delete this and following messages">🗑</button>
         </div>

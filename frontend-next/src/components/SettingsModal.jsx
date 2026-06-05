@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchAvailableModels } from '../lib/settings.js';
+import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
 
 const inputCls = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-em-text focus:border-em-accent/50 focus:outline-none';
 
@@ -18,9 +19,15 @@ function Row({ label, hint, children }) {
 export default function SettingsModal({ settings, onSave, onClose }) {
   const [s, setS] = useState(settings);
   const [models, setModels] = useState([]);
+  const [voices, setVoices] = useState([]);
   const set = (k, v) => setS((prev) => ({ ...prev, [k]: v }));
 
   useEffect(() => { fetchAvailableModels().then(setModels); }, []);
+  useEffect(() => {
+    if (!ttsSupported()) return undefined;
+    setVoices(getVoices());
+    return onVoicesChanged(setVoices);
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
@@ -59,6 +66,25 @@ export default function SettingsModal({ settings, onSave, onClose }) {
           <Row label="Suggest replies" hint="Offer 2 quick user replies after each AI turn.">
             <input type="checkbox" checked={s.replyOptions} onChange={(e) => set('replyOptions', e.target.checked)} className="h-5 w-5 accent-em-accent" />
           </Row>
+
+          {ttsSupported() && (
+            <Row label="Speak replies (TTS)" hint="Read each AI reply aloud.">
+              <input type="checkbox" checked={s.tts} onChange={(e) => set('tts', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+            </Row>
+          )}
+
+          {ttsSupported() && s.tts && (
+            <Row label="Voice">
+              <select value={s.ttsVoiceURI} onChange={(e) => set('ttsVoiceURI', e.target.value)} className={inputCls + ' min-w-52'}>
+                <option value="">(Default voice)</option>
+                {groupVoices(voices).map(([label, list]) => (
+                  <optgroup key={label} label={label}>
+                    {list.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </Row>
+          )}
 
           <Row label="Auto-summarize to memory" hint="Distill old turns into memory automatically.">
             <input type="checkbox" checked={s.autoSummarize} onChange={(e) => set('autoSummarize', e.target.checked)} className="h-5 w-5 accent-em-accent" />

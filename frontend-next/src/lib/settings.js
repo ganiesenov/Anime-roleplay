@@ -8,6 +8,8 @@ export const DEFAULT_SETTINGS = {
   replyLength: 'default',    // default | short | medium | long | verylong
   showThink: true,
   replyOptions: true,        // suggest 2 user replies after each AI turn
+  tts: false,                // speak AI replies via SpeechSynthesis
+  ttsVoiceURI: '',           // chosen voice (empty = browser default)
   autoSummarize: false,
   autoSummarizeEvery: 30,
 };
