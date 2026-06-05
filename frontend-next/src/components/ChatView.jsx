@@ -162,8 +162,30 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     rerender();
   }
 
-  async function runStream(aiMsg, lastUserText) {
+  // Extend an AI turn in place: keep its current text and stream a continuation
+  // onto the same variant (no new variant), prompting from history up to it.
+  async function continueMessage(msg) {
+    if (streaming || !chat || msg.sender !== 'ai') return;
+    const idx = chat.history.indexOf(msg);
+    if (idx === -1) return;
+    const original = getMessageText(msg);
+    if (!original.trim()) { regenerate(msg); return; }   // nothing to continue → regenerate
+    // Build the prompt before flagging streaming, so this message's text is part
+    // of the assistant context; the continuation instruction goes as the user turn.
+    const tempChat = { ...chat, history: chat.history.slice(0, idx + 1) };
+    const instruction = original + '\n[Continue: drive the scene forward, complete any cut-off sentence, do not repeat.]';
+    const messages = buildMessagesArray(char, tempChat, personas, instruction, { replyLength: settings.replyLength });
+    setUndo(null);
+    msg.isStreaming = true;
+    msg.streamingVariant = msg.activeVariant || 0;
+    autoScroll.current = true;
+    rerender();
+    await runStream(msg, instruction, { seed: original, messages });
+  }
+
+  async function runStream(aiMsg, lastUserText, opts = {}) {
     const variantIndex = aiMsg.streamingVariant != null ? aiMsg.streamingVariant : aiMsg.activeVariant;
+    const seed = opts.seed || '';                 // existing text to keep + append onto (continue)
     const controller = new AbortController();
     controllerRef.current = controller;
     setStreaming(true);
@@ -171,11 +193,14 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     let reasonAcc = '';
     let rafPending = false;
     let finished = false;
+    let errored = false;
+
+    const composed = (newMain) => (seed ? (newMain ? seed + ' ' + newMain : seed) : newMain);
 
     const apply = () => {
       const split = splitThink(mainAcc);
       const v = aiMsg.variations[variantIndex];
-      if (v) { v.main = split.main != null ? split.main : mainAcc; v.think = (split.think || reasonAcc) || null; }
+      if (v) { v.main = composed(split.main != null ? split.main : mainAcc); v.think = (split.think || reasonAcc) || null; }
       rerender();
     };
     const schedule = () => {
@@ -185,7 +210,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     };
 
     try {
-      await streamCompletion(buildMessagesArray(char, chat, personas, lastUserText, { replyLength: settings.replyLength }), {
+      await streamCompletion(opts.messages || buildMessagesArray(char, chat, personas, lastUserText, { replyLength: settings.replyLength }), {
         signal: controller.signal,
         characterId: char.id,
         chatId: chat.id,
@@ -196,14 +221,19 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       });
     } catch (err) {
       if (!controller.signal.aborted) {
+        errored = true;
         const v = aiMsg.variations[variantIndex];
-        if (v && !v.main) v.main = '[--- ERROR: ' + String(err.message || err).slice(0, 160) + ' ---]';
+        const errTxt = '[--- ERROR: ' + String(err.message || err).slice(0, 160) + ' ---]';
+        if (v) {
+          if (seed) v.main = seed + '\n' + errTxt;
+          else if (!v.main) v.main = errTxt;
+        }
       }
     } finally {
       finished = true;
       const split = splitThink(mainAcc);
       const v = aiMsg.variations[variantIndex];
-      if (v && mainAcc) { v.main = split.main != null ? split.main : mainAcc; v.think = (split.think || reasonAcc) || null; }
+      if (v && !errored && (mainAcc || seed)) { v.main = composed(split.main != null ? split.main : mainAcc); v.think = (split.think || reasonAcc) || null; }
       aiMsg.isStreaming = false;
       aiMsg.streamingVariant = null;
       aiMsg.activeVariant = variantIndex;
@@ -399,6 +429,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             streaming={streaming}
             showThink={settings.showThink}
             onRegenerate={() => regenerate(m)}
+            onContinue={() => continueMessage(m)}
             onSwipe={(d) => swipe(m, d)}
             onEditSave={(text) => saveMessageEdit(m, text)}
             onDelete={() => deleteMessage(m)}
@@ -442,7 +473,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   );
 }
 
-function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onSwipe, onEditSave, onDelete }) {
+function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete }) {
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -512,6 +543,7 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
             </span>
           )}
           {!isUser && <button onClick={onRegenerate} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Regenerate">🔄</button>}
+          {!isUser && <button onClick={onContinue} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Continue this reply">⏩</button>}
           <button onClick={beginEdit} disabled={streaming} className="text-sm transition hover:text-em-accent disabled:opacity-40" title="Edit message">✎</button>
           <button onClick={onDelete} disabled={streaming} className="text-sm transition hover:text-red-400 disabled:opacity-40" title="Delete this and following messages">🗑</button>
         </div>
