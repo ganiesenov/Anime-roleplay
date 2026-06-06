@@ -15,10 +15,10 @@ import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { audioSrcFor, musicKey } from '../lib/music.js';
 import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import MessageBubble from './ChatMessage.jsx';
 import { SendIcon, StopIcon, Meter } from './icons.jsx';
+import useMusic from '../hooks/useMusic.js';
 
 // Parse the creation timestamp baked into a `chat-<ms>` id (newest first).
 function chatTs(id) {
@@ -66,14 +66,6 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [suggestions, setSuggestions] = useState([]);  // suggested user replies
   const [suggesting, setSuggesting] = useState(false);
   const [speakingId, setSpeakingId] = useState(null);  // id of the message being read aloud
-  const [showMusic, setShowMusic] = useState(false);   // background-music panel
-  const [musicUrl, setMusicUrl] = useState('');
-  const [musicPlaying, setMusicPlaying] = useState(false);
-  const [showDancer, setShowDancer] = useState(true); // the floating "now dancing" portrait
-  const [musicVolume, setMusicVolume] = useState(() => {
-    const v = parseFloat(localStorage.getItem('musicVolume'));
-    return Number.isFinite(v) ? v : 0.5;
-  });
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
   const [charsById, setCharsById] = useState({});        // whole library, for group casting
   const [showCast, setShowCast] = useState(false);       // group cast panel
@@ -84,10 +76,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const suggestReqRef = useRef(0);        // cancels stale suggestion requests
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
-  const audioRef = useRef(null);          // background-music <audio>
   const proactiveTriedRef = useRef(false); // ensures the "texts first" check fires once per open
   const autoScroll = useRef(true);
   const autoSumRef = useRef(false);
+
+  // Background music (self-contained controller).
+  const {
+    showMusic, setShowMusic, musicUrl, setMusicUrl, musicPlaying,
+    showDancer, setShowDancer, musicVolume, setMusicVolume,
+    playMusic, toggleMusic, stopMusic,
+  } = useMusic(char);
 
   const chats = char.chats || (char.chats = {});
 
@@ -333,55 +331,6 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (chat && !chat.relationship) { chat.relationship = defaultRelationship(); rerender(); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId]);
-
-  // ── Background music ──────────────────────────────────────────────────────
-  // Load the saved/character music URL and stop any track from a prior character.
-  useEffect(() => {
-    let saved = '';
-    try { saved = localStorage.getItem(musicKey(char.id)) || ''; } catch (e) { /* ignore */ }
-    setMusicUrl(saved || char.musicUrl || '');
-    if (audioRef.current) { audioRef.current.pause(); audioRef.current.removeAttribute('src'); }
-    setMusicPlaying(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [char.id]);
-
-  useEffect(() => () => { if (audioRef.current) { audioRef.current.pause(); audioRef.current.src = ''; } }, []);
-
-  // Apply volume changes live to the playing track and remember the choice.
-  useEffect(() => {
-    if (audioRef.current) audioRef.current.volume = musicVolume;
-    try { localStorage.setItem('musicVolume', String(musicVolume)); } catch (e) { /* ignore */ }
-  }, [musicVolume]);
-
-  function playMusic(url) {
-    const u = String(url != null ? url : musicUrl).trim();
-    if (!u) return;
-    let a = audioRef.current;
-    if (!a) {
-      a = new Audio();
-      a.loop = true;
-      a.addEventListener('ended', () => setMusicPlaying(false));
-      a.addEventListener('error', () => setMusicPlaying(false));
-      audioRef.current = a;
-    }
-    a.volume = musicVolume;
-    a.src = audioSrcFor(u);
-    a.play().then(() => { setMusicPlaying(true); setShowDancer(true); }).catch(() => setMusicPlaying(false));
-    try { localStorage.setItem(musicKey(char.id), u); } catch (e) { /* ignore */ }
-  }
-
-  function toggleMusic() {
-    const a = audioRef.current;
-    if (!a || !a.src) { playMusic(); return; }
-    if (a.paused) { a.play().then(() => setMusicPlaying(true)).catch(() => {}); }
-    else { a.pause(); setMusicPlaying(false); }
-  }
-
-  function stopMusic() {
-    const a = audioRef.current;
-    if (a) { a.pause(); a.currentTime = 0; }
-    setMusicPlaying(false);
-  }
 
   async function runStream(aiMsg, lastUserText, opts = {}) {
     const variantIndex = aiMsg.streamingVariant != null ? aiMsg.streamingVariant : aiMsg.activeVariant;
