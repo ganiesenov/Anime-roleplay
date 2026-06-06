@@ -5,7 +5,7 @@ import ParticleField from './ParticleField.jsx';
 import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
-  buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, suggestReplies, collectCompletion,
+  buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
   extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading,
 } from '../lib/chat.js';
 import { generateAppearance } from '../lib/aigen.js';
@@ -14,7 +14,6 @@ import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.j
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
-import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
 import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import MessageBubble from './ChatMessage.jsx';
 import {
@@ -23,6 +22,8 @@ import {
   BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon,
 } from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
+import useTts from '../hooks/useTts.js';
+import useSuggestions from '../hooks/useSuggestions.js';
 
 // Parse the creation timestamp baked into a `chat-<ms>` id (newest first).
 function chatTs(id) {
@@ -67,9 +68,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showChats, setShowChats] = useState(false);   // chat-session list panel
   const [showScenarioPick, setShowScenarioPick] = useState(false); // greeting picker on + New chat
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
-  const [suggestions, setSuggestions] = useState([]);  // suggested user replies
-  const [suggesting, setSuggesting] = useState(false);
-  const [speakingId, setSpeakingId] = useState(null);  // id of the message being read aloud
+  const sug = useSuggestions(settings);                // suggested-reply state + helpers
+  const tts = useTts();                                // text-to-speech (speakingId + helpers)
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
   const [charsById, setCharsById] = useState({});        // whole library, for group casting
   const [showCast, setShowCast] = useState(false);       // group cast panel
@@ -77,7 +77,6 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
-  const suggestReqRef = useRef(0);        // cancels stale suggestion requests
   const inputRef = useRef(null);
   const scrollRef = useRef(null);
   const proactiveTriedRef = useRef(false); // ensures the "texts first" check fires once per open
@@ -140,9 +139,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setShowChats(false);
     setShowScenarioPick(false);
     setUndo(null);
-    clearSuggestions();
-    cancelSpeech();
-    setSpeakingId(null);
+    sug.clear();
+    tts.stop();
     saveCharacter(char);
   }
 
@@ -168,9 +166,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setChatId(c.id);
     setShowChats(false);
     setUndo(null);
-    clearSuggestions();
-    cancelSpeech();
-    setSpeakingId(null);
+    sug.clear();
+    tts.stop();
     saveCharacter(char);
   }
 
@@ -185,9 +182,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   function switchChat(id) {
     if (!chats[id] || id === chatId) { setShowChats(false); return; }
     setUndo(null);
-    clearSuggestions();
-    cancelSpeech();
-    setSpeakingId(null);
+    sug.clear();
+    tts.stop();
     setChatId(id);
     setShowChats(false);
   }
@@ -276,32 +272,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   }
 
   // ── Suggested replies ─────────────────────────────────────────────────────
-  function clearSuggestions() {
-    suggestReqRef.current++;        // invalidate any in-flight request
-    setSuggestions([]);
-    setSuggesting(false);
-  }
-
-  async function generateSuggestions() {
-    if (!settings.replyOptions || !chat) return;
-    const reqId = ++suggestReqRef.current;
-    setSuggestions([]);
-    setSuggesting(true);
-    try {
-      const opts = await suggestReplies(char, chat, personas, resolveModel(settings, settings.suggestionModelId || settings.model));
-      if (reqId !== suggestReqRef.current) return;
-      setSuggestions(opts || []);
-    } catch (e) {
-      if (reqId !== suggestReqRef.current) return;
-      setSuggestions([]);
-    } finally {
-      if (reqId === suggestReqRef.current) setSuggesting(false);
-    }
-  }
-
   function pickSuggestion(text) {
     setInput(text);
-    clearSuggestions();
+    sug.clear();
     if (inputRef.current) inputRef.current.focus();
   }
 
@@ -321,14 +294,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const spk = speakerOf(msg);
     return (spk && spk.voiceURI) || settings.ttsVoiceURI;
   }
-  function speakMessage(msg) {
-    if (speakingId === msg.id) { cancelSpeech(); setSpeakingId(null); return; }
-    const ok = speak(getMessageText(msg), { voiceURI: voiceFor(msg), onend: () => setSpeakingId(null) });
-    setSpeakingId(ok ? msg.id : null);
-  }
-
-  // Stop any speech when the view unmounts.
-  useEffect(() => () => cancelSpeech(), []);
+  function speakMessage(msg) { tts.toggle(msg, voiceFor(msg)); }
 
   // Ensure the chat has a relationship state so the header/prompt have something to show.
   useEffect(() => {
@@ -342,7 +308,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const controller = new AbortController();
     controllerRef.current = controller;
     setStreaming(true);
-    clearSuggestions();
+    sug.clear();
     let mainAcc = '';
     let reasonAcc = '';
     let rafPending = false;
@@ -405,10 +371,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       if (mainAcc && !errored && !controller.signal.aborted) {
         maybeAutoSummarize();
         maybeUpdateRelationship();
-        generateSuggestions();
+        sug.generate(char, chat, personas);
         if (settings.tts) {
-          const ok = speak(getMessageText(aiMsg), { voiceURI: voiceFor(aiMsg), onend: () => setSpeakingId(null) });
-          if (ok) setSpeakingId(aiMsg.id);
+          tts.autoSpeak(aiMsg, voiceFor(aiMsg));
         }
         if (photoPrompt) generatePhoto(v, charsById[aiMsg.speakerId] || char, photoPrompt);
       } else if (v && v.imageLoading) {
@@ -1027,7 +992,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             onEditSave={(text) => saveMessageEdit(m, text)}
             onDelete={() => deleteMessage(m)}
             onSpeak={() => speakMessage(m)}
-            speaking={speakingId === m.id}
+            speaking={tts.speakingId === m.id}
             onFork={() => newChatFromHere(m)}
             onPin={() => togglePin(m)}
             pinned={!!m.pinned}
@@ -1080,19 +1045,19 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
       {/* Composer */}
       <div className="border-t border-white/10 bg-em-bg/70 backdrop-blur-xl">
-        {settings.replyOptions && !streaming && chat && (suggesting || suggestions.length > 0) && (
+        {settings.replyOptions && !streaming && chat && (sug.suggesting || sug.suggestions.length > 0) && (
           <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2 px-4 pt-3">
-            {suggesting && suggestions.length === 0 ? (
+            {sug.suggesting && sug.suggestions.length === 0 ? (
               <span className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-em-text-dim">💡 thinking of replies…</span>
             ) : (
-              suggestions.map((sug, i) => (
+              sug.suggestions.map((opt, i) => (
                 <button
                   key={i}
-                  onClick={() => pickSuggestion(sug)}
+                  onClick={() => pickSuggestion(opt)}
                   className="max-w-full truncate rounded-full border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-left text-sm text-em-text transition hover:border-em-accent/60 hover:bg-em-accent/20"
-                  title={sug}
+                  title={opt}
                 >
-                  💬 {sug}
+                  💬 {opt}
                 </button>
               ))
             )}
