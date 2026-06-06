@@ -90,19 +90,17 @@ function appearanceForPhoto(char) {
   return [name, app].filter(Boolean).join(', ');
 }
 
-// Build a GET image URL for a character selfie. Returns a URL an <img> can load
-// directly — the provider is chosen in settings:
-//  • 'a1111'       → local Stable Diffusion via our backend (/api/txt2img)
-//  • 'pollinations'→ hosted service via the image proxy (needs a free token now)
-export function buildPhotoUrl(char, prompt, settings) {
+// Low-level: turn a finished prompt into a GET image URL for the chosen provider.
+// `dims` = {w,h}. Returns a URL an <img> can load directly.
+//  • 'comfy'        → local ComfyUI via backend /api/txt2img
+//  • 'a1111'        → local Stable Diffusion WebUI via backend /api/txt2img
+//  • 'pollinations' → hosted service via the image proxy (needs a free token now)
+export function imageUrlFor(full, settings, dimsObj) {
   settings = settings || {};
-  // Quality tags only — do NOT force a "selfie/looking at viewer" framing here, or it
-  // fights any scene the [photo:] tag describes. The tag itself carries the composition.
-  const QUALITY = 'masterpiece, best quality, very aesthetic, absurdres';
-  const full = [appearanceForPhoto(char), prompt, QUALITY].filter(Boolean).join(', ');
   const seed = Math.floor(Math.random() * 1e6);
-  const size = [512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768;
-  const dims = '&width=' + size + '&height=' + size;
+  const w = (dimsObj && dimsObj.w) || ([512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768);
+  const h = (dimsObj && dimsObj.h) || w;
+  const dims = '&width=' + w + '&height=' + h;
 
   if (settings.imageProvider === 'comfy') {
     const base = (settings.comfyUrl || 'http://127.0.0.1:8188').trim();
@@ -110,17 +108,29 @@ export function buildPhotoUrl(char, prompt, settings) {
     if (settings.comfyModel && settings.comfyModel.trim()) u += '&model=' + encodeURIComponent(settings.comfyModel.trim());
     return u;
   }
-
   if (settings.imageProvider === 'a1111') {
     const base = (settings.sdUrl || 'http://127.0.0.1:7860').trim();
     return '/api/txt2img?backend=a1111&prompt=' + encodeURIComponent(full) + '&url=' + encodeURIComponent(base) + dims + '&seed=' + seed;
   }
-
-  // Pollinations (default). Append the user's token if they have one.
-  let src = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(full)
-    + '?nologo=true&seed=' + seed + dims;
+  let src = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(full) + '?nologo=true&seed=' + seed + dims;
   if (settings.imageToken && settings.imageToken.trim()) src += '&token=' + encodeURIComponent(settings.imageToken.trim());
   return '/api/img?url=' + encodeURIComponent(src);
+}
+
+// Build a GET image URL for a character selfie (identity + scene tag + quality).
+export function buildPhotoUrl(char, prompt, settings) {
+  // Quality tags only — do NOT force a "selfie/looking at viewer" framing here, or it
+  // fights any scene the [photo:] tag describes. The tag itself carries the composition.
+  const QUALITY = 'masterpiece, best quality, very aesthetic, absurdres';
+  const full = [appearanceForPhoto(char), prompt, QUALITY].filter(Boolean).join(', ');
+  return imageUrlFor(full, settings);
+}
+
+// Build a wide wallpaper image URL for a chat background (scenery, no forced subject).
+export function buildWallpaperUrl(description, settings) {
+  const full = [description, 'scenery, cinematic lighting, highly detailed, masterpiece, best quality, absurdres']
+    .filter(Boolean).join(', ');
+  return imageUrlFor(full, settings, { w: 1024, h: 640 });
 }
 
 // Active-variant image for an AI message (set after a reply that included a photo tag).

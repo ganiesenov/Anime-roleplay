@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { saveCharacter } from '../lib/db.js';
-import { syncCharacterToServer, fileToDataUrl } from '../lib/api.js';
+import { syncCharacterToServer, fileToDataUrl, fetchAsDataUrl } from '../lib/api.js';
+import { buildWallpaperUrl } from '../lib/chat.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
@@ -38,6 +39,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [name, setName] = useState(char?.name || '');
   const [avatar, setAvatar] = useState(char?.avatar || '');
   const [background, setBackground] = useState(char?.background || '');
+  const [bgPrompt, setBgPrompt] = useState('');
   const [danceUrl, setDanceUrl] = useState(char?.danceUrl || '');
   const [voiceURI, setVoiceURI] = useState(char?.voiceURI || '');
   const [voices, setVoices] = useState([]);
@@ -89,6 +91,19 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       if (out.description) setDescription(out.description);
       if (out.tags) setTags(out.tags);
       if (out.instructions) setInstructions(out.instructions);
+    } catch (err) {
+      setAiError(formatGenError(err));
+    } finally { setAiBusy(''); }
+  }
+  async function aiGenerateWallpaper() {
+    if (aiBusy) return;
+    setAiBusy('wallpaper'); setAiError('');
+    try {
+      const desc = (bgPrompt && bgPrompt.trim())
+        || [name, tags].filter(Boolean).join(', ') + ', atmospheric environment';
+      const url = buildWallpaperUrl(desc, settings);
+      const dataUrl = await fetchAsDataUrl(url);   // bake into a stable base64 so it persists
+      setBackground(dataUrl);
     } catch (err) {
       setAiError(formatGenError(err));
     } finally { setAiBusy(''); }
@@ -215,7 +230,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
             </div>
           </div>
 
-          <Field label="Background image" hint="Optional scene backdrop shown behind the chat. Upload or paste a URL.">
+          <Field label="Background image" hint="Optional scene backdrop shown behind the chat. Upload, paste a URL, or generate one with AI (uses your Photos provider).">
             <div className="flex items-center gap-3">
               <div className="h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-em-bg">
                 {background ? <img src={avatarSrc(background)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs text-em-text-dim/50">none</div>}
@@ -226,6 +241,17 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
                 <input type="file" accept="image/*" className="hidden" onChange={pickBackground} />
               </label>
               {background && <button onClick={() => setBackground('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
+            </div>
+            <div className="mt-2 flex items-center gap-2">
+              <input value={bgPrompt} onChange={(e) => setBgPrompt(e.target.value)} placeholder="Describe the scene to generate (e.g. moonlit dojo, rain) — blank = from character" className={inputCls} />
+              <button
+                type="button"
+                disabled={aiBusy === 'wallpaper'}
+                onClick={aiGenerateWallpaper}
+                className="shrink-0 rounded-lg border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-xs font-medium text-em-accent transition hover:bg-em-accent/20 disabled:opacity-40"
+              >
+                {aiBusy === 'wallpaper' ? 'generating…' : '✨ Generate'}
+              </button>
             </div>
           </Field>
 
