@@ -20,6 +20,7 @@ import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
   MemoryIcon, MusicIcon, SparkleIcon, CastIcon, PersonaIcon, MoodIcon,
+  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon,
 } from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
 
@@ -791,7 +792,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       <ParticleField effect={char.particleEffect} intensity={char.particleIntensityLevel} />
       {/* Header */}
       <header className="relative flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
-        <button onClick={onBack} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">← Back</button>
+        <button onClick={onBack} title="Back" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><BackIcon /><span className="hidden sm:inline">Back</span></button>
         <div className={'h-9 w-9 overflow-hidden rounded-full bg-em-panel ' + (musicPlaying ? 'beat-ring' : '')}>
           {char.avatar
             ? <img src={avatarUrl(char.avatar)} alt="" className={'h-full w-full object-cover ' + (musicPlaying ? 'avatar-dancing' : '')} />
@@ -804,7 +805,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               <span className="eq shrink-0" title="Music playing" aria-label="music playing"><i /><i /><i /><i /></span>
             )}
           </div>
-          {chat && chat.memories && <div className="text-[11px] text-em-accent">🧠 memory active</div>}
+          {chat && chat.memories && <div className="flex items-center gap-1 text-[11px] text-em-accent"><MemoryIcon /> memory active</div>}
         </div>
         {settings.presence && (() => {
           const p = presenceFor(char.id);
@@ -825,15 +826,15 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           <button
             onClick={() => setShowInner(true)}
             title="Inner life — relationship & diary"
-            className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text sm:flex"
+            className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-rose-300 hover:border-rose-300/40 sm:flex"
           >
-            💗 {chat.relationship.affection}
+            <span className="text-rose-400"><HeartIcon /></span> {chat.relationship.affection}
           </button>
         )}
-        {onEdit && <button onClick={() => onEdit(char)} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">✎ Edit</button>}
-        {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">⚙</button>}
-        <button onClick={() => setShowChats((v) => !v)} className={'rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}>💬 Chats ({sessions.length})</button>
-        <button onClick={newChatClicked} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ New chat</button>
+        {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
+        {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><GearIcon /></button>}
+        <button onClick={() => setShowChats((v) => !v)} title="Chats" className={'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><ChatsIcon /><span className="hidden sm:inline">Chats</span> ({sessions.length})</button>
+        <button onClick={newChatClicked} title="New chat" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PlusIcon /><span className="hidden sm:inline">New chat</span></button>
 
         {/* Chat session list */}
         {showChats && (
@@ -842,7 +843,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             <div className="absolute right-3 top-full z-40 mt-1 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
               <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-em-text-dim">
                 <span>Chats</span>
-                <button onClick={newChatClicked} className="rounded-md px-2 py-0.5 text-em-accent transition hover:bg-em-accent/10">＋ New</button>
+                <button onClick={newChatClicked} className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-em-accent transition hover:bg-em-accent/10"><PlusIcon /> New</button>
               </div>
               {sessions.length === 0 && <p className="px-2 py-3 text-center text-sm text-em-text-dim">No chats yet.</p>}
               {sessions.map((s) => {
@@ -990,10 +991,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               placeholder="Music URL (direct audio or YouTube)…"
               className="min-w-0 flex-1 rounded-lg border border-white/10 bg-em-panel px-3 py-1.5 text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
             />
-            <button onClick={() => (musicPlaying ? toggleMusic() : playMusic())} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
-              {musicPlaying ? '⏸ Pause' : '▶ Play'}
+            <button onClick={() => (musicPlaying ? toggleMusic() : playMusic())} title={musicPlaying ? 'Pause' : 'Play'} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
+              {musicPlaying ? <PauseIcon /> : <PlayIcon />}{musicPlaying ? 'Pause' : 'Play'}
             </button>
-            <button onClick={stopMusic} className="rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">⏹ Stop</button>
+            <button onClick={stopMusic} title="Stop" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><StopIcon /> Stop</button>
             <div className="flex items-center gap-2 text-em-text-dim" title="Volume">
               <span className="text-base">🔉</span>
               <input
@@ -1182,7 +1183,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowInner(false)}>
           <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-em-panel/95 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
-              <h2 className="text-lg font-bold">💗 {displayName(char)} — inner life</h2>
+              <h2 className="flex items-center gap-2 text-lg font-bold"><span className="text-rose-400"><HeartIcon /></span> {displayName(char)} — inner life</h2>
               <button onClick={() => setShowInner(false)} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>
             </div>
 
