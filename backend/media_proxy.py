@@ -63,6 +63,17 @@ async def shikimori_search(q: str = Query(..., min_length=1)):
 async def shikimori_character(id: int = Query(...)):
     c = await _shiki_get(f"/characters/{id}")
     img = c.get("image") or {}
+    # Derive tags from the works the character appears in (series names).
+    works = (c.get("animes") or []) + (c.get("mangas") or [])
+    seen, tags = set(), []
+    for w in works:
+        nm = (w.get("name") or "").strip()
+        key = nm.lower()
+        if nm and key not in seen:
+            seen.add(key)
+            tags.append(nm)
+        if len(tags) >= 3:
+            break
     return JSONResponse({
         "id": c.get("id"),
         "name": c.get("name"),
@@ -70,6 +81,7 @@ async def shikimori_character(id: int = Query(...)):
         "japanese": c.get("japanese"),
         "description": c.get("description_html") or c.get("description") or "",
         "image": ("https://shikimori.one" + img["original"]) if img.get("original") else "",
+        "tags": ", ".join(tags),
     })
 
 _NEG_DEFAULT = (

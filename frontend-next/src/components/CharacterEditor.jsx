@@ -78,6 +78,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
     try {
       const c = await getShikimoriCharacter(item.id);
       setName(c.name || item.name || name);
+      if (c.tags) setTags(c.tags);
       if (c.description) setDescription(cleanShikiDescription(c.description));
       if (c.image) {
         try { setAvatar(await fetchAsDataUrl('/api/img?url=' + encodeURIComponent(c.image))); }
