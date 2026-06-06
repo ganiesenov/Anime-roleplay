@@ -88,11 +88,12 @@ export async function generateCharacter(concept, req, signal) {
 }
 
 const APPEARANCE_SYS =
-  'You are an expert Danbooru tagger for anime image generation. Given a character, output ONE line of '
-  + 'comma-separated Danbooru tags so an anime model draws THIS exact character. If they are a recognizable '
-  + 'existing character, START with their Danbooru character tag as "name (series)" then the series copyright tag '
-  + '(e.g. "akame (akame ga kill!), akame ga kill!"). Then add core visual tags: 1girl or 1boy, hair colour & length, '
-  + 'eye colour, and signature outfit/accessories. Lowercase, tags only — no sentences, no quotes, no markdown.';
+  'You are an expert Danbooru tagger for anime image generation. Output ONE line of comma-separated Danbooru tags '
+  + 'that IDENTIFY this character so an anime model draws them correctly. If they are a recognizable existing '
+  + 'character, START with their Danbooru character tag as "name (series)" then the series copyright tag '
+  + '(e.g. "akame (akame ga kill!), akame ga kill!"). Then add only PERMANENT identity tags: 1girl or 1boy, hair '
+  + 'colour & length, eye colour, and notable body features. Do NOT include any specific outfit or clothing — what '
+  + 'they wear (or their state of undress) is decided per scene. Lowercase, tags only — no sentences, no quotes, no markdown.';
 
 // Derive Danbooru-style appearance tags for a character via the LLM (it knows
 // famous characters). Returns a single comma-separated line.
