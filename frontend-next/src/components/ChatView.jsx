@@ -767,7 +767,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       <ParticleField effect={char.particleEffect} intensity={char.particleIntensityLevel} />
       {/* Header */}
       <header className="relative flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
-        <button onClick={onBack} title="Back" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><BackIcon /><span className="hidden sm:inline">Back</span></button>
+        <button onClick={onBack} title="Back" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><BackIcon /><span className="hidden sm:inline">Back</span></button>
         <div className={'h-9 w-9 overflow-hidden rounded-full bg-em-panel ' + (musicPlaying ? 'beat-ring' : '')}>
           {char.avatar
             ? <img src={avatarUrl(char.avatar)} alt="" className={'h-full w-full object-cover ' + (musicPlaying ? 'avatar-dancing' : '')} />
@@ -806,14 +806,14 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             <span className="text-rose-400"><HeartIcon /></span> {chat.relationship.affection}
           </button>
         )}
-        {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
-        {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><GearIcon /></button>}
+        {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
+        {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><GearIcon /></button>}
         <button onClick={() => { setShowWallpaper((v) => !v); setShowPinned(false); }} title="Wallpaper" className={'grid h-9 w-9 place-items-center rounded-lg border transition ' + (showWallpaper ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><SparkleIcon /></button>
         {pinnedMsgs.length > 0 && (
           <button onClick={() => { setShowPinned((v) => !v); setShowWallpaper(false); }} title="Pinned messages" className={'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm transition ' + (showPinned ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><PinIcon /> {pinnedMsgs.length}</button>
         )}
         <button onClick={() => setShowChats((v) => !v)} title="Chats" className={'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><ChatsIcon /><span className="hidden sm:inline">Chats</span> ({sessions.length})</button>
-        <button onClick={newChatClicked} title="New chat" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PlusIcon /><span className="hidden sm:inline">New chat</span></button>
+        <button onClick={newChatClicked} title="New chat" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><PlusIcon /><span className="hidden sm:inline">New chat</span></button>
 
         {/* Chat session list */}
         {showChats && (

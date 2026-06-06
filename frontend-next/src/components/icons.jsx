@@ -11,9 +11,11 @@ export function CtrlBtn({ onClick, disabled, title, active, danger, children }) 
       title={title}
       aria-label={title}
       className={
-        'grid h-7 w-7 place-items-center rounded-lg transition disabled:opacity-30 ' +
-        (active ? 'text-em-accent ' : '') +
-        (danger ? 'hover:bg-red-500/10 hover:text-red-400' : 'hover:bg-white/5 hover:text-em-accent')
+        'grid h-8 w-8 place-items-center rounded-lg transition duration-150 [&_svg]:h-[18px] [&_svg]:w-[18px] ' +
+        'hover:-translate-y-0.5 active:scale-90 disabled:pointer-events-none disabled:opacity-30 ' +
+        (active
+          ? 'bg-em-accent/15 text-em-accent'
+          : 'text-em-text/70 ' + (danger ? 'hover:bg-red-500/15 hover:text-red-400' : 'hover:bg-em-accent/15 hover:text-em-accent'))
       }
     >
       {children}
@@ -116,10 +118,10 @@ export function Pill({ onClick, active, title, children }) {
       onClick={onClick}
       title={title}
       className={
-        'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm transition ' +
+        'flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-sm transition duration-150 active:scale-95 ' +
         (active
-          ? 'border-em-accent/50 bg-em-accent/10 text-em-accent'
-          : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')
+          ? 'border-em-accent/50 bg-em-accent/15 text-em-accent shadow-[0_0_14px_-3px_rgba(var(--accent-rgb),0.55)]'
+          : 'border-white/10 bg-white/[0.03] text-em-text-dim hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text')
       }
     >
       {children}

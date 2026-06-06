@@ -138,7 +138,7 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
 
       {/* Controls (not while this message streams or is being edited) */}
       {!isStreamingThis && !editing && (
-        <div className="flex items-center gap-0.5 rounded-lg bg-black/20 px-1 text-em-text/80">
+        <div className="flex items-center gap-0.5 px-1">
           {!isUser && nVariants > 1 && (
             <span className="mr-1 flex items-center gap-1 text-xs">
               <button onClick={() => onSwipe(-1)} className="rounded p-1 transition hover:bg-white/5 hover:text-em-text">‹</button>
