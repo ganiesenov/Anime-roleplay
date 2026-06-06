@@ -10,6 +10,7 @@ import { applyDesignSettings } from './lib/design.js';
 import { exportBackup, importFile } from './lib/io.js';
 import { PlusIcon, DotsIcon, GearIcon, UploadIcon, DownloadIcon, HelpIcon, SearchIcon, HomeIcon, StarIcon } from './components/icons.jsx';
 import { ArrowUp } from 'lucide-react';
+import FeaturedBanner from './components/FeaturedBanner.jsx';
 import Scenes from './components/Scenes.jsx';
 import { buildSceneChat } from './lib/scenes.js';
 
@@ -208,10 +209,14 @@ export default function App() {
       <section className="starfield relative overflow-hidden">
         {/* soft emerald aurora glow behind the headline */}
         <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-[40rem] -translate-x-1/2 rounded-full bg-em-accent/20 blur-[100px] animate-pulse-slow" />
-        <div className="relative mx-auto max-w-7xl px-5 py-10 text-center">
-          <h1 className="bg-gradient-to-b from-white via-emerald-100 to-em-text-dim bg-clip-text text-4xl font-black tracking-tight text-transparent drop-shadow-[0_2px_30px_rgba(46,230,160,0.15)] sm:text-5xl">
-            Your characters. Your stories.
-          </h1>
+        <div className="relative mx-auto max-w-7xl px-5 py-8">
+          {!favOnly && !query && !category && chars && chars.length > 0 ? (
+            <FeaturedBanner chars={chars} onOpen={openCharacter} />
+          ) : (
+            <h1 className="bg-gradient-to-b from-white via-emerald-100 to-em-text-dim bg-clip-text text-center text-4xl font-black tracking-tight text-transparent drop-shadow-[0_2px_30px_rgba(46,230,160,0.15)] sm:text-5xl">
+              Your characters. Your stories.
+            </h1>
+          )}
 
           {/* Category pills */}
           <div className="mt-6 flex flex-wrap justify-center gap-2">
