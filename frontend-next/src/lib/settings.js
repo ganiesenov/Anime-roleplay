@@ -35,6 +35,7 @@ export const DEFAULT_SETTINGS = {
 
   // ── Appearance / design (applied as CSS variables, see lib/design.js). ──
   accent: 'emerald',         // accent palette: emerald | violet | rose | amber | cyan | blue
+  charAccent: true,          // tint the UI per-chat with a colour pulled from the character avatar
   avatarSize: 40,            // AI speaker avatar beside each reply (px)
   fontSize: 15,              // chat message font size (px)
   messageSpacing: 20,        // vertical gap between messages (px)

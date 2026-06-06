@@ -234,6 +234,9 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                     ))}
                   </div>
                 </Row>
+                <Row label="Theme per character" hint="Tint the UI with a colour pulled from the character's avatar while chatting.">
+                  <input type="checkbox" checked={s.charAccent !== false} onChange={(e) => set('charAccent', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                </Row>
                 <Row label={`AI avatar size: ${s.avatarSize || 40}px`} hint="Avatar shown beside each reply.">
                   <input type="range" min="24" max="96" step="2" value={s.avatarSize || 40} onChange={(e) => set('avatarSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
                 </Row>

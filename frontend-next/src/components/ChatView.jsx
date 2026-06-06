@@ -16,6 +16,8 @@ import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { avatarUrl, isVideoUrl } from '../lib/media.js';
+import { accentFromImage } from '../lib/palette.js';
+import { applyDesignSettings } from '../lib/design.js';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -97,6 +99,21 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Reflect edits made via the editor (parent passes a refreshed character).
   useEffect(() => { setChar(character); }, [character]);
+
+  // Per-character accent: tint the whole UI with a vibrant colour pulled from the
+  // avatar while this chat is open; restore the user's global accent on leave/switch.
+  useEffect(() => {
+    if (!settings.charAccent || !char.avatar) return undefined;
+    let cancelled = false;
+    accentFromImage(avatarUrl(char.avatar)).then((p) => {
+      if (cancelled || !p) return;
+      const root = document.documentElement.style;
+      root.setProperty('--color-em-accent', p.accent);
+      root.setProperty('--color-em-accent-dim', p.dim);
+      root.setProperty('--accent-rgb', p.rgb);
+    });
+    return () => { cancelled = true; applyDesignSettings(settings); };
+  }, [char.id, settings.charAccent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Pick most-recent existing chat, or create one.
   useEffect(() => {
