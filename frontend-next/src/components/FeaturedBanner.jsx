@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Play } from 'lucide-react';
+import { Play, ChevronLeft, ChevronRight } from 'lucide-react';
 
 function img(url) {
   if (!url) return '';
@@ -13,19 +13,25 @@ export default function FeaturedBanner({ chars, onOpen }) {
   const favs = (chars || []).filter((c) => c.isFavorite && (c.avatar || c.background));
   const pool = (favs.length ? favs : (chars || []).filter((c) => c.avatar || c.background)).slice(0, 6);
   const [i, setI] = useState(0);
+  const [paused, setPaused] = useState(false);
+  const go = (d) => setI((n) => (n + d + pool.length) % pool.length);
 
   useEffect(() => {
-    if (pool.length <= 1) return undefined;
+    if (pool.length <= 1 || paused) return undefined;
     const t = setInterval(() => setI((n) => (n + 1) % pool.length), 6000);
     return () => clearInterval(t);
-  }, [pool.length]);
+  }, [pool.length, paused]);
 
   if (!pool.length) return null;
   const c = pool[Math.min(i, pool.length - 1)];
   const bg = img(c.background || c.avatar);
 
   return (
-    <div className="relative mx-auto mb-8 h-64 max-w-7xl overflow-hidden rounded-3xl border border-white/10 shadow-2xl sm:h-80">
+    <div
+      onMouseEnter={() => setPaused(true)}
+      onMouseLeave={() => setPaused(false)}
+      className="group relative mx-auto mb-8 h-64 max-w-7xl overflow-hidden rounded-3xl border border-white/10 shadow-2xl sm:h-80"
+    >
       <AnimatePresence mode="wait">
         <motion.div
           key={c.id}
@@ -55,6 +61,12 @@ export default function FeaturedBanner({ chars, onOpen }) {
         </button>
       </div>
 
+      {pool.length > 1 && (
+        <>
+          <button onClick={() => go(-1)} aria-label="Previous" className="absolute left-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-em-bg/60 text-em-text opacity-0 backdrop-blur transition hover:bg-em-bg/90 group-hover:opacity-100"><ChevronLeft className="h-5 w-5" /></button>
+          <button onClick={() => go(1)} aria-label="Next" className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-em-bg/60 text-em-text opacity-0 backdrop-blur transition hover:bg-em-bg/90 group-hover:opacity-100"><ChevronRight className="h-5 w-5" /></button>
+        </>
+      )}
       {pool.length > 1 && (
         <div className="absolute bottom-4 right-6 flex gap-1.5">
           {pool.map((p, k) => (

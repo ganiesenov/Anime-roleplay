@@ -122,6 +122,7 @@ export default function App() {
   }, [chars, query, category, favOnly, sort]);
 
   const favorites = useMemo(() => (chars || []).filter((c) => c.isFavorite), [chars]);
+  const newest = useMemo(() => (chars || []).slice().sort((a, b) => characterStats(b).createdTs - characterStats(a).createdTs).slice(0, 12), [chars]);
   // Characters with actual chat history, most-recently-used first — for "Continue".
   const recents = useMemo(() => (chars || [])
     .map((c) => ({ c, s: characterStats(c) }))
@@ -330,6 +331,18 @@ export default function App() {
         </section>
       )}
 
+      {/* Recently added shelf */}
+      {!favOnly && !query && !category && newest.length > 0 && (
+        <section className="mx-auto max-w-7xl px-5 pb-6">
+          <h2 className="mb-3 text-lg font-bold">Recently added</h2>
+          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+            {newest.map((c) => (
+              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Main grid */}
       <main className="mx-auto max-w-7xl px-5 pb-20">
         {chars === null ? (
@@ -337,11 +350,14 @@ export default function App() {
         ) : filtered.length === 0 ? (
           <EmptyState onCreate={() => setEditing({})} />
         ) : (
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
-            {filtered.map((c) => (
-              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
-            ))}
-          </div>
+          <>
+            {!favOnly && !query && !category && <h2 className="mb-3 text-lg font-bold">All characters</h2>}
+            <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
+              {filtered.map((c) => (
+                <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
+              ))}
+            </div>
+          </>
         )}
       </main>
 
