@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS = {
   photoSize: 768,            // generated selfie resolution (square): 512 | 768 | 1024
   tts: false,                // speak AI replies via SpeechSynthesis
   ttsVoiceURI: '',           // chosen voice (empty = browser default)
+  sttLang: '',               // voice-call speech-recognition language ('' = browser default)
   autoSummarize: false,
   autoSummarizeEvery: 30,
 

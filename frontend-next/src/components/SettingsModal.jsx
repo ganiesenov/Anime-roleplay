@@ -216,6 +216,17 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                         </select>
                       </Row>
                     )}
+                    <Row label="Voice call language" hint="Speech recognition language for the 📞 voice call.">
+                      <select value={s.sttLang || ''} onChange={(e) => set('sttLang', e.target.value)} className={inputCls + ' min-w-40'}>
+                        <option value="">Auto (browser)</option>
+                        <option value="en-US">English</option>
+                        <option value="ru-RU">Русский</option>
+                        <option value="ja-JP">日本語</option>
+                        <option value="de-DE">Deutsch</option>
+                        <option value="es-ES">Español</option>
+                        <option value="fr-FR">Français</option>
+                      </select>
+                    </Row>
                   </>
                 ) : (
                   <p className="py-3 text-sm text-em-text-dim">Text-to-speech isn’t available in this browser.</p>

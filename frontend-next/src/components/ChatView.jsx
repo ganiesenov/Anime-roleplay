@@ -18,6 +18,8 @@ import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
+import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
+import { Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -74,6 +76,17 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showChats, setShowChats] = useState(false);   // chat-session list panel
   const [showPinned, setShowPinned] = useState(false); // pinned-messages panel
   const [showWallpaper, setShowWallpaper] = useState(false); // per-chat wallpaper panel
+  // ── Voice call ──
+  const [inCall, setInCall] = useState(false);
+  const [callStatus, setCallStatus] = useState('idle');   // listening | thinking | speaking
+  const [callTranscript, setCallTranscript] = useState('');
+  const [callError, setCallError] = useState('');
+  const [callMuted, setCallMuted] = useState(false);
+  const recognitionRef = useRef(null);
+  const inCallRef = useRef(false);
+  const prevStreamingRef = useRef(false);
+  const callTranscriptRef = useRef('');
+  const callMutedRef = useRef(false);
   const [showScenarioPick, setShowScenarioPick] = useState(false); // greeting picker on + New chat
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
   const sug = useSuggestions(settings);                // suggested-reply state + helpers
@@ -432,6 +445,78 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       rerender();
     }
   }
+
+  // ── Voice call (browser STT → chat → TTS, looped) ─────────────────────────
+  const SpeechRec = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const voiceSupported = !!SpeechRec && ttsSupported();
+
+  function startListening() {
+    if (!inCallRef.current || callMutedRef.current) return;
+    let rec;
+    try { rec = new SpeechRec(); } catch (e) { setCallError('Mic/speech not available.'); return; }
+    rec.lang = settings.sttLang || (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
+    rec.interimResults = true;
+    rec.continuous = false;
+    rec.onresult = (e) => {
+      let txt = '';
+      for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
+      callTranscriptRef.current = txt;
+      setCallTranscript(txt);
+      if (e.results[e.results.length - 1].isFinal) { try { rec.stop(); } catch (er) { /* */ } }
+    };
+    rec.onerror = () => { /* onend handles the next step */ };
+    rec.onend = () => {
+      if (!inCallRef.current) return;
+      const t = callTranscriptRef.current.trim();
+      if (t) {
+        callTranscriptRef.current = ''; setCallTranscript('');
+        setCallStatus('thinking');
+        sendText(t);                 // reply will be spoken by the effect below
+      } else if (!callMutedRef.current) {
+        startListening();            // heard nothing → keep listening
+      }
+    };
+    recognitionRef.current = rec;
+    setCallStatus('listening'); setCallError('');
+    try { rec.start(); } catch (e) { /* already started */ }
+  }
+
+  function startCall() {
+    if (!voiceSupported) { setCallError('Voice needs Chrome (Web Speech API).'); setInCall(true); return; }
+    inCallRef.current = true; prevStreamingRef.current = false;
+    setInCall(true); setCallError(''); setCallTranscript('');
+    startListening();
+  }
+  function endCall() {
+    inCallRef.current = false; setInCall(false); setCallStatus('idle');
+    try { recognitionRef.current && recognitionRef.current.stop(); } catch (e) { /* */ }
+    cancelSpeech();
+  }
+  function toggleCallMute() {
+    const next = !callMutedRef.current; callMutedRef.current = next; setCallMuted(next);
+    if (next) { try { recognitionRef.current && recognitionRef.current.stop(); } catch (e) { /* */ } setCallStatus('idle'); }
+    else if (inCallRef.current && callStatus !== 'speaking') startListening();
+  }
+
+  // When a reply finishes streaming during a call, speak it, then resume listening.
+  useEffect(() => {
+    if (inCall && prevStreamingRef.current && !streaming) {
+      const last = lastAiMessage();
+      const text = last ? getMessageText(last) : '';
+      if (text) {
+        setCallStatus('speaking');
+        const ok = speak(text, {
+          voiceURI: char.voiceURI || settings.ttsVoiceURI,
+          onend: () => { if (inCallRef.current && !callMutedRef.current) startListening(); },
+        });
+        if (!ok && inCallRef.current && !callMutedRef.current) startListening();
+      } else if (inCallRef.current && !callMutedRef.current) startListening();
+    }
+    prevStreamingRef.current = streaming;
+  }, [streaming, inCall]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Tidy up the call on unmount.
+  useEffect(() => () => { inCallRef.current = false; try { recognitionRef.current && recognitionRef.current.stop(); } catch (e) { /* */ } cancelSpeech(); }, []);
 
   // Opt-in: distill old turns into chat.memories once the chat grows by N msgs.
   // Fire-and-forget; one at a time; preempted by nothing (runs after a reply).
@@ -853,6 +938,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
         {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><GearIcon /></button>}
         <button onClick={() => { setShowWallpaper((v) => !v); setShowPinned(false); }} title="Wallpaper (this chat)" className={'grid h-9 w-9 place-items-center rounded-lg border transition ' + (showWallpaper ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><WallpaperIcon /></button>
+        <button onClick={startCall} title="Voice call" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-accent active:scale-95"><Phone className="h-4 w-4" /></button>
         {pinnedMsgs.length > 0 && (
           <button onClick={() => { setShowPinned((v) => !v); setShowWallpaper(false); }} title="Pinned messages" className={'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm transition ' + (showPinned ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><PinIcon /> {pinnedMsgs.length}</button>
         )}
@@ -1219,6 +1305,36 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           </div>
         </div>
       </div>
+
+      {/* Voice call overlay */}
+      {inCall && (
+        <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-em-bg/95 backdrop-blur-xl">
+          <div className={'relative h-40 w-40 overflow-hidden rounded-full border-2 ' + (callStatus === 'speaking' ? 'beat-ring border-em-accent' : 'border-white/15')}>
+            {char.avatar
+              ? <img src={avatarUrl(char.avatar)} alt="" className={'h-full w-full object-cover ' + (callStatus === 'listening' ? 'avatar-dancing' : '')} />
+              : <div className="flex h-full w-full items-center justify-center text-5xl">👤</div>}
+          </div>
+          <div className="text-2xl font-bold">{displayName(char)}</div>
+          <div className="flex items-center gap-2 text-sm text-em-text-dim">
+            {callError
+              ? <span className="text-red-400">{callError}</span>
+              : <>
+                  <span className="eq"><i /><i /><i /><i /></span>
+                  {callStatus === 'listening' ? 'Listening…' : callStatus === 'thinking' ? 'Thinking…' : callStatus === 'speaking' ? 'Speaking…' : 'On call'}
+                </>}
+          </div>
+          {callTranscript && <div className="max-w-md px-6 text-center text-em-text">{callTranscript}</div>}
+          <div className="mt-2 flex items-center gap-5">
+            <button onClick={toggleCallMute} title={callMuted ? 'Unmute' : 'Mute'} className={'grid h-14 w-14 place-items-center rounded-full border transition ' + (callMuted ? 'border-white/15 bg-white/10 text-em-text-dim' : 'border-em-accent/40 bg-em-accent/15 text-em-accent')}>
+              {callMuted ? <MicOff className="h-6 w-6" /> : <Mic className="h-6 w-6" />}
+            </button>
+            <button onClick={endCall} title="Hang up" className="grid h-16 w-16 place-items-center rounded-full bg-red-500 text-white shadow-lg transition hover:bg-red-600 active:scale-95">
+              <PhoneOff className="h-7 w-7" />
+            </button>
+          </div>
+          {!voiceSupported && <div className="text-xs text-em-text-dim">Tip: voice recognition works in Chrome/Edge.</div>}
+        </div>
+      )}
 
       {showMemories && chat && (
         <MemoriesModal char={char} chat={chat} personas={personas} onSave={saveMemories} onClose={() => setShowMemories(false)} />
