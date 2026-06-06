@@ -592,7 +592,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   function manualPhoto(tags) {
     if (!chat) return;
     const speaker = resolveSpeaker();
-    autoScroll.current = true;
+    stick();
     const msg = {
       id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
       activeVariant: 0, variations: [{ main: '', think: null, imageLoading: true }],
