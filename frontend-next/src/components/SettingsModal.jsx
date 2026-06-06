@@ -2,28 +2,44 @@ import { useEffect, useState } from 'react';
 import { fetchAvailableModels } from '../lib/settings.js';
 import { ACCENTS } from '../lib/design.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
+import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph } from 'lucide-react';
 
 const inputCls = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-em-text focus:border-em-accent/50 focus:outline-none';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
 const TABS = [
-  { key: 'model', icon: '🧠', label: 'Model' },
-  { key: 'roleplay', icon: '🎭', label: 'Roleplay' },
-  { key: 'media', icon: '🎬', label: 'Photos & Voice' },
-  { key: 'appearance', icon: '🎨', label: 'Appearance' },
-  { key: 'providers', icon: '🔌', label: 'Providers' },
-  { key: 'memory', icon: '🧩', label: 'Memory' },
+  { key: 'model', Icon: Brain, label: 'Model' },
+  { key: 'roleplay', Icon: Drama, label: 'Roleplay' },
+  { key: 'media', Icon: Clapperboard, label: 'Photos & Voice' },
+  { key: 'appearance', Icon: Palette, label: 'Appearance' },
+  { key: 'providers', Icon: Plug, label: 'Providers' },
+  { key: 'memory', Icon: Puzzle, label: 'Memory' },
 ];
 
 function Row({ label, hint, children }) {
   return (
-    <div className="flex items-center justify-between gap-4 py-2">
-      <div>
+    <div className="flex items-center justify-between gap-4 py-2.5">
+      <div className="min-w-0">
         <div className="text-sm font-medium text-em-text">{label}</div>
         {hint && <div className="text-xs text-em-text-dim">{hint}</div>}
       </div>
       <div className="shrink-0">{children}</div>
     </div>
+  );
+}
+
+// iOS-style toggle switch — replaces the bare checkboxes for a cleaner look.
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={!!checked}
+      onClick={() => onChange(!checked)}
+      className={'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors duration-200 ' + (checked ? 'bg-em-accent' : 'bg-white/15')}
+    >
+      <span className={'inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform duration-200 ' + (checked ? 'translate-x-[22px]' : 'translate-x-0.5')} />
+    </button>
   );
 }
 
@@ -69,35 +85,37 @@ export default function SettingsModal({ settings, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl glass-panel p-5 shadow-2xl">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-xl font-bold">⚙ Settings</h2>
-          <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>
+      <div className="flex max-h-[90vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl glass-panel shadow-2xl">
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+          <h2 className="flex items-center gap-2 text-xl font-bold"><span className="text-em-accent"><SettingsGlyph className="h-5 w-5" /></span> Settings</h2>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-em-text-dim transition hover:bg-white/5 hover:text-em-text">✕</button>
         </div>
 
-        <div className="flex min-h-0 flex-1 gap-3">
+        <div className="flex min-h-0 flex-1">
           {/* Section rail */}
-          <nav className="flex w-28 shrink-0 flex-col gap-1 overflow-y-auto sm:w-36">
+          <nav className="flex w-14 shrink-0 flex-col gap-1 overflow-y-auto border-r border-white/10 bg-black/20 p-2 sm:w-44 sm:p-3">
             {TABS.map((t) => {
               const active = tab === t.key;
+              const Icon = t.Icon;
               return (
                 <button
                   key={t.key}
                   onClick={() => setTab(t.key)}
+                  title={t.label}
                   className={
-                    'flex items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition ' +
-                    (active ? 'bg-em-accent/15 font-semibold text-em-accent' : 'text-em-text-dim hover:bg-white/5 hover:text-em-text')
+                    'flex items-center justify-center gap-2.5 rounded-xl px-2 py-2.5 text-left text-sm transition sm:justify-start sm:px-3 ' +
+                    (active ? 'bg-em-accent/15 font-semibold text-em-accent shadow-[inset_2px_0_0_var(--color-em-accent)]' : 'text-em-text-dim hover:bg-white/5 hover:text-em-text')
                   }
                 >
-                  <span className="text-base">{t.icon}</span>
-                  <span className="truncate">{t.label}</span>
+                  <Icon className="h-[18px] w-[18px] shrink-0" />
+                  <span className="hidden truncate sm:inline">{t.label}</span>
                 </button>
               );
             })}
           </nav>
 
           {/* Active section */}
-          <div className="-mr-2 min-w-0 flex-1 overflow-y-auto pr-2">
+          <div className="min-w-0 flex-1 overflow-y-auto p-5">
             {tab === 'model' && (
               <div className={rows}>
                 <Row label="Chat model" hint="Local Ollama routes through the backend; remote models call their own endpoint.">
@@ -131,7 +149,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                   </select>
                 </Row>
                 <Row label="Show think blocks" hint="Display the model's reasoning.">
-                  <input type="checkbox" checked={s.showThink} onChange={(e) => set('showThink', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.showThink} onChange={(v) => set('showThink', v)} />
                 </Row>
               </div>
             )}
@@ -139,19 +157,19 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             {tab === 'roleplay' && (
               <div className={rows}>
                 <Row label="Suggest replies" hint="Offer 2 quick user replies after each AI turn.">
-                  <input type="checkbox" checked={s.replyOptions} onChange={(e) => set('replyOptions', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.replyOptions} onChange={(v) => set('replyOptions', v)} />
                 </Row>
                 <Row label="Living relationship" hint="Character tracks affection / trust / tension and acts on it over time.">
-                  <input type="checkbox" checked={s.relationship} onChange={(e) => set('relationship', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.relationship} onChange={(v) => set('relationship', v)} />
                 </Row>
                 <Row label="Autonomy (no people-pleasing)" hint="Character keeps its own will, opinions and boundaries instead of mirroring you.">
-                  <input type="checkbox" checked={s.autonomy} onChange={(e) => set('autonomy', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.autonomy} onChange={(v) => set('autonomy', v)} />
                 </Row>
                 <Row label="Living presence" hint="Time-of-day awareness, a sleep schedule, and proactive messages when you return.">
-                  <input type="checkbox" checked={s.presence} onChange={(e) => set('presence', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.presence} onChange={(v) => set('presence', v)} />
                 </Row>
                 <Row label="Off-screen life" hint="Character lives their own day while you're away; it colours how they greet you back.">
-                  <input type="checkbox" checked={s.offscreenLife} onChange={(e) => set('offscreenLife', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.offscreenLife} onChange={(v) => set('offscreenLife', v)} />
                 </Row>
               </div>
             )}
@@ -159,7 +177,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             {tab === 'media' && (
               <div className={rows}>
                 <Row label="AI photos" hint="Character can send AI-generated selfies when it fits. Set a per-character Appearance for better likeness.">
-                  <input type="checkbox" checked={s.aiPhotos} onChange={(e) => set('aiPhotos', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.aiPhotos} onChange={(v) => set('aiPhotos', v)} />
                 </Row>
                 {s.aiPhotos && (
                   <Row label="Photo provider" hint="Local ComfyUI / SD WebUI (free, uncensored) or Pollinations (hosted, needs a token).">
@@ -202,7 +220,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                 {ttsSupported() ? (
                   <>
                     <Row label="Speak replies (TTS)" hint="Read each AI reply aloud.">
-                      <input type="checkbox" checked={s.tts} onChange={(e) => set('tts', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                      <Toggle checked={s.tts} onChange={(v) => set('tts', v)} />
                     </Row>
                     {s.tts && (
                       <Row label="Default voice" hint="Characters can override this with their own voice in the editor.">
@@ -246,7 +264,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                   </div>
                 </Row>
                 <Row label="Theme per character" hint="Tint the UI with a colour pulled from the character's avatar while chatting.">
-                  <input type="checkbox" checked={s.charAccent !== false} onChange={(e) => set('charAccent', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.charAccent !== false} onChange={(v) => set('charAccent', v)} />
                 </Row>
                 <Row label={`AI avatar size: ${s.avatarSize || 40}px`} hint="Avatar shown beside each reply.">
                   <input type="range" min="24" max="96" step="2" value={s.avatarSize || 40} onChange={(e) => set('avatarSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
@@ -313,7 +331,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             {tab === 'memory' && (
               <div className={rows}>
                 <Row label="Auto-summarize to memory" hint="Distill old turns into memory automatically.">
-                  <input type="checkbox" checked={s.autoSummarize} onChange={(e) => set('autoSummarize', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+                  <Toggle checked={s.autoSummarize} onChange={(v) => set('autoSummarize', v)} />
                 </Row>
                 {s.autoSummarize && (
                   <Row label={`Summarize every: ${s.autoSummarizeEvery} messages`}>
@@ -325,7 +343,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
           </div>
         </div>
 
-        <div className="mt-4 flex justify-end gap-2 border-t border-white/10 pt-4">
+        <div className="flex justify-end gap-2 border-t border-white/10 px-5 py-4">
           <button onClick={onClose} className="rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition hover:text-em-text">Cancel</button>
           <button onClick={() => onSave(s)} className="rounded-xl bg-em-accent px-5 py-2 font-semibold text-em-bg transition hover:bg-emerald-300">Save</button>
         </div>
