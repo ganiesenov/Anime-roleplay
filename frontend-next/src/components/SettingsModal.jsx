@@ -69,7 +69,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl border border-white/10 bg-em-panel/95 p-5 shadow-2xl">
+      <div className="flex max-h-[90vh] w-full max-w-2xl flex-col rounded-3xl glass-panel p-5 shadow-2xl">
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-xl font-bold">⚙ Settings</h2>
           <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>

@@ -26,7 +26,7 @@ export default function MemoriesModal({ char, chat, personas, onSave, onClose })
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-xl rounded-3xl border border-white/10 bg-em-panel/95 p-6 shadow-2xl">
+      <div className="w-full max-w-xl rounded-3xl glass-panel p-6 shadow-2xl">
         <div className="mb-2 flex items-center justify-between">
           <h2 className="text-xl font-bold">🧠 Chat Memories</h2>
           <button onClick={onClose} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>

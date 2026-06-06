@@ -58,9 +58,18 @@ body {
 .chat-md .dlg { color: var(--dialogue-color); }
 .chat-md em { font-style: italic; color: #5cffc4; }
 
-/* Message bubble fills — driven by the design vars so colour/opacity/blur are live. */
-.msg-bubble-user { background: var(--user-bubble-color); backdrop-filter: blur(var(--message-blur)); }
-.msg-bubble-ai { background: var(--ai-bubble-color); backdrop-filter: blur(var(--message-blur)); }
+/* Message bubble fills — driven by the design vars so colour/opacity/blur are live.
+   Depth: a faint inner top highlight (glass rim) + a soft drop shadow. */
+.msg-bubble-user {
+  background: var(--user-bubble-color);
+  backdrop-filter: blur(calc(var(--message-blur) + 2px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.07), 0 8px 22px -14px rgba(0, 0, 0, 0.6);
+}
+.msg-bubble-ai {
+  background: var(--ai-bubble-color);
+  backdrop-filter: blur(calc(var(--message-blur) + 2px));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 22px -14px rgba(0, 0, 0, 0.55);
+}
 
 /* Native <select> popups render on a white background by default, which makes the
    light theme text nearly invisible — force readable dark options. */
@@ -80,10 +89,28 @@ select optgroup { font-weight: 700; }
 /* Character-card hover lift + emerald ring glow. */
 .char-card {
   transition: box-shadow 0.25s ease, border-color 0.2s ease;
+  box-shadow: 0 6px 20px -10px rgba(0, 0, 0, 0.6);
+}
+/* glass rim: a thin top highlight over the artwork */
+.char-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.10), transparent 10%);
 }
 .char-card:hover {
   border-color: rgba(var(--accent-rgb), 0.45);
-  box-shadow: 0 12px 32px -8px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(var(--accent-rgb), 0.25), 0 0 28px -6px rgba(var(--accent-rgb), 0.35);
+  box-shadow: 0 16px 40px -10px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(var(--accent-rgb), 0.25), 0 0 30px -6px rgba(var(--accent-rgb), 0.4);
+}
+
+/* Reusable glass surface for modals / popovers. */
+.glass-panel {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0.012)), var(--color-em-panel);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 28px 70px -24px rgba(0, 0, 0, 0.75), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  backdrop-filter: blur(18px);
 }
 
 /* Thin emerald scrollbars. */

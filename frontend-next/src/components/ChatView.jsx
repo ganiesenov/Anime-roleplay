@@ -1126,7 +1126,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         <div className="relative mx-auto w-full max-w-3xl px-4 py-3">
           {/* Slash-command autocomplete */}
           {slashMatches.length > 0 && (
-            <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl border border-white/10 bg-em-panel/95 p-1.5 shadow-2xl backdrop-blur">
+            <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl glass-panel p-1.5 shadow-2xl backdrop-blur">
               <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">Commands</div>
               {slashMatches.map((c, i) => (
                 <button
@@ -1182,7 +1182,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
       {showScenarioPick && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowScenarioPick(false)}>
-          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-em-panel/95 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl glass-panel p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-bold">Start a new chat</h2>
               <button onClick={() => setShowScenarioPick(false)} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>
@@ -1206,7 +1206,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
       {showInner && chat && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowInner(false)}>
-          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl border border-white/10 bg-em-panel/95 p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+          <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl glass-panel p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="mb-4 flex items-center justify-between">
               <h2 className="flex items-center gap-2 text-lg font-bold"><span className="text-rose-400"><HeartIcon /></span> {displayName(char)} — inner life</h2>
               <button onClick={() => setShowInner(false)} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>
