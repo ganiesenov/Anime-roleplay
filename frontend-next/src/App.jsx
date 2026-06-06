@@ -9,7 +9,7 @@ import { loadSettings, saveSettings } from './lib/settings.js';
 import { applyDesignSettings } from './lib/design.js';
 import { exportBackup, importFile } from './lib/io.js';
 import { PlusIcon, DotsIcon, GearIcon, UploadIcon, DownloadIcon, HelpIcon, SearchIcon, HomeIcon, StarIcon } from './components/icons.jsx';
-import { ArrowUp } from 'lucide-react';
+import { ArrowUp, Shuffle } from 'lucide-react';
 import FeaturedBanner from './components/FeaturedBanner.jsx';
 import Scenes from './components/Scenes.jsx';
 import { buildSceneChat } from './lib/scenes.js';
@@ -139,6 +139,11 @@ export default function App() {
 
   function openCharacter(char) {
     setActiveChar(char);
+  }
+
+  function surprise() {
+    const pool = chars || [];
+    if (pool.length) openCharacter(pool[Math.floor(Math.random() * pool.length)]);
   }
 
   // Launch a scene: create a fresh chat for the chosen character seeded with the
@@ -292,6 +297,13 @@ export default function App() {
           >
             <StarIcon className="h-4 w-4" filled={favOnly} /> Favorites
           </button>
+          <button
+            onClick={surprise}
+            title="Open a random character"
+            className="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium text-em-text-dim transition hover:text-em-text"
+          >
+            <Shuffle className="h-4 w-4" /> Surprise me
+          </button>
         </div>
         <div className="flex items-center gap-3">
           <select
@@ -364,6 +376,26 @@ export default function App() {
           </div>
         </section>
       )}
+
+      {/* Genre rows */}
+      {!favOnly && !query && !category && chars && CATEGORIES.filter((cat) => cat.key).map((cat) => {
+        const list = chars.filter((c) => matchesCategory(c, cat)).slice(0, 12);
+        if (list.length < 4) return null;
+        return (
+          <section key={cat.key} className="mx-auto max-w-7xl px-5 pb-6">
+            <button onClick={() => setCategory(cat.key)} className="mb-3 flex items-center gap-1 text-lg font-bold transition hover:text-em-accent">
+              {cat.label} <span className="text-em-text-dim">›</span>
+            </button>
+            <div className="flex gap-4 overflow-x-auto pb-2">
+              {list.map((c) => (
+                <div key={c.id} className="w-40 shrink-0">
+                  <CharacterCard char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} onTag={setQuery} />
+                </div>
+              ))}
+            </div>
+          </section>
+        );
+      })}
 
       {/* Main grid */}
       <main className="mx-auto max-w-7xl px-5 pb-20">
