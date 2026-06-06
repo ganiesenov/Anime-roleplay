@@ -6,9 +6,10 @@ import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
-  extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading,
+  extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl,
 } from '../lib/chat.js';
 import { generateAppearance } from '../lib/aigen.js';
+import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
@@ -19,7 +20,7 @@ import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
   MemoryIcon, MusicIcon, SparkleIcon, CastIcon, PersonaIcon, MoodIcon,
-  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon,
+  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon,
 } from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
 import useTts from '../hooks/useTts.js';
@@ -67,6 +68,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [slashIdx, setSlashIdx] = useState(0); // highlighted slash-command suggestion
   const [showMemories, setShowMemories] = useState(false);
   const [showChats, setShowChats] = useState(false);   // chat-session list panel
+  const [showPinned, setShowPinned] = useState(false); // pinned-messages panel
+  const [showWallpaper, setShowWallpaper] = useState(false); // per-chat wallpaper panel
   const [showScenarioPick, setShowScenarioPick] = useState(false); // greeting picker on + New chat
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
   const sug = useSuggestions(settings);                // suggested-reply state + helpers
@@ -156,6 +159,32 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     msg.pinned = !msg.pinned;
     saveCharacter(char);
     rerender();
+  }
+  function jumpToMessage(id) {
+    setShowPinned(false);
+    const el = document.getElementById('msg-' + id);
+    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  // ── Per-chat wallpaper (Customize) ────────────────────────────────────────
+  const [wpBusy, setWpBusy] = useState(false);
+  function setChatWallpaper(url) {
+    if (!chat) return;
+    chat.background = url || '';
+    saveCharacter(char);
+    rerender();
+  }
+  async function generateChatWallpaper(promptText) {
+    if (!chat || wpBusy) return;
+    setWpBusy(true);
+    try {
+      const desc = (promptText && promptText.trim())
+        || [displayName(char), char.tags].filter(Boolean).join(', ') + ', atmospheric environment';
+      const dataUrl = await fetchAsDataUrl(buildWallpaperUrl(desc, settings));
+      setChatWallpaper(dataUrl);
+    } catch (e) {
+      window.alert('Wallpaper generation failed — check your Photos provider in Settings.');
+    } finally { setWpBusy(false); }
   }
 
   // ── Chat session list (switch / rename / delete) ──────────────────────────
@@ -720,6 +749,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   const history = chat ? chat.history : [];
   const sessions = Object.values(chats).sort((a, b) => chatTs(b.id) - chatTs(a.id));
+  const pinnedMsgs = history.filter((m) => m.pinned);
 
   // Slash-command autocomplete: only while typing the command word (no space yet).
   const slashQuery = (() => { const m = input.match(/^\/(\w*)$/); return m ? m[1].toLowerCase() : null; })();
@@ -778,6 +808,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         )}
         {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
         {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><GearIcon /></button>}
+        <button onClick={() => { setShowWallpaper((v) => !v); setShowPinned(false); }} title="Wallpaper" className={'grid h-9 w-9 place-items-center rounded-lg border transition ' + (showWallpaper ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><SparkleIcon /></button>
+        {pinnedMsgs.length > 0 && (
+          <button onClick={() => { setShowPinned((v) => !v); setShowWallpaper(false); }} title="Pinned messages" className={'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm transition ' + (showPinned ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><PinIcon /> {pinnedMsgs.length}</button>
+        )}
         <button onClick={() => setShowChats((v) => !v)} title="Chats" className={'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><ChatsIcon /><span className="hidden sm:inline">Chats</span> ({sessions.length})</button>
         <button onClick={newChatClicked} title="New chat" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PlusIcon /><span className="hidden sm:inline">New chat</span></button>
 
@@ -805,6 +839,51 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                   </div>
                 );
               })}
+            </div>
+          </>
+        )}
+
+        {/* Pinned messages */}
+        {showPinned && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowPinned(false)} />
+            <div className="absolute right-3 top-full z-40 mt-1 max-h-[70vh] w-80 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
+              <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-em-text-dim">📌 Pinned</div>
+              {pinnedMsgs.length === 0 && <p className="px-2 py-3 text-center text-sm text-em-text-dim">No pinned messages.</p>}
+              {pinnedMsgs.map((m) => (
+                <div key={m.id} className="group flex items-start gap-1 rounded-lg px-2 py-1.5 hover:bg-white/5">
+                  <button onClick={() => jumpToMessage(m.id)} className="min-w-0 flex-1 text-left">
+                    <div className="line-clamp-2 text-sm text-em-text">{stripPhotoTag(getMessageText(m)).slice(0, 160) || '(empty)'}</div>
+                    <div className="text-[11px] text-em-text-dim">{m.sender === 'user' ? 'You' : displayName(speakerOf(m))}</div>
+                  </button>
+                  <button onClick={() => togglePin(m)} title="Unpin" className="grid h-7 w-7 shrink-0 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100"><PinIcon /></button>
+                </div>
+              ))}
+            </div>
+          </>
+        )}
+
+        {/* Per-chat wallpaper (Customize) */}
+        {showWallpaper && (
+          <>
+            <div className="fixed inset-0 z-30" onClick={() => setShowWallpaper(false)} />
+            <div className="absolute right-3 top-full z-40 mt-1 w-80 rounded-xl border border-white/10 bg-em-panel p-3 shadow-2xl">
+              <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-em-text-dim">Wallpaper (this chat)</div>
+              <div className="mb-2 h-20 w-full overflow-hidden rounded-lg border border-white/10 bg-em-bg">
+                {chat && chat.background
+                  ? <img src={avatarUrl(chat.background)} alt="" className="h-full w-full object-cover" />
+                  : <div className="flex h-full w-full items-center justify-center text-xs text-em-text-dim/50">{char.background ? 'using character background' : 'none'}</div>}
+              </div>
+              <input
+                id="wallpaper-prompt"
+                placeholder="Describe a scene to generate…"
+                className="mb-2 w-full rounded-lg border border-white/10 bg-white/[0.04] px-2.5 py-1.5 text-sm text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
+                onKeyDown={(e) => { if (e.key === 'Enter') generateChatWallpaper(e.currentTarget.value); }}
+              />
+              <div className="flex items-center gap-2">
+                <button onClick={() => generateChatWallpaper(document.getElementById('wallpaper-prompt').value)} disabled={wpBusy} className="flex-1 rounded-lg bg-em-accent px-3 py-1.5 text-sm font-semibold text-em-bg transition hover:bg-emerald-300 disabled:opacity-40">{wpBusy ? 'generating…' : '✨ Generate'}</button>
+                {chat && chat.background && <button onClick={() => setChatWallpaper('')} className="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-em-text-dim transition hover:text-red-400">Clear</button>}
+              </div>
             </div>
           </>
         )}
@@ -962,6 +1041,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {history.map((m) => (
           <MessageBubble
             key={m.id}
+            anchorId={'msg-' + m.id}
             msg={m}
             char={char}
             streaming={streaming}

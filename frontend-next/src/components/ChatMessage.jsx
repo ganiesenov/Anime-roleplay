@@ -49,7 +49,7 @@ function PhotoMessage({ src }) {
   );
 }
 
-export default function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group }) {
+export default function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId }) {
   const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -73,7 +73,7 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
 
   const avChar = group ? speaker : char;
   return (
-    <div className={'group flex w-full items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}>
+    <div id={anchorId} className={'group flex w-full scroll-mt-24 items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}>
       {!isUser && (
         <div
           className="shrink-0 overflow-hidden rounded-full bg-em-panel"
@@ -138,7 +138,7 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
 
       {/* Controls (not while this message streams or is being edited) */}
       {!isStreamingThis && !editing && (
-        <div className="flex items-center gap-0.5 px-1 text-em-text-dim opacity-60 transition group-hover:opacity-100 hover:opacity-100">
+        <div className="flex items-center gap-0.5 rounded-lg bg-black/20 px-1 text-em-text/80">
           {!isUser && nVariants > 1 && (
             <span className="mr-1 flex items-center gap-1 text-xs">
               <button onClick={() => onSwipe(-1)} className="rounded p-1 transition hover:bg-white/5 hover:text-em-text">‹</button>
