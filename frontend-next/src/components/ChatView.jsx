@@ -21,7 +21,7 @@ import { applyDesignSettings } from '../lib/design.js';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
-  MemoryIcon, MusicIcon, SparkleIcon, CastIcon, PersonaIcon, MoodIcon,
+  MemoryIcon, MusicIcon, SparkleIcon, WallpaperIcon, CastIcon, PersonaIcon, MoodIcon,
   BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon,
 } from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
@@ -825,7 +825,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         )}
         {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
         {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><GearIcon /></button>}
-        <button onClick={() => { setShowWallpaper((v) => !v); setShowPinned(false); }} title="Wallpaper" className={'grid h-9 w-9 place-items-center rounded-lg border transition ' + (showWallpaper ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><SparkleIcon /></button>
+        <button onClick={() => { setShowWallpaper((v) => !v); setShowPinned(false); }} title="Wallpaper (this chat)" className={'grid h-9 w-9 place-items-center rounded-lg border transition ' + (showWallpaper ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><WallpaperIcon /></button>
         {pinnedMsgs.length > 0 && (
           <button onClick={() => { setShowPinned((v) => !v); setShowWallpaper(false); }} title="Pinned messages" className={'inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 text-sm transition ' + (showPinned ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><PinIcon /> {pinnedMsgs.length}</button>
         )}

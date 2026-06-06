@@ -5,7 +5,7 @@ import {
   RotateCw, ChevronsRight, Volume2, Square, Send, Pencil, Trash2, Copy, Check,
   Pin, GitFork, Brain, Music, Sparkles, Users, User, Smile, ArrowLeft, Heart,
   Settings, MessageSquare, Plus, Play, Pause, MoreHorizontal, Upload, Download,
-  HelpCircle, Search, Home, Star,
+  HelpCircle, Search, Home, Star, Image as ImageGlyph,
 } from 'lucide-react';
 
 const ICO = 'h-4 w-4';
@@ -77,6 +77,7 @@ export function ForkIcon({ className } = {}) { return <GitFork className={classN
 export function MemoryIcon({ className } = {}) { return <Brain className={className || ICO} />; }
 export function MusicIcon({ className } = {}) { return <Music className={className || ICO} />; }
 export function SparkleIcon({ className } = {}) { return <Sparkles className={className || ICO} />; }
+export function WallpaperIcon({ className } = {}) { return <ImageGlyph className={className || ICO} />; }
 export function CastIcon({ className } = {}) { return <Users className={className || ICO} />; }
 export function PersonaIcon({ className } = {}) { return <User className={className || ICO} />; }
 export function MoodIcon({ className } = {}) { return <Smile className={className || ICO} />; }
