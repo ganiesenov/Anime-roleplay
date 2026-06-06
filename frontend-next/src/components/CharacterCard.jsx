@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { MessageSquare, Zap, Star, Heart } from 'lucide-react';
 import { characterStats } from '../lib/db.js';
 import { presenceFor } from '../lib/presence.js';
 
@@ -23,18 +24,10 @@ function proxied(url) {
   return '/api/img?url=' + encodeURIComponent(url);
 }
 
-function ChatIcon({ className }) {
-  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 9 9 0 0 1-3.8-.8L3 21l1.9-4.7A8.38 8.38 0 0 1 3.5 11 8.5 8.5 0 0 1 12 2.5a8.38 8.38 0 0 1 9 8.5z" /></svg>;
-}
-function BoltIcon({ className }) {
-  return <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M13 2 4.5 13.5H11l-1 8.5L19.5 10H13z" /></svg>;
-}
-function StarIcon({ className, filled }) {
-  return <svg className={className} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"><path d="M12 2.5l2.9 6.1 6.6.9-4.8 4.6 1.2 6.6L12 18.6 6.1 21.3l1.2-6.6L2.5 9.5l6.6-.9z" /></svg>;
-}
-function HeartIcon({ className }) {
-  return <svg className={className} viewBox="0 0 24 24" fill="currentColor"><path d="M12 21s-7.5-4.6-10-9.3C.6 8.9 2 5.5 5.2 5.1c1.9-.2 3.4.8 4.3 2 .9-1.2 2.4-2.2 4.3-2C17 5.5 18.4 8.9 17 11.7 14.5 16.4 12 21 12 21z" transform="translate(0.5 -0.5)" /></svg>;
-}
+function ChatIcon({ className }) { return <MessageSquare className={className} />; }
+function BoltIcon({ className }) { return <Zap className={className} fill="currentColor" />; }
+function StarIcon({ className, filled }) { return <Star className={className} fill={filled ? 'currentColor' : 'none'} />; }
+function HeartIcon({ className }) { return <Heart className={className} fill="currentColor" />; }
 
 export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav }) {
   const [src, setSrc] = useState(char.avatar || '');
