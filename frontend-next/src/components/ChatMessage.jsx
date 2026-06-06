@@ -1,0 +1,162 @@
+import { useState } from 'react';
+import { avatarUrl } from '../lib/media.js';
+import {
+  displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, stripPhotoTag,
+} from '../lib/chat.js';
+import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
+import { ttsSupported } from '../lib/tts.js';
+import {
+  CtrlBtn, RegenIcon, ContinueIcon, SpeakIcon, StopIcon, PencilIcon, TrashIcon, CopyIcon, CheckIcon, PinIcon, ForkIcon,
+} from './icons.jsx';
+
+// A character-sent selfie. Image generation can take a few seconds — show a
+// shimmer placeholder until it loads, and gracefully drop out if it fails.
+function PhotoMessage({ src }) {
+  const [state, setState] = useState('loading'); // loading | ok | error
+  if (!src) {
+    return (
+      <div className="mb-2 flex aspect-square w-72 max-w-full items-center justify-center rounded-xl border border-white/10 bg-white/5">
+        <span className="flex items-center gap-2 text-xs text-em-text-dim">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> generating photo…
+        </span>
+      </div>
+    );
+  }
+  if (state === 'error') {
+    return (
+      <div className="mb-2 flex max-w-[18rem] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-em-text-dim">
+        🖼️ couldn’t generate photo — check the photo provider in Settings (token / Stable Diffusion running).
+      </div>
+    );
+  }
+  return (
+    <div className="mb-2 max-w-[18rem] overflow-hidden rounded-xl border border-white/10">
+      {state === 'loading' && (
+        <div className="flex aspect-square w-72 max-w-full items-center justify-center bg-white/5">
+          <span className="flex items-center gap-2 text-xs text-em-text-dim">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> developing photo…
+          </span>
+        </div>
+      )}
+      <img
+        src={src}
+        alt="photo"
+        onLoad={() => setState('ok')}
+        onError={() => setState('error')}
+        className={'w-72 max-w-full object-cover ' + (state === 'ok' ? 'block' : 'hidden')}
+      />
+    </div>
+  );
+}
+
+export default function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group }) {
+  const [copied, setCopied] = useState(false);
+  const [showThink, setShowThink] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const isUser = msg.sender === 'user';
+  const text = stripPhotoTag(getMessageText(msg));   // hide any [photo: …] tag from view
+  const image = isUser ? '' : getMessageImage(msg);
+  const imageLoading = isUser ? false : getMessageImageLoading(msg);
+  const think = showThinkSetting ? getMessageThink(msg) : '';
+  const nVariants = isUser ? 1 : (msg.variations ? msg.variations.length : 1);
+  const isStreamingThis = msg.isStreaming;
+
+  const html = isStreamingThis ? renderStreaming(text) : renderFinal(text);
+
+  function beginEdit() { setDraft(getMessageText(msg)); setEditing(true); }
+  function commitEdit() { onEditSave(draft); setEditing(false); }
+  function cancelEdit() { setEditing(false); }
+  function doCopy() {
+    try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch (e) { /* ignore */ }
+  }
+
+  const avChar = group ? speaker : char;
+  return (
+    <div className={'group flex w-full items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}>
+      {!isUser && (
+        <div
+          className="shrink-0 overflow-hidden rounded-full bg-em-panel"
+          style={{ width: 'var(--ai-avatar-size)', height: 'var(--ai-avatar-size)' }}
+        >
+          {avChar && avChar.avatar
+            ? <img src={avatarUrl(avChar.avatar)} alt="" className="h-full w-full object-cover" />
+            : <div className="flex h-full w-full items-center justify-center text-em-text-dim">👤</div>}
+        </div>
+      )}
+      <div className={'flex min-w-0 flex-1 flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
+      {pinned && <div className="px-1 text-[11px] text-em-accent">📌 pinned</div>}
+      {!isUser && msg.offscreen && (
+        <div className="max-w-[85%] px-1 text-[11px] italic text-em-text-dim">📔 While you were away: {msg.offscreen}</div>
+      )}
+      {!isUser && group && speaker && (
+        <div className="px-1 text-xs font-medium text-em-text-dim">{displayName(speaker)}</div>
+      )}
+      <div
+        className={
+          'max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
+          (isUser ? 'msg-bubble-user' : 'msg-bubble-ai border border-white/10')
+        }
+      >
+        {!isUser && think && !editing && (
+          <details open={showThink} onToggle={(e) => setShowThink(e.target.open)} className="mb-2 rounded-lg bg-black/30 text-xs text-em-text-dim">
+            <summary className="cursor-pointer select-none px-2 py-1">💭 Thoughts</summary>
+            <div className="px-2 pb-2" dangerouslySetInnerHTML={{ __html: escapeHtml(think).replace(/\n/g, '<br>') }} />
+          </details>
+        )}
+        {editing ? (
+          <div className="flex w-[min(70vw,40rem)] max-w-full flex-col gap-2">
+            <textarea
+              autoFocus
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); commitEdit(); }
+                else if (e.key === 'Escape') cancelEdit();
+              }}
+              rows={Math.min(14, Math.max(2, draft.split('\n').length))}
+              className="w-full resize-y rounded-lg border border-white/10 bg-em-bg/60 px-3 py-2 text-em-text focus:border-em-accent/50 focus:outline-none"
+            />
+            <div className="flex items-center justify-end gap-2 text-sm">
+              <button onClick={cancelEdit} className="rounded-lg px-3 py-1 text-em-text-dim transition hover:text-em-text">Cancel</button>
+              <button onClick={commitEdit} className="rounded-lg bg-em-accent px-3 py-1 font-semibold text-em-bg transition hover:bg-emerald-300">Save</button>
+            </div>
+          </div>
+        ) : isStreamingThis && !text ? (
+          <span className="inline-flex gap-1">
+            <span className="h-2 w-2 animate-bounce rounded-full bg-em-text-dim [animation-delay:-0.2s]" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-em-text-dim [animation-delay:-0.1s]" />
+            <span className="h-2 w-2 animate-bounce rounded-full bg-em-text-dim" />
+          </span>
+        ) : (
+          <>
+            {(image || imageLoading) && <PhotoMessage src={image} />}
+            {text && <div className="chat-md" dangerouslySetInnerHTML={{ __html: html }} />}
+          </>
+        )}
+      </div>
+
+      {/* Controls (not while this message streams or is being edited) */}
+      {!isStreamingThis && !editing && (
+        <div className="flex items-center gap-0.5 px-1 text-em-text-dim opacity-60 transition group-hover:opacity-100 hover:opacity-100">
+          {!isUser && nVariants > 1 && (
+            <span className="mr-1 flex items-center gap-1 text-xs">
+              <button onClick={() => onSwipe(-1)} className="rounded p-1 transition hover:bg-white/5 hover:text-em-text">‹</button>
+              <span className="tabular-nums">{(msg.activeVariant || 0) + 1}/{nVariants}</span>
+              <button onClick={() => onSwipe(1)} className="rounded p-1 transition hover:bg-white/5 hover:text-em-text">›</button>
+            </span>
+          )}
+          {!isUser && <CtrlBtn onClick={onRegenerate} disabled={streaming} title="Regenerate"><RegenIcon /></CtrlBtn>}
+          {!isUser && <CtrlBtn onClick={onContinue} disabled={streaming} title="Continue this reply"><ContinueIcon /></CtrlBtn>}
+          {!isUser && ttsSupported() && <CtrlBtn onClick={onSpeak} active={speaking} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? <StopIcon /> : <SpeakIcon />}</CtrlBtn>}
+          <CtrlBtn onClick={beginEdit} disabled={streaming} title="Edit message"><PencilIcon /></CtrlBtn>
+          <CtrlBtn onClick={doCopy} active={copied} title={copied ? 'Copied!' : 'Copy text'}>{copied ? <CheckIcon /> : <CopyIcon />}</CtrlBtn>
+          <CtrlBtn onClick={onPin} active={pinned} title={pinned ? 'Unpin' : 'Pin (keep in context)'}><PinIcon /></CtrlBtn>
+          <CtrlBtn onClick={onFork} disabled={streaming} title="New chat from here"><ForkIcon /></CtrlBtn>
+          <CtrlBtn onClick={onDelete} disabled={streaming} danger title="Delete this and following messages"><TrashIcon /></CtrlBtn>
+        </div>
+      )}
+      </div>
+    </div>
+  );
+}

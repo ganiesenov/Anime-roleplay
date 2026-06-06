@@ -25,6 +25,7 @@ until the new app reaches feature parity, then `/` flips to the new one.
 - **Legacy** `my-frontend/` — vanilla JS, no build, loaded as `<script>` tags (modules in `js/`). Fully featured. Style overrides go in `emerald-theme.css` (loaded after `style.css`); **do not edit the `style.css` monolith** — override with `!important` in `emerald-theme.css`.
 - **New** `frontend-next/` — **Vite 6 + React 18 + Tailwind v4** (CSS-first, theme tokens in `src/index.css` `@theme{}`, no tailwind.config). Plain JSX (no TS). `base: '/next/'`. Served from `frontend-next/dist` — **the backend serves the BUILT output, so you must `npm run build` after changing `frontend-next/src`.**
   - Same origin as legacy → reads/writes the **same `AriaBD`** (`src/lib/db.js`) and hits the same `/api` + `/v1`. No data migration needed.
+  - `ChatView.jsx` is the chat container (state + flows); its view layer is split out into `ChatMessage.jsx` (the `MessageBubble` + photo), `icons.jsx` (glyphs + `CtrlBtn`/`Meter`), and `lib/media.js` (`avatarUrl`/`isVideoUrl`). Decomposing the rest of `ChatView` into `use*` hooks (stream/relationship/presence/group) is the next refactor step.
 
 ### New-frontend port status
 
