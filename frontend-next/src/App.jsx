@@ -123,6 +123,12 @@ export default function App() {
 
   const favorites = useMemo(() => (chars || []).filter((c) => c.isFavorite), [chars]);
   const newest = useMemo(() => (chars || []).slice().sort((a, b) => characterStats(b).createdTs - characterStats(a).createdTs).slice(0, 12), [chars]);
+  const popularTags = useMemo(() => {
+    const count = {};
+    (chars || []).forEach((c) => String(c.tags || '').split(',').map((t) => t.trim().toLowerCase()).filter(Boolean)
+      .forEach((t) => { count[t] = (count[t] || 0) + 1; }));
+    return Object.entries(count).sort((a, b) => b[1] - a[1]).slice(0, 12).map(([t]) => t);
+  }, [chars]);
   // Characters with actual chat history, most-recently-used first — for "Continue".
   const recents = useMemo(() => (chars || [])
     .map((c) => ({ c, s: characterStats(c) }))
@@ -251,6 +257,22 @@ export default function App() {
                 className="w-full bg-transparent text-em-text placeholder:text-em-text-dim/70 focus:outline-none"
               />
             </div>
+            {popularTags.length > 0 && (
+              <div className="mt-3 flex flex-wrap justify-center gap-1.5">
+                {popularTags.map((t) => {
+                  const active = query.trim().toLowerCase() === t;
+                  return (
+                    <button
+                      key={t}
+                      onClick={() => setQuery(active ? '' : t)}
+                      className={'rounded-full px-3 py-1 text-xs font-medium transition ' + (active ? 'bg-em-accent text-em-bg' : 'border border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}
+                    >
+                      #{t}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         </div>
       </section>
