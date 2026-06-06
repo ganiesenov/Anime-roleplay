@@ -145,6 +145,13 @@ export function getMessageImage(m) {
   return m.image || '';
 }
 
+// The exact tag/prompt used to generate the active variant's photo (for transparency).
+export function getMessageImagePrompt(m) {
+  if (!m || !m.variations) return '';
+  const v = m.variations[m.activeVariant || 0];
+  return (v && v.imagePrompt) || '';
+}
+
 // Whether the active variant's photo is still being generated (show a spinner).
 export function getMessageImageLoading(m) {
   if (!m || !m.variations) return false;

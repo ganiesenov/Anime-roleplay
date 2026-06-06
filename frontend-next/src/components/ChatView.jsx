@@ -423,6 +423,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         } catch (e) { /* fall back to name+tags */ }
       }
       v.image = buildPhotoUrl(pchar, prompt, settings);
+      v.imagePrompt = prompt;   // surface the exact tag used (transparency / debug)
     } finally {
       v.imageLoading = false;
       await saveCharacter(char);

@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { avatarUrl } from '../lib/media.js';
 import {
-  displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, stripPhotoTag,
+  displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, getMessageImagePrompt, stripPhotoTag,
 } from '../lib/chat.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { ttsSupported } from '../lib/tts.js';
@@ -59,6 +59,7 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
   const text = stripPhotoTag(getMessageText(msg));   // hide any [photo: …] tag from view
   const image = isUser ? '' : getMessageImage(msg);
   const imageLoading = isUser ? false : getMessageImageLoading(msg);
+  const imagePrompt = isUser ? '' : getMessageImagePrompt(msg);
   const think = showThinkSetting ? getMessageThink(msg) : '';
   const nVariants = isUser ? 1 : (msg.variations ? msg.variations.length : 1);
   const isStreamingThis = msg.isStreaming;
@@ -140,6 +141,12 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
         ) : (
           <>
             {(image || imageLoading) && <PhotoMessage src={image} />}
+            {image && imagePrompt && (
+              <details className="mb-2 max-w-[18rem] text-[10px] text-em-text-dim/70">
+                <summary className="cursor-pointer select-none">🏷 photo tags</summary>
+                <div className="mt-1 break-words rounded bg-black/30 p-1.5 font-mono leading-snug">{imagePrompt}</div>
+              </details>
+            )}
             {text && <div className="chat-md" dangerouslySetInnerHTML={{ __html: html }} />}
           </>
         )}
