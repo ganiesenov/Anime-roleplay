@@ -6,6 +6,15 @@ import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
 import { searchShikimori, getShikimoriCharacter, cleanShikiDescription } from '../lib/shikimori.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
+import { User, MessageSquare, BookOpen, Clapperboard, SlidersHorizontal } from 'lucide-react';
+
+const EDITOR_TABS = [
+  { key: 'basics', Icon: User, label: 'Basics' },
+  { key: 'greetings', Icon: MessageSquare, label: 'Greetings' },
+  { key: 'lore', Icon: BookOpen, label: 'Lore' },
+  { key: 'media', Icon: Clapperboard, label: 'Media & Voice' },
+  { key: 'advanced', Icon: SlidersHorizontal, label: 'Advanced' },
+];
 
 function avatarSrc(url) {
   if (!url) return '';
@@ -52,8 +61,8 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [instructions, setInstructions] = useState(char?.instructions || '');
   const [reminder, setReminder] = useState(char?.reminder || '');
   const [narratorReminder, setNarratorReminder] = useState(char?.narratorReminder || '');
-  const [showAdvanced, setShowAdvanced] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState('basics');
 
   // AI generation
   const [concept, setConcept] = useState('');
@@ -209,210 +218,259 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
     onSaved && onSaved(copy);
   }
 
+  // Count of filled fields per tab → a small badge so the user can see what's set.
+  const counts = {
+    basics: [name, avatar, tags, description].filter((x) => x && x.trim()).length,
+    greetings: scenarios.filter((s) => s.text && s.text.trim()).length,
+    lore: [lore].filter((x) => x && x.trim()).length,
+    media: [background, danceUrl, voiceURI, appearance].filter((x) => x && x.trim()).length,
+    advanced: [instructions, reminder, narratorReminder].filter((x) => x && x.trim()).length,
+  };
+
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/70 p-4 backdrop-blur-sm">
-      <div className="my-8 w-full max-w-2xl rounded-3xl glass-panel p-6 shadow-2xl shadow-black/60">
-        <div className="mb-5 flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm">
+      <div className="flex max-h-[92vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl glass-panel shadow-2xl shadow-black/60">
+        {/* Header */}
+        <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
           <h2 className="text-xl font-bold">{editing ? 'Edit character' : 'Create character'}</h2>
-          <button onClick={() => onClose()} className="rounded-lg px-3 py-1.5 text-em-text-dim transition hover:text-em-text">✕</button>
+          <button onClick={() => onClose()} className="grid h-8 w-8 place-items-center rounded-lg text-em-text-dim transition hover:bg-white/5 hover:text-em-text">✕</button>
         </div>
 
-        <div className="space-y-4">
-          {/* AI generate */}
-          <div className="rounded-2xl border border-em-accent/25 bg-em-accent/[0.06] p-3">
-            <div className="mb-2 text-sm font-semibold text-em-accent">✨ Generate with AI</div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input
-                value={concept}
-                onChange={(e) => setConcept(e.target.value)}
-                placeholder="Concept (e.g. a cynical space-pirate captain) — or leave blank for random"
-                className={inputCls + ' flex-1'}
-              />
+        {/* Tab rail */}
+        <div className="flex gap-1 overflow-x-auto border-b border-white/10 px-3 py-2">
+          {EDITOR_TABS.map((t) => {
+            const active = tab === t.key;
+            const Icon = t.Icon;
+            const n = counts[t.key];
+            return (
               <button
-                onClick={aiGenerateCharacter}
-                disabled={!!aiBusy}
-                className="shrink-0 rounded-xl bg-em-accent px-4 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-50"
+                key={t.key}
+                onClick={() => setTab(t.key)}
+                className={
+                  'flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-sm font-medium transition ' +
+                  (active ? 'bg-em-accent/15 text-em-accent' : 'text-em-text-dim hover:bg-white/5 hover:text-em-text')
+                }
               >
-                {aiBusy === 'char' ? 'Generating…' : 'Generate card'}
+                <Icon className="h-[18px] w-[18px]" />
+                <span>{t.label}</span>
+                {n > 0 && <span className={'grid h-4 min-w-4 place-items-center rounded-full px-1 text-[10px] font-bold ' + (active ? 'bg-em-accent text-em-bg' : 'bg-white/10 text-em-text-dim')}>{n}</span>}
               </button>
-            </div>
-            <p className="mt-1 text-xs text-em-text-dim">Fills name, description, tags & instructions. Existing images are kept.</p>
-            {aiError && <p className="mt-1 text-xs text-red-400">{aiError}</p>}
-          </div>
+            );
+          })}
+        </div>
 
-          {/* Import from Shikimori (anime DB) */}
-          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-            <button type="button" onClick={() => setShowShiki((v) => !v)} className="flex w-full items-center justify-between text-sm font-semibold text-em-text">
-              <span>⇩ Import from Shikimori (anime character)</span>
-              <span className="text-em-text-dim">{showShiki ? '▲' : '▼'}</span>
-            </button>
-            {showShiki && (
-              <div className="mt-2">
-                <div className="flex gap-2">
+        {/* Scrollable body */}
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {aiError && <p className="mb-3 rounded-lg border border-red-400/30 bg-red-400/10 px-3 py-2 text-xs text-red-300">{aiError}</p>}
+
+          {/* ── BASICS ── */}
+          {tab === 'basics' && (
+            <div className="space-y-4">
+              {/* AI generate */}
+              <div className="rounded-2xl border border-em-accent/25 bg-em-accent/[0.06] p-3">
+                <div className="mb-2 text-sm font-semibold text-em-accent">✨ Generate with AI</div>
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <input
-                    value={shikiQ}
-                    onChange={(e) => setShikiQ(e.target.value)}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doShikiSearch(); } }}
-                    placeholder="Search a character (e.g. Akame, Makima)…"
-                    className={inputCls}
+                    value={concept}
+                    onChange={(e) => setConcept(e.target.value)}
+                    placeholder="Concept (e.g. a cynical space-pirate captain) — or leave blank for random"
+                    className={inputCls + ' flex-1'}
                   />
-                  <button type="button" onClick={doShikiSearch} disabled={shikiBusy} className="shrink-0 rounded-xl bg-em-accent px-4 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-50">
-                    {shikiBusy ? '…' : 'Search'}
+                  <button
+                    onClick={aiGenerateCharacter}
+                    disabled={!!aiBusy}
+                    className="shrink-0 rounded-xl bg-em-accent px-4 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-50"
+                  >
+                    {aiBusy === 'char' ? 'Generating…' : 'Generate card'}
                   </button>
                 </div>
-                {shikiResults.length > 0 && (
-                  <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
-                    {shikiResults.map((r) => (
-                      <button key={r.id} type="button" onClick={() => importShiki(r)} disabled={shikiBusy}
-                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-left transition hover:border-em-accent/40 hover:bg-white/[0.06] disabled:opacity-50">
-                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-em-bg">
-                          {r.image && <img src={avatarSrc(r.image)} alt="" className="h-full w-full object-cover" />}
-                        </div>
-                        <div className="min-w-0">
-                          <div className="truncate text-xs font-medium text-em-text">{r.name}</div>
-                          {r.russian && <div className="truncate text-[10px] text-em-text-dim">{r.russian}</div>}
-                        </div>
+                <p className="mt-1 text-xs text-em-text-dim">Fills name, description, tags & instructions. Existing images are kept.</p>
+              </div>
+
+              {/* Import from Shikimori (anime DB) */}
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                <button type="button" onClick={() => setShowShiki((v) => !v)} className="flex w-full items-center justify-between text-sm font-semibold text-em-text">
+                  <span>⇩ Import from Shikimori (anime character)</span>
+                  <span className="text-em-text-dim">{showShiki ? '▲' : '▼'}</span>
+                </button>
+                {showShiki && (
+                  <div className="mt-2">
+                    <div className="flex gap-2">
+                      <input
+                        value={shikiQ}
+                        onChange={(e) => setShikiQ(e.target.value)}
+                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doShikiSearch(); } }}
+                        placeholder="Search a character (e.g. Akame, Makima)…"
+                        className={inputCls}
+                      />
+                      <button type="button" onClick={doShikiSearch} disabled={shikiBusy} className="shrink-0 rounded-xl bg-em-accent px-4 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-50">
+                        {shikiBusy ? '…' : 'Search'}
                       </button>
-                    ))}
+                    </div>
+                    {shikiResults.length > 0 && (
+                      <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                        {shikiResults.map((r) => (
+                          <button key={r.id} type="button" onClick={() => importShiki(r)} disabled={shikiBusy}
+                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-left transition hover:border-em-accent/40 hover:bg-white/[0.06] disabled:opacity-50">
+                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-em-bg">
+                              {r.image && <img src={avatarSrc(r.image)} alt="" className="h-full w-full object-cover" />}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate text-xs font-medium text-em-text">{r.name}</div>
+                              {r.russian && <div className="truncate text-[10px] text-em-text-dim">{r.russian}</div>}
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 )}
               </div>
-            )}
-          </div>
 
-          <div className="flex gap-4">
-            <div className="flex flex-col items-center gap-2">
-              <div className="h-24 w-24 overflow-hidden rounded-2xl border border-white/10 bg-em-bg">
-                {avatar ? <img src={avatarSrc(avatar)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-3xl text-em-text-dim/40">👤</div>}
+              <div className="flex gap-4">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="h-24 w-24 overflow-hidden rounded-2xl border border-white/10 bg-em-bg">
+                    {avatar ? <img src={avatarSrc(avatar)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-3xl text-em-text-dim/40">👤</div>}
+                  </div>
+                  <label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
+                    Upload
+                    <input type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
+                  </label>
+                </div>
+                <div className="flex-1 space-y-4">
+                  <Field label="Name">
+                    <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Akame" className={inputCls} />
+                  </Field>
+                  <Field label="Avatar URL" hint="Or paste an image URL (proxied automatically).">
+                    <input value={/^https?:\/\//i.test(avatar) ? avatar : ''} onChange={(e) => setAvatar(e.target.value)} placeholder="https://…" className={inputCls} />
+                  </Field>
+                </div>
               </div>
-              <label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
-                Upload
-                <input type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
-              </label>
-            </div>
-            <div className="flex-1 space-y-4">
-              <Field label="Name">
-                <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Akame" className={inputCls} />
-              </Field>
-              <Field label="Avatar URL" hint="Or paste an image URL (proxied automatically).">
-                <input value={/^https?:\/\//i.test(avatar) ? avatar : ''} onChange={(e) => setAvatar(e.target.value)} placeholder="https://…" className={inputCls} />
-              </Field>
-            </div>
-          </div>
 
-          <Field label="Background image" hint="Optional scene backdrop shown behind the chat. Upload, paste a URL, or generate one with AI (uses your Photos provider).">
-            <div className="flex items-center gap-3">
-              <div className="h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-em-bg">
-                {background ? <img src={avatarSrc(background)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs text-em-text-dim/50">none</div>}
+              <Field label="Tags" hint="Comma-separated, e.g. anime, dark fantasy, assassin">
+                <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="anime, isekai" className={inputCls} />
+              </Field>
+
+              <Field label="Description" hint="Who they are: personality, speech, appearance. {{char}} / {{user}} supported.">
+                <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className={inputCls} />
+              </Field>
+            </div>
+          )}
+
+          {/* ── GREETINGS ── */}
+          {tab === 'greetings' && (
+            <div>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-sm font-medium text-em-text">Greetings / scenarios</span>
+                <button onClick={addScenario} className="rounded-lg border border-white/10 px-2 py-0.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ Add</button>
               </div>
-              <input value={/^https?:\/\//i.test(background) ? background : ''} onChange={(e) => setBackground(e.target.value)} placeholder="https://…" className={inputCls} />
-              <label className="shrink-0 cursor-pointer rounded-lg border border-white/10 px-2 py-1.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
-                Upload
-                <input type="file" accept="image/*" className="hidden" onChange={pickBackground} />
-              </label>
-              {background && <button onClick={() => setBackground('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
-            </div>
-            <div className="mt-2 flex items-center gap-2">
-              <input value={bgPrompt} onChange={(e) => setBgPrompt(e.target.value)} placeholder="Describe the scene to generate (e.g. moonlit dojo, rain) — blank = from character" className={inputCls} />
-              <button
-                type="button"
-                disabled={aiBusy === 'wallpaper'}
-                onClick={aiGenerateWallpaper}
-                className="shrink-0 rounded-lg border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-xs font-medium text-em-accent transition hover:bg-em-accent/20 disabled:opacity-40"
-              >
-                {aiBusy === 'wallpaper' ? 'generating…' : '✨ Generate'}
-              </button>
-            </div>
-          </Field>
-
-          <Field label="Dance clip URL" hint="Optional video (.mp4/.webm) or GIF that loops in the corner while music plays. A real clip — not a still.">
-            <div className="flex items-center gap-3">
-              <input value={danceUrl} onChange={(e) => setDanceUrl(e.target.value)} placeholder="https://…/dance.mp4 or .gif" className={inputCls} />
-              {danceUrl && <button onClick={() => setDanceUrl('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
-            </div>
-          </Field>
-
-          {ttsSupported() && (
-            <Field label="Voice (TTS)" hint="This character's speaking voice. Overrides the default voice in Settings.">
-              <select value={voiceURI} onChange={(e) => setVoiceURI(e.target.value)} className={inputCls}>
-                <option value="">(Use default voice)</option>
-                {groupVoices(voices).map(([label, list]) => (
-                  <optgroup key={label} label={label}>
-                    {list.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
-                  </optgroup>
+              <p className="mb-2 text-xs text-em-text-dim">The first message of a new chat. With more than one, you pick which when starting a chat.</p>
+              <div className="space-y-3">
+                {scenarios.map((s, i) => (
+                  <div key={i} className="rounded-2xl border border-white/10 bg-black/20 p-3">
+                    <div className="mb-2 flex items-center gap-2">
+                      <input value={s.name} onChange={(e) => setScenario(i, 'name', e.target.value)} placeholder="Scenario name" className={inputCls + ' max-w-[14rem] py-1.5'} />
+                      <button onClick={() => aiGenerateScenario(i)} disabled={!!aiBusy} title="Generate this scenario with AI" className="rounded-lg border border-em-accent/40 px-2 py-1.5 text-xs text-em-accent transition enabled:hover:bg-em-accent/10 disabled:opacity-50">
+                        {aiBusy === 'scenario' ? '…' : '✨ AI'}
+                      </button>
+                      {scenarios.length > 1 && <button onClick={() => removeScenario(i)} className="ml-auto text-xs text-em-text-dim transition hover:text-red-400">Remove</button>}
+                    </div>
+                    <textarea value={s.text} onChange={(e) => setScenario(i, 'text', e.target.value)} rows={4} placeholder="First message…" className={inputCls} />
+                  </div>
                 ))}
-              </select>
+              </div>
+            </div>
+          )}
+
+          {/* ── LORE ── */}
+          {tab === 'lore' && (
+            <Field label="Lore" hint="Background facts. Lines starting with [key1, key2] inject only when a key appears recently.">
+              <textarea value={lore} onChange={(e) => setLore(e.target.value)} rows={12} className={inputCls} placeholder="World, history, relationships, secrets…" />
             </Field>
           )}
 
-          <Field label="Appearance (for AI photos)" hint="Visual tags for selfie generation. Click ✨ Auto to let the AI identify the character and write Danbooru tags (e.g. 'akame (akame ga kill!)…'). Generated automatically on the first photo if left blank. Enable AI photos in Settings.">
-            <div className="flex items-center gap-2">
-              <input value={appearance} onChange={(e) => setAppearance(e.target.value)} placeholder="akame (akame ga kill!), akame ga kill!, long black hair, red eyes…" className={inputCls} />
-              <button
-                type="button"
-                disabled={aiBusy === 'appearance' || !name.trim()}
-                onClick={aiGenerateAppearance}
-                className="shrink-0 rounded-lg border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-xs font-medium text-em-accent transition hover:bg-em-accent/20 disabled:opacity-40"
-              >
-                {aiBusy === 'appearance' ? '…' : '✨ Auto'}
-              </button>
-            </div>
-          </Field>
-
-          <Field label="Tags" hint="Comma-separated, e.g. anime, dark fantasy, assassin">
-            <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="anime, isekai" className={inputCls} />
-          </Field>
-
-          <Field label="Description" hint="Who they are: personality, speech, appearance. {{char}} / {{user}} supported.">
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={4} className={inputCls} />
-          </Field>
-
-          {/* Scenarios (greetings) */}
-          <div>
-            <div className="mb-1 flex items-center justify-between">
-              <span className="text-sm font-medium text-em-text">Greetings / scenarios</span>
-              <button onClick={addScenario} className="rounded-lg border border-white/10 px-2 py-0.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">＋ Add</button>
-            </div>
-            <p className="mb-2 text-xs text-em-text-dim">The first message of a new chat. With more than one, you pick which when starting a chat.</p>
-            <div className="space-y-3">
-              {scenarios.map((s, i) => (
-                <div key={i} className="rounded-2xl border border-white/10 bg-black/20 p-3">
-                  <div className="mb-2 flex items-center gap-2">
-                    <input value={s.name} onChange={(e) => setScenario(i, 'name', e.target.value)} placeholder="Scenario name" className={inputCls + ' max-w-[14rem] py-1.5'} />
-                    <button onClick={() => aiGenerateScenario(i)} disabled={!!aiBusy} title="Generate this scenario with AI" className="rounded-lg border border-em-accent/40 px-2 py-1.5 text-xs text-em-accent transition enabled:hover:bg-em-accent/10 disabled:opacity-50">
-                      {aiBusy === 'scenario' ? '…' : '✨ AI'}
-                    </button>
-                    {scenarios.length > 1 && <button onClick={() => removeScenario(i)} className="ml-auto text-xs text-em-text-dim transition hover:text-red-400">Remove</button>}
+          {/* ── MEDIA & VOICE ── */}
+          {tab === 'media' && (
+            <div className="space-y-4">
+              <Field label="Background image" hint="Optional scene backdrop shown behind the chat. Upload, paste a URL, or generate one with AI (uses your Photos provider).">
+                <div className="flex items-center gap-3">
+                  <div className="h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-em-bg">
+                    {background ? <img src={avatarSrc(background)} alt="" className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center text-xs text-em-text-dim/50">none</div>}
                   </div>
-                  <textarea value={s.text} onChange={(e) => setScenario(i, 'text', e.target.value)} rows={3} placeholder="First message…" className={inputCls} />
+                  <input value={/^https?:\/\//i.test(background) ? background : ''} onChange={(e) => setBackground(e.target.value)} placeholder="https://…" className={inputCls} />
+                  <label className="shrink-0 cursor-pointer rounded-lg border border-white/10 px-2 py-1.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
+                    Upload
+                    <input type="file" accept="image/*" className="hidden" onChange={pickBackground} />
+                  </label>
+                  {background && <button onClick={() => setBackground('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
                 </div>
-              ))}
+                <div className="mt-2 flex items-center gap-2">
+                  <input value={bgPrompt} onChange={(e) => setBgPrompt(e.target.value)} placeholder="Describe the scene to generate (e.g. moonlit dojo, rain) — blank = from character" className={inputCls} />
+                  <button
+                    type="button"
+                    disabled={aiBusy === 'wallpaper'}
+                    onClick={aiGenerateWallpaper}
+                    className="shrink-0 rounded-lg border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-xs font-medium text-em-accent transition hover:bg-em-accent/20 disabled:opacity-40"
+                  >
+                    {aiBusy === 'wallpaper' ? 'generating…' : '✨ Generate'}
+                  </button>
+                </div>
+              </Field>
+
+              <Field label="Dance clip URL" hint="Optional video (.mp4/.webm) or GIF that loops in the corner while music plays. A real clip — not a still.">
+                <div className="flex items-center gap-3">
+                  <input value={danceUrl} onChange={(e) => setDanceUrl(e.target.value)} placeholder="https://…/dance.mp4 or .gif" className={inputCls} />
+                  {danceUrl && <button onClick={() => setDanceUrl('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
+                </div>
+              </Field>
+
+              {ttsSupported() && (
+                <Field label="Voice (TTS)" hint="This character's speaking voice. Overrides the default voice in Settings.">
+                  <select value={voiceURI} onChange={(e) => setVoiceURI(e.target.value)} className={inputCls}>
+                    <option value="">(Use default voice)</option>
+                    {groupVoices(voices).map(([label, list]) => (
+                      <optgroup key={label} label={label}>
+                        {list.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
+                      </optgroup>
+                    ))}
+                  </select>
+                </Field>
+              )}
+
+              <Field label="Appearance (for AI photos)" hint="Visual tags for selfie generation. Click ✨ Auto to let the AI identify the character and write Danbooru tags (e.g. 'akame (akame ga kill!)…'). Generated automatically on the first photo if left blank. Enable AI photos in Settings.">
+                <div className="flex items-center gap-2">
+                  <input value={appearance} onChange={(e) => setAppearance(e.target.value)} placeholder="akame (akame ga kill!), akame ga kill!, long black hair, red eyes…" className={inputCls} />
+                  <button
+                    type="button"
+                    disabled={aiBusy === 'appearance' || !name.trim()}
+                    onClick={aiGenerateAppearance}
+                    className="shrink-0 rounded-lg border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-xs font-medium text-em-accent transition hover:bg-em-accent/20 disabled:opacity-40"
+                  >
+                    {aiBusy === 'appearance' ? '…' : '✨ Auto'}
+                  </button>
+                </div>
+              </Field>
             </div>
-          </div>
+          )}
 
-          <Field label="Lore" hint="Background facts. Lines starting with [key1, key2] inject only when a key appears recently.">
-            <textarea value={lore} onChange={(e) => setLore(e.target.value)} rows={3} className={inputCls} />
-          </Field>
-
-          <button onClick={() => setShowAdvanced((v) => !v)} className="text-sm text-em-text-dim transition hover:text-em-text">
-            {showAdvanced ? '▾' : '▸'} Advanced
-          </button>
-          {showAdvanced && (
-            <div className="space-y-4 rounded-2xl border border-white/10 bg-black/20 p-4">
+          {/* ── ADVANCED ── */}
+          {tab === 'advanced' && (
+            <div className="space-y-4">
               <Field label="AI Instructions" hint="High-priority system instructions for this character.">
-                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={2} className={inputCls} />
+                <textarea value={instructions} onChange={(e) => setInstructions(e.target.value)} rows={3} className={inputCls} />
               </Field>
               <Field label="Reminder" hint="Appended near the end of each turn (strong nudge).">
-                <textarea value={reminder} onChange={(e) => setReminder(e.target.value)} rows={2} className={inputCls} />
+                <textarea value={reminder} onChange={(e) => setReminder(e.target.value)} rows={3} className={inputCls} />
               </Field>
               <Field label="Narrator reminder" hint="Extra nudge used when this character narrates a group/world scene.">
-                <textarea value={narratorReminder} onChange={(e) => setNarratorReminder(e.target.value)} rows={2} className={inputCls} />
+                <textarea value={narratorReminder} onChange={(e) => setNarratorReminder(e.target.value)} rows={3} className={inputCls} />
               </Field>
             </div>
           )}
         </div>
 
-        <div className="mt-6 flex items-center justify-end gap-2">
+        {/* Footer */}
+        <div className="flex items-center justify-end gap-2 border-t border-white/10 px-5 py-4">
           {editing && <button onClick={duplicate} disabled={!name.trim() || busy} className="mr-auto rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40" title="Save a copy as a new character">⧉ Duplicate</button>}
           <button onClick={() => onClose()} className="rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition hover:text-em-text">Cancel</button>
           <button onClick={save} disabled={!name.trim() || busy} className="rounded-xl bg-em-accent px-5 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-40">
