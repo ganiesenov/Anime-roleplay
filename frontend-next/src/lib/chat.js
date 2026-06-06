@@ -63,7 +63,9 @@ const PHOTO_DIRECTIVE = '--- SENDING PHOTOS ---\n'
   + '[photo: comma-separated Danbooru-style tags describing THIS shot — your expression/emotion, pose, framing, '
   + 'what you are wearing OR your state of undress, and the setting]. Match the scene: if the moment is intimate or '
   + 'sexual you may be fully explicit (concrete tags like nude, topless, lingerie, etc.) — do not censor or soften it. '
-  + 'Use concrete tags, not prose. Use it sparingly, only when it feels natural. Do not mention the tag in your spoken text.';
+  + 'Use concrete tags, not prose. ALWAYS write the tags in ENGLISH Danbooru tags, even when the conversation is in '
+  + 'another language (the image model only understands English). When the user asks for a photo, ALWAYS include the tag. '
+  + 'Use it sparingly otherwise, only when it feels natural. Do not mention the tag in your spoken text.';
 
 // Pull a [photo: ...] tag out of a reply. Returns { clean, prompt } — clean has all
 // such tags removed; prompt is the first tag's description (or '' if none).

@@ -8,7 +8,7 @@ import {
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
   extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl,
 } from '../lib/chat.js';
-import { generateAppearance } from '../lib/aigen.js';
+import { generateAppearance, tagsFromText } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
@@ -588,18 +588,22 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     }
   }
 
-  // Manual image: generate a photo of the speaker from tags the user types verbatim.
-  function manualPhoto(tags) {
+  // Manual image: generate a photo of the speaker from tags the user types.
+  // Non-Latin input (e.g. Russian) is auto-translated to English Danbooru tags first.
+  async function manualPhoto(tags) {
     if (!chat) return;
     const speaker = resolveSpeaker();
     stick();
-    const msg = {
-      id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
-      activeVariant: 0, variations: [{ main: '', think: null, imageLoading: true }],
-    };
+    const v = { main: '', think: null, imageLoading: true };
+    const msg = { id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id, activeVariant: 0, variations: [v] };
     chat.history.push(msg);
     rerender();
-    generatePhoto(msg.variations[0], speaker, tags);
+    let prompt = tags;
+    if ([...tags].some((ch) => ch.charCodeAt(0) > 127)) {   // non-ASCII (Russian etc.) -> auto-translate to EN tags
+      try { prompt = (await tagsFromText(tags, resolveModel(settings, settings.model))) || tags; }
+      catch (e) { /* fall back to raw input */ }
+    }
+    generatePhoto(v, speaker, prompt);
   }
 
   // Parse a dice spec like "2d6", "d20", "3d8+1" and return an italic action string.

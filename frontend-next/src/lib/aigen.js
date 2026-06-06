@@ -114,6 +114,25 @@ export async function generateAppearance({ name, description, tags }, req, signa
     .trim();
 }
 
+// Translate a free-text (any language) image request into English Danbooru tags
+// for the image model. Content-neutral: passes through whatever the user wrote.
+export async function tagsFromText(text, req, signal) {
+  const out = await collectCompletion(
+    [
+      { role: 'system', content: 'You are a translator to Danbooru tags. Convert the user\'s image request into ONE single line of comma-separated ENGLISH Danbooru tags for an anime image model. Translate any non-English words to English. Do NOT roleplay, do NOT add prose or quotes — output ONLY the tag line.' },
+      { role: 'user', content: String(text || '') },
+    ],
+    { ...(req || {}), temperature: 0.2, signal },
+  );
+  const lines = String(out || '').replace(/```/g, '').split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .filter((l) => !/[Ѐ-ӿ]/.test(l));            // drop any Cyrillic RP prose
+  const tagLines = lines.filter((l) => l.includes(','));
+  const pick = (tagLines.length ? tagLines[tagLines.length - 1] : lines[lines.length - 1]) || '';
+  return pick.replace(/^["'*\s-]+|["'*\s]+$/g, '').trim();
+}
+
 // Generate an opening-scenario paragraph from the current name/description/lore.
 export async function generateScenario({ name, description, lore, hints }, req, signal) {
   const user = 'Character name: ' + (name || 'the character')
