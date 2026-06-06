@@ -96,13 +96,15 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
       {!isUser && msg.offscreen && (
         <div className="max-w-[85%] px-1 text-[11px] italic text-em-text-dim">📔 While you were away: {msg.offscreen}</div>
       )}
-      {!isUser && group && speaker && (
-        <div className="px-1 text-xs font-medium text-em-text-dim">{displayName(speaker)}</div>
+      {!isUser && (group ? speaker : char) && (
+        <div className="px-1 text-xs font-semibold text-em-accent/90">{displayName(group ? speaker : char)}</div>
       )}
       <div
         className={
           'max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
-          (isUser ? 'msg-bubble-user' : 'msg-bubble-ai border border-white/10')
+          (isUser
+            ? 'msg-bubble-user border border-em-accent/20'
+            : 'msg-bubble-ai border border-white/10 border-l-2 border-l-em-accent/50')
         }
       >
         {!isUser && think && !editing && (

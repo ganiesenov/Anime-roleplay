@@ -776,9 +776,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   return (
     <div className="relative isolate flex h-screen flex-col">
       {((chat && chat.background) || char.background) && (
-        <div className="pointer-events-none absolute inset-0 -z-10">
-          <img src={avatarUrl((chat && chat.background) || char.background)} alt="" className="h-full w-full object-cover opacity-30" />
-          <div className="absolute inset-0 bg-em-bg/75" />
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <img src={avatarUrl((chat && chat.background) || char.background)} alt="" className="h-full w-full object-cover opacity-50" />
+          {/* cinematic: art visible mid-frame, darker under header/composer for legibility */}
+          <div className="absolute inset-0 bg-gradient-to-b from-em-bg/85 via-em-bg/45 to-em-bg/95" />
+          {/* vignette */}
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(120% 75% at 50% 38%, transparent 35%, rgba(5,16,11,0.65) 100%)' }} />
         </div>
       )}
       <ParticleField effect={char.particleEffect} intensity={char.particleIntensityLevel} />

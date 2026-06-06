@@ -16,8 +16,8 @@ function hslToRgb(h, s, l) {
 }
 
 function accentFromHue(hue) {
-  const main = hslToRgb(hue, 0.72, 0.62);
-  const dim = hslToRgb(hue, 0.66, 0.42);
+  const main = hslToRgb(hue, 0.85, 0.6);
+  const dim = hslToRgb(hue, 0.8, 0.42);
   return {
     accent: `rgb(${main[0]}, ${main[1]}, ${main[2]})`,
     dim: `rgb(${dim[0]}, ${dim[1]}, ${dim[2]})`,
