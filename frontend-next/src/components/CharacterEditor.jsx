@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { saveCharacter } from '../lib/db.js';
 import { syncCharacterToServer, fileToDataUrl } from '../lib/api.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
-import { generateCharacter, generateScenario, formatGenError } from '../lib/aigen.js';
+import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
 
 function avatarSrc(url) {
   if (!url) return '';
@@ -38,6 +38,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [avatar, setAvatar] = useState(char?.avatar || '');
   const [background, setBackground] = useState(char?.background || '');
   const [danceUrl, setDanceUrl] = useState(char?.danceUrl || '');
+  const [appearance, setAppearance] = useState(char?.appearance || '');
   const [tags, setTags] = useState(char?.tags || '');
   const [description, setDescription] = useState(char?.description || '');
   const [scenarios, setScenarios] = useState(() => initialScenarios(char));
@@ -83,6 +84,16 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       setAiError(formatGenError(err));
     } finally { setAiBusy(''); }
   }
+  async function aiGenerateAppearance() {
+    if (aiBusy) return;
+    setAiBusy('appearance'); setAiError('');
+    try {
+      const appr = await generateAppearance({ name, description, tags }, resolveModel(settings, settings.model));
+      if (appr) setAppearance(appr);
+    } catch (err) {
+      setAiError(formatGenError(err));
+    } finally { setAiBusy(''); }
+  }
   async function aiGenerateScenario(i) {
     if (aiBusy) return;
     setAiBusy('scenario'); setAiError('');
@@ -108,6 +119,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       avatar,
       background,
       danceUrl: danceUrl.trim(),
+      appearance: appearance.trim(),
       description,
       lore,
       tags,
@@ -211,6 +223,20 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
             <div className="flex items-center gap-3">
               <input value={danceUrl} onChange={(e) => setDanceUrl(e.target.value)} placeholder="https://…/dance.mp4 or .gif" className={inputCls} />
               {danceUrl && <button onClick={() => setDanceUrl('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
+            </div>
+          </Field>
+
+          <Field label="Appearance (for AI photos)" hint="Visual tags for selfie generation. Click ✨ Auto to let the AI identify the character and write Danbooru tags (e.g. 'akame (akame ga kill!)…'). Generated automatically on the first photo if left blank. Enable AI photos in Settings.">
+            <div className="flex items-center gap-2">
+              <input value={appearance} onChange={(e) => setAppearance(e.target.value)} placeholder="akame (akame ga kill!), akame ga kill!, long black hair, red eyes…" className={inputCls} />
+              <button
+                type="button"
+                disabled={aiBusy === 'appearance' || !name.trim()}
+                onClick={aiGenerateAppearance}
+                className="shrink-0 rounded-lg border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-xs font-medium text-em-accent transition hover:bg-em-accent/20 disabled:opacity-40"
+              >
+                {aiBusy === 'appearance' ? '…' : '✨ Auto'}
+              </button>
             </div>
           </Field>
 

@@ -12,6 +12,13 @@ export const DEFAULT_SETTINGS = {
   autonomy: true,            // anti-sycophancy: character has its own will/boundaries
   presence: true,            // living time/presence + proactive "texts first" on return
   offscreenLife: true,       // character "lives" between sessions; colours the return greeting
+  aiPhotos: false,           // character can send AI-generated selfies via a [photo: …] tag
+  imageProvider: 'pollinations', // 'pollinations' (hosted, token) | 'comfy' (local ComfyUI) | 'a1111' (local SD WebUI)
+  imageToken: '',            // pollinations API token (free signup at pollinations.ai)
+  sdUrl: 'http://127.0.0.1:7860', // local Automatic1111 base URL
+  comfyUrl: 'http://127.0.0.1:8188', // local ComfyUI base URL
+  comfyModel: '',            // ComfyUI checkpoint name (blank = first available)
+  photoSize: 768,            // generated selfie resolution (square): 512 | 768 | 1024
   tts: false,                // speak AI replies via SpeechSynthesis
   ttsVoiceURI: '',           // chosen voice (empty = browser default)
   autoSummarize: false,
@@ -26,6 +33,7 @@ export const DEFAULT_SETTINGS = {
   summaryModelId: '',        // '' = same as chat model; used for auto-summarize + memory
 
   // ── Appearance / design (applied as CSS variables, see lib/design.js). ──
+  accent: 'emerald',         // accent palette: emerald | violet | rose | amber | cyan | blue
   avatarSize: 40,            // AI speaker avatar beside each reply (px)
   fontSize: 15,              // chat message font size (px)
   messageSpacing: 20,        // vertical gap between messages (px)

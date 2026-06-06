@@ -11,8 +11,11 @@ Image proxy — /api/img?url=<external image url>.
 адреса, чтобы прокси нельзя было натравить на внутренние сервисы (включая сам
 Ollama на localhost).
 """
+import asyncio
+import base64
 import ipaddress
 import socket
+import uuid
 from urllib.parse import urlparse
 
 import httpx
@@ -20,6 +23,12 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import Response
 
 router = APIRouter()
+
+_NEG_DEFAULT = (
+    "lowres, worst quality, low quality, bad anatomy, bad hands, missing fingers, "
+    "extra digit, fewer digits, text, error, signature, watermark, username, "
+    "jpeg artifacts, blurry, deformed, ugly"
+)
 
 # Кэш ответа в браузере — аватары меняются редко.
 _CACHE_CONTROL = "public, max-age=86400"
@@ -62,7 +71,8 @@ async def proxy_image(url: str = Query(..., description="External image URL")):
 
     try:
         async with httpx.AsyncClient(
-            timeout=15.0, follow_redirects=True, max_redirects=4
+            # 30s: on-the-fly image generation (e.g. pollinations) can be slow to first byte.
+            timeout=30.0, follow_redirects=True, max_redirects=4
         ) as client:
             resp = await client.get(
                 url,
@@ -92,3 +102,122 @@ async def proxy_image(url: str = Query(..., description="External image URL")):
         media_type=content_type,
         headers={"Cache-Control": _CACHE_CONTROL},
     )
+
+
+async def _a1111_txt2img(base, prompt, negative, width, height, steps, seed):
+    payload = {
+        "prompt": prompt,
+        "negative_prompt": negative,
+        "steps": steps,
+        "width": width,
+        "height": height,
+        "seed": seed,
+        "cfg_scale": 6.5,
+        "sampler_name": "DPM++ 2M Karras",
+    }
+    async with httpx.AsyncClient(timeout=180.0) as client:
+        resp = await client.post(f"{base}/sdapi/v1/txt2img", json=payload)
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, "Stable Diffusion returned an error")
+    images = (resp.json() or {}).get("images") or []
+    if not images:
+        raise HTTPException(502, "Stable Diffusion returned no image")
+    return base64.b64decode(images[0].split(",", 1)[-1])
+
+
+def _comfy_workflow(model, prompt, negative, width, height, steps, seed):
+    """Standard txt2img graph in ComfyUI's /prompt API format."""
+    return {
+        "4": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": model}},
+        "5": {"class_type": "EmptyLatentImage", "inputs": {"width": width, "height": height, "batch_size": 1}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["4", 1]}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["4", 1]}},
+        "3": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": steps, "cfg": 6.5, "sampler_name": "euler",
+            "scheduler": "normal", "denoise": 1.0,
+            "model": ["4", 0], "positive": ["6", 0], "negative": ["7", 0], "latent_image": ["5", 0],
+        }},
+        "8": {"class_type": "VAEDecode", "inputs": {"samples": ["3", 0], "vae": ["4", 2]}},
+        "9": {"class_type": "SaveImage", "inputs": {"filename_prefix": "aria", "images": ["8", 0]}},
+    }
+
+
+async def _comfy_txt2img(base, prompt, negative, width, height, steps, seed, model):
+    async with httpx.AsyncClient(timeout=300.0) as client:
+        # Resolve a checkpoint if the caller didn't name one (use the first available).
+        if not model:
+            info = (await client.get(f"{base}/object_info/CheckpointLoaderSimple")).json()
+            ckpts = info["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+            if not ckpts:
+                raise HTTPException(502, "ComfyUI has no checkpoints installed")
+            model = ckpts[0]
+
+        graph = _comfy_workflow(model, prompt, negative, width, height, steps, seed)
+        r = await client.post(f"{base}/prompt", json={"prompt": graph, "client_id": uuid.uuid4().hex})
+        if r.status_code != 200:
+            raise HTTPException(r.status_code, f"ComfyUI rejected the workflow: {r.text[:200]}")
+        pid = (r.json() or {}).get("prompt_id")
+        if not pid:
+            raise HTTPException(502, "ComfyUI did not queue the job")
+
+        # Poll the history until the job produces an output (up to ~5 min).
+        outputs = None
+        for _ in range(150):
+            h = (await client.get(f"{base}/history/{pid}")).json()
+            if pid in h and h[pid].get("outputs"):
+                outputs = h[pid]["outputs"]
+                break
+            await asyncio.sleep(2)
+        if not outputs:
+            raise HTTPException(504, "ComfyUI timed out generating the image")
+
+        img = None
+        for node in outputs.values():
+            if node.get("images"):
+                img = node["images"][0]
+                break
+        if not img:
+            raise HTTPException(502, "ComfyUI returned no image")
+
+        view = await client.get(f"{base}/view", params={
+            "filename": img["filename"], "subfolder": img.get("subfolder", ""), "type": img.get("type", "output"),
+        })
+        if view.status_code != 200:
+            raise HTTPException(502, "Could not fetch the image from ComfyUI")
+        return view.content
+
+
+@router.get("/api/txt2img")
+async def txt2img(
+    prompt: str = Query(..., description="Positive prompt"),
+    backend: str = Query("a1111", description="a1111 | comfy"),
+    url: str = Query("", description="SD/ComfyUI base URL (local)"),
+    model: str = Query("", description="ComfyUI checkpoint name (optional)"),
+    negative: str = Query(_NEG_DEFAULT),
+    width: int = Query(512, ge=64, le=1536),
+    height: int = Query(512, ge=64, le=1536),
+    steps: int = Query(24, ge=1, le=60),
+    seed: int = Query(-1),
+):
+    """Generate an image via the user's OWN local image backend (Automatic1111 or
+    ComfyUI). Unlike /api/img this deliberately allows loopback/private hosts. Returns
+    PNG bytes directly so the frontend can use it straight in an <img src>."""
+    default_url = "http://127.0.0.1:8188" if backend == "comfy" else "http://127.0.0.1:7860"
+    base = (url or default_url).rstrip("/")
+    parsed = urlparse(base)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Only http/https URLs are allowed")
+    if seed < 0:
+        seed = uuid.uuid4().int % (2 ** 32)
+
+    try:
+        if backend == "comfy":
+            data = await _comfy_txt2img(base, prompt, negative, width, height, steps, seed, model.strip())
+        else:
+            data = await _a1111_txt2img(base, prompt, negative, width, height, steps, seed)
+    except HTTPException:
+        raise
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Could not reach the image backend at {base} — is it running? ({e})") from e
+
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": _CACHE_CONTROL})

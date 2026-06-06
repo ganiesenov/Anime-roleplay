@@ -49,6 +49,85 @@ const AUTONOMY_DIRECTIVE = '--- AUTONOMY (you are a person, not an assistant) --
   + 'or be in a bad mood when it fits you — do NOT simply mirror, flatter or accommodate the user. You may be '
   + 'wrong, withhold, or have your own agenda. Never break character to be helpful.';
 
+const PHOTO_DIRECTIVE = '--- SENDING PHOTOS ---\n'
+  + 'You can send the user a photo of yourself (a selfie) when it genuinely fits the moment — e.g. flirting, '
+  + 'showing off, reacting strongly, or when asked. To do so, add ONE tag on its own line at the very end of your '
+  + 'reply: [photo: a short visual description of the shot — your expression/emotion, pose, outfit and setting]. '
+  + 'Use it sparingly (not every message), only when it feels natural. Write the tag in English. Do not mention the tag itself in your prose.';
+
+// Pull a [photo: ...] tag out of a reply. Returns { clean, prompt } — clean has all
+// such tags removed; prompt is the first tag's description (or '' if none).
+export function extractPhotoTag(text) {
+  const s = String(text || '');
+  const re = /\[\s*photo\s*:\s*([^\]]+)\]/gi;
+  let prompt = '';
+  const m = re.exec(s);
+  if (m) prompt = m[1].trim();
+  const clean = s.replace(/\[\s*photo\s*:\s*[^\]]+\]/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+  return { clean, prompt };
+}
+
+// Remove a (possibly half-streamed) photo tag for display, so it never flashes.
+export function stripPhotoTag(text) {
+  return String(text || '').replace(/\[\s*photo\s*:[^\]]*\]?/gi, '');
+}
+
+function appearanceForPhoto(char) {
+  const name = ((char && char.name) || '').trim();
+  const app = ((char && char.appearance && char.appearance.trim()) || (char && char.tags) || '').trim();
+  // Always lead with the character name — anime (Danbooru-trained) models like
+  // Animagine recognise known characters by name/tag, so this sharpens the likeness.
+  return [name, app].filter(Boolean).join(', ');
+}
+
+// Build a GET image URL for a character selfie. Returns a URL an <img> can load
+// directly — the provider is chosen in settings:
+//  • 'a1111'       → local Stable Diffusion via our backend (/api/txt2img)
+//  • 'pollinations'→ hosted service via the image proxy (needs a free token now)
+export function buildPhotoUrl(char, prompt, settings) {
+  settings = settings || {};
+  const QUALITY = 'selfie, looking at viewer, masterpiece, best quality, very aesthetic, absurdres';
+  const full = [appearanceForPhoto(char), prompt, QUALITY].filter(Boolean).join(', ');
+  const seed = Math.floor(Math.random() * 1e6);
+  const size = [512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768;
+  const dims = '&width=' + size + '&height=' + size;
+
+  if (settings.imageProvider === 'comfy') {
+    const base = (settings.comfyUrl || 'http://127.0.0.1:8188').trim();
+    let u = '/api/txt2img?backend=comfy&prompt=' + encodeURIComponent(full) + '&url=' + encodeURIComponent(base) + dims + '&seed=' + seed;
+    if (settings.comfyModel && settings.comfyModel.trim()) u += '&model=' + encodeURIComponent(settings.comfyModel.trim());
+    return u;
+  }
+
+  if (settings.imageProvider === 'a1111') {
+    const base = (settings.sdUrl || 'http://127.0.0.1:7860').trim();
+    return '/api/txt2img?backend=a1111&prompt=' + encodeURIComponent(full) + '&url=' + encodeURIComponent(base) + dims + '&seed=' + seed;
+  }
+
+  // Pollinations (default). Append the user's token if they have one.
+  let src = 'https://image.pollinations.ai/prompt/' + encodeURIComponent(full)
+    + '?nologo=true&seed=' + seed + dims;
+  if (settings.imageToken && settings.imageToken.trim()) src += '&token=' + encodeURIComponent(settings.imageToken.trim());
+  return '/api/img?url=' + encodeURIComponent(src);
+}
+
+// Active-variant image for an AI message (set after a reply that included a photo tag).
+export function getMessageImage(m) {
+  if (!m) return '';
+  if (m.variations && m.variations.length) {
+    const v = m.variations[m.activeVariant || 0];
+    return (v && v.image) || '';
+  }
+  return m.image || '';
+}
+
+// Whether the active variant's photo is still being generated (show a spinner).
+export function getMessageImageLoading(m) {
+  if (!m || !m.variations) return false;
+  const v = m.variations[m.activeVariant || 0];
+  return !!(v && v.imageLoading);
+}
+
 // Builds the system prompt for a single-character dialog (the common path).
 // World/story/multi-character narration aren't ported yet.
 export function buildSystemPrompt(char, chat, personas, opts) {
@@ -64,6 +143,7 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   }
   if (char.instructions) sections.push('--- CHARACTER AI INSTRUCTIONS ---\n' + exp(char.instructions));
   if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
+  if (opts.aiPhotos) sections.push(PHOTO_DIRECTIVE);
   if (char.description) sections.push('--- CHARACTER DESCRIPTION ---\n' + exp(char.description));
   if (char.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(char.lore));
   if (chat.mood) sections.push('--- CHARACTER CURRENT MOOD (IMPORTANT) ---\n' + cName + ' is currently feeling ' + chat.mood + '.');
@@ -274,6 +354,7 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   }
   if (speaker.instructions) sections.push('--- YOUR INSTRUCTIONS (' + sName + ') ---\n' + exp(speaker.instructions));
   if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
+  if (opts.aiPhotos) sections.push(PHOTO_DIRECTIVE);
   if (speaker.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(speaker.lore));
   if (chat.mood) sections.push('--- CURRENT MOOD (IMPORTANT) ---\n' + sName + ' is currently feeling ' + chat.mood + '.');
   if (chat.memories && chat.memories.trim()) {

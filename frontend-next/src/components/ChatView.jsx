@@ -6,7 +6,9 @@ import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, suggestReplies, collectCompletion,
+  extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading,
 } from '../lib/chat.js';
+import { generateAppearance } from '../lib/aigen.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
@@ -407,6 +409,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       const split = splitThink(mainAcc);
       const v = aiMsg.variations[variantIndex];
       if (v && !errored && (mainAcc || seed)) { v.main = composed(split.main != null ? split.main : mainAcc); v.think = (split.think || reasonAcc) || null; }
+      // If photos are on and the reply ended with a [photo: …] tag, strip it now;
+      // the actual image generation runs after the text is shown (see below).
+      let photoPrompt = '';
+      if (v && !errored && settings.aiPhotos && v.main) {
+        const ex = extractPhotoTag(v.main);
+        if (ex.prompt) { v.main = ex.clean; photoPrompt = ex.prompt; v.imageLoading = true; }
+      }
       aiMsg.isStreaming = false;
       aiMsg.streamingVariant = null;
       aiMsg.activeVariant = variantIndex;
@@ -422,7 +431,31 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           const ok = speak(getMessageText(aiMsg), { voiceURI: settings.ttsVoiceURI, onend: () => setSpeakingId(null) });
           if (ok) setSpeakingId(aiMsg.id);
         }
+        if (photoPrompt) generatePhoto(v, charsById[aiMsg.speakerId] || char, photoPrompt);
+      } else if (v && v.imageLoading) {
+        v.imageLoading = false;
       }
+    }
+  }
+
+  // Generate the selfie for a message variant: derive Danbooru appearance once
+  // (the LLM knows famous characters), cache it on the character, then set the image.
+  async function generatePhoto(v, pchar, prompt) {
+    try {
+      if (!pchar.appearance || !pchar.appearance.trim()) {
+        try {
+          const appr = await generateAppearance(
+            { name: displayName(pchar), description: pchar.description, tags: pchar.tags },
+            resolveModel(settings, settings.model),
+          );
+          if (appr) { pchar.appearance = appr; await saveCharacter(pchar === char ? char : pchar); }
+        } catch (e) { /* fall back to name+tags */ }
+      }
+      v.image = buildPhotoUrl(pchar, prompt, settings);
+    } finally {
+      v.imageLoading = false;
+      await saveCharacter(char);
+      rerender();
     }
   }
 
@@ -742,6 +775,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       replyLength: settings.replyLength,
       relationship: settings.relationship,
       autonomy: settings.autonomy,
+      aiPhotos: settings.aiPhotos,
       presenceText: settings.presence ? buildPresenceText(displayName(spk), spk.id, new Date(), lastMsgTs()) : '',
     };
   }
@@ -1273,6 +1307,47 @@ function StopIcon() {
 function SendIcon() {
   return <svg className={ICO} viewBox="0 0 24 24" fill="currentColor"><path d="M3.4 20.4 21 12 3.4 3.6 3 10l12 2-12 2z" /></svg>;
 }
+
+// A character-sent selfie. Image generation can take a few seconds — show a
+// shimmer placeholder until it loads, and gracefully drop out if it fails.
+function PhotoMessage({ src }) {
+  const [state, setState] = useState('loading'); // loading | ok | error
+  // No src yet → the image is still being generated (appearance + render).
+  if (!src) {
+    return (
+      <div className="mb-2 flex aspect-square w-72 max-w-full items-center justify-center rounded-xl border border-white/10 bg-white/5">
+        <span className="flex items-center gap-2 text-xs text-em-text-dim">
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> generating photo…
+        </span>
+      </div>
+    );
+  }
+  if (state === 'error') {
+    return (
+      <div className="mb-2 flex max-w-[18rem] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-em-text-dim">
+        🖼️ couldn’t generate photo — check the photo provider in Settings (token / Stable Diffusion running).
+      </div>
+    );
+  }
+  return (
+    <div className="mb-2 max-w-[18rem] overflow-hidden rounded-xl border border-white/10">
+      {state === 'loading' && (
+        <div className="flex aspect-square w-72 max-w-full items-center justify-center bg-white/5">
+          <span className="flex items-center gap-2 text-xs text-em-text-dim">
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> developing photo…
+          </span>
+        </div>
+      )}
+      <img
+        src={src}
+        alt="photo"
+        onLoad={() => setState('ok')}
+        onError={() => setState('error')}
+        className={'w-72 max-w-full object-cover ' + (state === 'ok' ? 'block' : 'hidden')}
+      />
+    </div>
+  );
+}
 function PencilIcon() {
   return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 20h9" /><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4z" /></svg>;
 }
@@ -1285,7 +1360,9 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const isUser = msg.sender === 'user';
-  const text = getMessageText(msg);
+  const text = stripPhotoTag(getMessageText(msg));   // hide any [photo: …] tag from view
+  const image = isUser ? '' : getMessageImage(msg);
+  const imageLoading = isUser ? false : getMessageImageLoading(msg);
   const think = showThinkSetting ? getMessageThink(msg) : '';
   const nVariants = isUser ? 1 : (msg.variations ? msg.variations.length : 1);
   const isStreamingThis = msg.isStreaming;
@@ -1353,7 +1430,10 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
             <span className="h-2 w-2 animate-bounce rounded-full bg-em-text-dim" />
           </span>
         ) : (
-          <div className="chat-md" dangerouslySetInnerHTML={{ __html: html }} />
+          <>
+            {(image || imageLoading) && <PhotoMessage src={image} />}
+            {text && <div className="chat-md" dangerouslySetInnerHTML={{ __html: html }} />}
+          </>
         )}
       </div>
 

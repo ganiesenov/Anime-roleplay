@@ -87,6 +87,30 @@ export async function generateCharacter(concept, req, signal) {
   };
 }
 
+const APPEARANCE_SYS =
+  'You are an expert Danbooru tagger for anime image generation. Given a character, output ONE line of '
+  + 'comma-separated Danbooru tags so an anime model draws THIS exact character. If they are a recognizable '
+  + 'existing character, START with their Danbooru character tag as "name (series)" then the series copyright tag '
+  + '(e.g. "akame (akame ga kill!), akame ga kill!"). Then add core visual tags: 1girl or 1boy, hair colour & length, '
+  + 'eye colour, and signature outfit/accessories. Lowercase, tags only — no sentences, no quotes, no markdown.';
+
+// Derive Danbooru-style appearance tags for a character via the LLM (it knows
+// famous characters). Returns a single comma-separated line.
+export async function generateAppearance({ name, description, tags }, req, signal) {
+  const user = 'Character name: ' + (name || 'unknown')
+    + '\nDescription: ' + String(description || '').slice(0, 700)
+    + (tags ? '\nExisting tags: ' + tags : '');
+  const text = await collectCompletion(
+    [{ role: 'system', content: APPEARANCE_SYS }, { role: 'user', content: user }],
+    { ...(req || {}), temperature: 0.4, signal },
+  );
+  return String(text || '')
+    .replace(/```/g, '')
+    .split('\n').map((s) => s.trim()).filter(Boolean).join(', ')
+    .replace(/^["']|["']$/g, '')
+    .trim();
+}
+
 // Generate an opening-scenario paragraph from the current name/description/lore.
 export async function generateScenario({ name, description, lore, hints }, req, signal) {
   const user = 'Character name: ' + (name || 'the character')

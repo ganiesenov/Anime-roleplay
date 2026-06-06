@@ -18,10 +18,28 @@ export function hexToRgba(hex, opacity) {
   return `rgba(${r}, ${g}, ${b}, ${clamp01(opacity)})`;
 }
 
+// Accent palettes. Each recolors the whole UI: the solid accent, a dimmer shade
+// for gradients/limbs, and the rgb triplet used in the many rgba() glows.
+export const ACCENTS = {
+  emerald: { label: 'Emerald', accent: '#2ee6a0', dim: '#1ba97a', rgb: '46, 230, 160' },
+  violet:  { label: 'Violet',  accent: '#a78bfa', dim: '#7c3aed', rgb: '167, 139, 250' },
+  rose:    { label: 'Rose',    accent: '#fb7185', dim: '#e11d48', rgb: '251, 113, 133' },
+  amber:   { label: 'Amber',   accent: '#fbbf24', dim: '#d97706', rgb: '251, 191, 36' },
+  cyan:    { label: 'Cyan',    accent: '#22d3ee', dim: '#0891b2', rgb: '34, 211, 238' },
+  blue:    { label: 'Blue',    accent: '#60a5fa', dim: '#2563eb', rgb: '96, 165, 250' },
+};
+
 export function applyDesignSettings(s) {
   s = s || {};
   const root = document.documentElement.style;
   const num = (v, d) => (Number.isFinite(parseFloat(v)) ? parseFloat(v) : d);
+
+  // Accent palette → CSS vars consumed by Tailwind theme utilities + index.css glows.
+  const a = ACCENTS[s.accent] || ACCENTS.emerald;
+  root.setProperty('--color-em-accent', a.accent);
+  root.setProperty('--color-em-accent-dim', a.dim);
+  root.setProperty('--accent-rgb', a.rgb);
+
   root.setProperty('--ai-avatar-size', num(s.avatarSize, 40) + 'px');
   root.setProperty('--chat-font-size', num(s.fontSize, 15) + 'px');
   root.setProperty('--message-spacing', num(s.messageSpacing, 20) + 'px');

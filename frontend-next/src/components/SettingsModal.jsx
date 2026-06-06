@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchAvailableModels } from '../lib/settings.js';
+import { ACCENTS } from '../lib/design.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
 
 const inputCls = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-em-text focus:border-em-accent/50 focus:outline-none';
@@ -149,6 +150,47 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             <Row label="Off-screen life" hint="Character lives their own day while you're away; it colours how they greet you back.">
               <input type="checkbox" checked={s.offscreenLife} onChange={(e) => set('offscreenLife', e.target.checked)} className="h-5 w-5 accent-em-accent" />
             </Row>
+            <Row label="AI photos" hint="Character can send AI-generated selfies when it fits (flirting, showing off…). Set a per-character Appearance for better likeness.">
+              <input type="checkbox" checked={s.aiPhotos} onChange={(e) => set('aiPhotos', e.target.checked)} className="h-5 w-5 accent-em-accent" />
+            </Row>
+            {s.aiPhotos && (
+              <Row label="Photo provider" hint="Local ComfyUI / SD WebUI (free, uncensored) or Pollinations (hosted, needs a token).">
+                <select value={s.imageProvider || 'pollinations'} onChange={(e) => set('imageProvider', e.target.value)} className={inputCls + ' min-w-52'}>
+                  <option value="comfy">Local ComfyUI</option>
+                  <option value="a1111">Local Stable Diffusion (A1111)</option>
+                  <option value="pollinations">Pollinations (hosted + token)</option>
+                </select>
+              </Row>
+            )}
+            {s.aiPhotos && s.imageProvider === 'comfy' && (
+              <>
+                <Row label="ComfyUI URL" hint="Run ComfyUI with --listen (or default). Usually http://127.0.0.1:8188.">
+                  <input value={s.comfyUrl || ''} onChange={(e) => set('comfyUrl', e.target.value)} placeholder="http://127.0.0.1:8188" className={inputCls + ' min-w-52'} />
+                </Row>
+                <Row label="Checkpoint (optional)" hint="Model filename, e.g. dreamshaper_8.safetensors. Blank = first installed.">
+                  <input value={s.comfyModel || ''} onChange={(e) => set('comfyModel', e.target.value)} placeholder="(first available)" className={inputCls + ' min-w-52'} />
+                </Row>
+              </>
+            )}
+            {s.aiPhotos && s.imageProvider === 'a1111' && (
+              <Row label="Stable Diffusion URL" hint="Run Automatic1111 with --api. Default http://127.0.0.1:7860.">
+                <input value={s.sdUrl || ''} onChange={(e) => set('sdUrl', e.target.value)} placeholder="http://127.0.0.1:7860" className={inputCls + ' min-w-52'} />
+              </Row>
+            )}
+            {s.aiPhotos && (s.imageProvider || 'pollinations') === 'pollinations' && (
+              <Row label="Pollinations token" hint="Free anonymous access is now rate-limited. Get a free token at pollinations.ai (enter.pollinations.ai) and paste it here.">
+                <input type="password" value={s.imageToken || ''} onChange={(e) => set('imageToken', e.target.value)} placeholder="token…" className={inputCls + ' min-w-52'} />
+              </Row>
+            )}
+            {s.aiPhotos && (
+              <Row label="Photo size" hint="Higher = sharper but slower. A strong GPU handles 1024 easily.">
+                <select value={s.photoSize || 768} onChange={(e) => set('photoSize', parseInt(e.target.value, 10))} className={inputCls + ' min-w-40'}>
+                  <option value={512}>512 × 512 (fast)</option>
+                  <option value={768}>768 × 768</option>
+                  <option value={1024}>1024 × 1024 (best)</option>
+                </select>
+              </Row>
+            )}
             {ttsSupported() && (
               <Row label="Speak replies (TTS)" hint="Read each AI reply aloud.">
                 <input type="checkbox" checked={s.tts} onChange={(e) => set('tts', e.target.checked)} className="h-5 w-5 accent-em-accent" />
@@ -169,6 +211,20 @@ export default function SettingsModal({ settings, onSave, onClose }) {
           </Section>
 
           <Section title="Appearance">
+            <Row label="Accent color" hint="Recolors the whole UI.">
+              <div className="flex flex-wrap gap-2">
+                {Object.entries(ACCENTS).map(([key, a]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    onClick={() => set('accent', key)}
+                    title={a.label}
+                    className={'h-7 w-7 rounded-full border-2 transition ' + ((s.accent || 'emerald') === key ? 'border-white scale-110' : 'border-white/20 hover:border-white/50')}
+                    style={{ background: a.accent }}
+                  />
+                ))}
+              </div>
+            </Row>
             <Row label={`AI avatar size: ${s.avatarSize || 40}px`} hint="Avatar shown beside each reply.">
               <input type="range" min="24" max="96" step="2" value={s.avatarSize || 40} onChange={(e) => set('avatarSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
             </Row>
