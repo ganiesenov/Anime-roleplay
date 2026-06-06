@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Clapperboard } from 'lucide-react';
 import { loadScenes, saveScenes, newSceneId } from '../lib/scenes.js';
 import { buildWallpaperUrl } from '../lib/chat.js';
 import { fetchAsDataUrl } from '../lib/api.js';
@@ -7,6 +8,13 @@ function sceneImg(url) {
   if (!url) return '';
   if (/^https?:\/\//i.test(url)) return '/api/img?url=' + encodeURIComponent(url);
   return url;
+}
+
+// Deterministic hue from a string, so each art-less scene gets its own tint.
+function hueOf(str) {
+  let h = 0;
+  for (let i = 0; i < String(str).length; i++) h = (h * 31 + str.charCodeAt(i)) >>> 0;
+  return h % 360;
 }
 
 // Home-page shelf of reusable scenes. Playing one spins up a fresh chat for the
@@ -43,7 +51,7 @@ export default function Scenes({ chars, settings, onPlay }) {
               <div className="relative h-full w-full overflow-hidden bg-em-panel">
                 {s.image
                   ? <img src={sceneImg(s.image)} alt="" className="h-full w-full object-cover transition duration-300 group-hover/scene:scale-105" />
-                  : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-em-panel to-em-bg text-4xl text-em-text-dim/30">🎬</div>}
+                  : <div className="flex h-full w-full items-center justify-center" style={{ background: `linear-gradient(140deg, hsl(${hueOf(s.title || s.id)}, 45%, 20%), #05100b 85%)` }}><Clapperboard className="h-10 w-10 text-white/25" /></div>}
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/10 to-transparent" />
                 <div className="absolute inset-x-0 bottom-0 p-3">
                   <h3 className="line-clamp-2 text-sm font-semibold text-white drop-shadow">{s.title || 'Untitled scene'}</h3>

@@ -109,6 +109,13 @@ export default function App() {
   }, [chars, query, category, favOnly, sort]);
 
   const favorites = useMemo(() => (chars || []).filter((c) => c.isFavorite), [chars]);
+  // Characters with actual chat history, most-recently-used first — for "Continue".
+  const recents = useMemo(() => (chars || [])
+    .map((c) => ({ c, s: characterStats(c) }))
+    .filter((x) => x.s.lastTs > 0)
+    .sort((a, b) => b.s.lastTs - a.s.lastTs)
+    .slice(0, 8)
+    .map((x) => x.c), [chars]);
 
   function openCharacter(char) {
     setActiveChar(char);
@@ -189,16 +196,13 @@ export default function App() {
       <section className="starfield relative overflow-hidden">
         {/* soft emerald aurora glow behind the headline */}
         <div className="pointer-events-none absolute left-1/2 top-0 h-80 w-[40rem] -translate-x-1/2 rounded-full bg-em-accent/20 blur-[100px] animate-pulse-slow" />
-        <div className="relative mx-auto max-w-7xl px-5 py-16 text-center">
-          <h1 className="bg-gradient-to-b from-white via-emerald-100 to-em-text-dim bg-clip-text text-5xl font-black tracking-tight text-transparent drop-shadow-[0_2px_30px_rgba(46,230,160,0.15)] sm:text-6xl">
+        <div className="relative mx-auto max-w-7xl px-5 py-10 text-center">
+          <h1 className="bg-gradient-to-b from-white via-emerald-100 to-em-text-dim bg-clip-text text-4xl font-black tracking-tight text-transparent drop-shadow-[0_2px_30px_rgba(46,230,160,0.15)] sm:text-5xl">
             Your characters. Your stories.
           </h1>
-          <p className="mx-auto mt-4 max-w-xl text-em-text-dim">
-            Create, customize and live any world — no limits.
-          </p>
 
           {/* Category pills */}
-          <div className="mt-8 flex flex-wrap justify-center gap-2">
+          <div className="mt-6 flex flex-wrap justify-center gap-2">
             {CATEGORIES.map((cat) => {
               const active = cat.key === category;
               return (
@@ -265,6 +269,32 @@ export default function App() {
           </span>
         </div>
       </div>
+
+      {/* Continue — jump back into recent conversations */}
+      {!favOnly && !query && !category && recents.length > 0 && (
+        <section className="mx-auto max-w-7xl px-5 pb-6">
+          <h2 className="mb-3 text-lg font-bold">Continue</h2>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {recents.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => openCharacter(c)}
+                className="group flex w-64 shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-left transition hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06]"
+              >
+                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-em-panel">
+                  {c.avatar
+                    ? <img src={/^https?:\/\//i.test(c.avatar) ? '/api/img?url=' + encodeURIComponent(c.avatar) : c.avatar} alt="" className="h-full w-full object-cover" />
+                    : <div className="flex h-full w-full items-center justify-center text-em-text-dim/40">👤</div>}
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-semibold text-em-text">{c.name || 'Unnamed'}</div>
+                  <div className="truncate text-[11px] text-em-text-dim">{characterStats(c).messages} messages · tap to resume</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Scenes shelf (reusable roleplay situations) */}
       {!favOnly && !query && !category && chars && chars.length > 0 && (
