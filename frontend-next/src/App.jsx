@@ -208,7 +208,7 @@ export default function App() {
           {/* Search */}
           <div className="mx-auto mt-6 max-w-xl">
             <div className="flex items-center gap-2 rounded-2xl border border-white/10 bg-white/[0.04] px-4 py-3 backdrop-blur focus-within:border-em-accent/50">
-              <span className="text-em-text-dim">🔍</span>
+              <SearchIcon className="h-4 w-4 shrink-0 text-em-text-dim" />
               <input
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
@@ -225,15 +225,15 @@ export default function App() {
         <div className="flex gap-2">
           <button
             onClick={() => setFavOnly(false)}
-            className={'rounded-lg px-3 py-1.5 text-sm font-medium transition ' + (!favOnly ? 'bg-white/10 text-em-text' : 'text-em-text-dim hover:text-em-text')}
+            className={'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ' + (!favOnly ? 'bg-white/10 text-em-text' : 'text-em-text-dim hover:text-em-text')}
           >
-            🏠 Home
+            <HomeIcon className="h-4 w-4" /> Home
           </button>
           <button
             onClick={() => setFavOnly(true)}
-            className={'rounded-lg px-3 py-1.5 text-sm font-medium transition ' + (favOnly ? 'bg-white/10 text-em-text' : 'text-em-text-dim hover:text-em-text')}
+            className={'inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-medium transition ' + (favOnly ? 'bg-white/10 text-em-text' : 'text-em-text-dim hover:text-em-text')}
           >
-            ★ Favorites
+            <StarIcon className="h-4 w-4" filled={favOnly} /> Favorites
           </button>
         </div>
         <div className="flex items-center gap-3">
@@ -311,6 +311,15 @@ function DownloadIcon({ className }) {
 }
 function HelpIcon({ className }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3" /><line x1="12" y1="17" x2="12" y2="17" /></svg>;
+}
+function SearchIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" /></svg>;
+}
+function HomeIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 11l9-7 9 7" /><path d="M5 10v10h14V10" /></svg>;
+}
+function StarIcon({ className, filled }) {
+  return <svg className={className} viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l2.9 5.9 6.1.9-4.5 4.4 1 6L12 17.8 6.5 20.2l1-6L3 9.8l6.1-.9z" /></svg>;
 }
 
 function GridSkeleton() {
