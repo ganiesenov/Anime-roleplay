@@ -60,6 +60,7 @@ const SLASH_COMMANDS = [
   { cmd: 'retry',    arg: '',         icon: '↻',  desc: 'Regenerate the last reply' },
   { cmd: 'continue', arg: '',         icon: '⏩', desc: 'Continue the last reply' },
   { cmd: 'new',      arg: '',         icon: '✚',  desc: 'Start a new chat' },
+  { cmd: 'photo',    arg: '<tags>',   icon: '🖼', desc: 'Generate a photo from your own tags' },
 ];
 
 export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings }) {
@@ -582,8 +583,23 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       case 'regen':    { const last = lastAiMessage(); if (last) regenerate(last); return true; }
       case 'continue': { const last = lastAiMessage(); if (last) continueMessage(last); return true; }
       case 'new':      newChatClicked(); return true;
+      case 'photo':    if (rest) manualPhoto(rest); return true;
       default:         return false;
     }
+  }
+
+  // Manual image: generate a photo of the speaker from tags the user types verbatim.
+  function manualPhoto(tags) {
+    if (!chat) return;
+    const speaker = resolveSpeaker();
+    autoScroll.current = true;
+    const msg = {
+      id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
+      activeVariant: 0, variations: [{ main: '', think: null, imageLoading: true }],
+    };
+    chat.history.push(msg);
+    rerender();
+    generatePhoto(msg.variations[0], speaker, tags);
   }
 
   // Parse a dice spec like "2d6", "d20", "3d8+1" and return an italic action string.
