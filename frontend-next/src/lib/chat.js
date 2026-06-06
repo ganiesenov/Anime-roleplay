@@ -120,7 +120,10 @@ export function imageUrlFor(full, settings, dimsObj) {
 }
 
 // Build a GET image URL for a character selfie (identity + scene tag + quality).
-export function buildPhotoUrl(char, prompt, settings) {
+// opts.raw → send `prompt` verbatim as the entire positive prompt (no identity/quality
+// added), for full manual parity with a raw ComfyUI prompt.
+export function buildPhotoUrl(char, prompt, settings, opts) {
+  if (opts && opts.raw) return imageUrlFor(prompt, settings);
   // Quality tags only — do NOT force a "selfie/looking at viewer" framing here, or it
   // fights any scene the [photo:] tag describes. The tag itself carries the composition.
   const QUALITY = 'masterpiece, best quality, very aesthetic, absurdres';

@@ -61,6 +61,7 @@ const SLASH_COMMANDS = [
   { cmd: 'continue', arg: '',         icon: '⏩', desc: 'Continue the last reply' },
   { cmd: 'new',      arg: '',         icon: '✚',  desc: 'Start a new chat' },
   { cmd: 'photo',    arg: '<tags>',   icon: '🖼', desc: 'Generate a photo from your own tags' },
+  { cmd: 'photoraw', arg: '<prompt>', icon: '🖼', desc: 'Generate from your exact prompt (verbatim, no extras)' },
 ];
 
 export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings }) {
@@ -411,9 +412,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Generate the selfie for a message variant: derive Danbooru appearance once
   // (the LLM knows famous characters), cache it on the character, then set the image.
-  async function generatePhoto(v, pchar, prompt) {
+  async function generatePhoto(v, pchar, prompt, raw) {
     try {
-      if (!pchar.appearance || !pchar.appearance.trim()) {
+      // raw → send the prompt verbatim; otherwise enrich with the character's appearance.
+      if (!raw && (!pchar.appearance || !pchar.appearance.trim())) {
         try {
           const appr = await generateAppearance(
             { name: displayName(pchar), description: pchar.description, tags: pchar.tags },
@@ -422,7 +424,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           if (appr) { pchar.appearance = appr; await saveCharacter(pchar === char ? char : pchar); }
         } catch (e) { /* fall back to name+tags */ }
       }
-      v.image = buildPhotoUrl(pchar, prompt, settings);
+      v.image = buildPhotoUrl(pchar, prompt, settings, { raw });
       v.imagePrompt = prompt;   // surface the exact tag used (transparency / debug)
     } finally {
       v.imageLoading = false;
@@ -584,14 +586,15 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       case 'regen':    { const last = lastAiMessage(); if (last) regenerate(last); return true; }
       case 'continue': { const last = lastAiMessage(); if (last) continueMessage(last); return true; }
       case 'new':      newChatClicked(); return true;
-      case 'photo':    if (rest) manualPhoto(rest); return true;
+      case 'photo':    if (rest) manualPhoto(rest, false); return true;
+      case 'photoraw': if (rest) manualPhoto(rest, true); return true;
       default:         return false;
     }
   }
 
   // Manual image: generate a photo of the speaker from tags the user types.
   // Non-Latin input (e.g. Russian) is auto-translated to English Danbooru tags first.
-  async function manualPhoto(tags) {
+  async function manualPhoto(tags, raw) {
     if (!chat) return;
     const speaker = resolveSpeaker();
     stick();
@@ -604,7 +607,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       try { prompt = (await tagsFromText(tags, resolveModel(settings, settings.model))) || tags; }
       catch (e) { /* fall back to raw input */ }
     }
-    generatePhoto(v, speaker, prompt);
+    generatePhoto(v, speaker, prompt, raw);
   }
 
   // Parse a dice spec like "2d6", "d20", "3d8+1" and return an italic action string.
