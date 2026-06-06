@@ -9,6 +9,8 @@ import { loadSettings, saveSettings } from './lib/settings.js';
 import { applyDesignSettings } from './lib/design.js';
 import { exportBackup, importFile } from './lib/io.js';
 import { PlusIcon, DotsIcon, GearIcon, UploadIcon, DownloadIcon, HelpIcon, SearchIcon, HomeIcon, StarIcon } from './components/icons.jsx';
+import Scenes from './components/Scenes.jsx';
+import { buildSceneChat } from './lib/scenes.js';
 
 const CATEGORIES = [
   { key: null, label: 'All', keywords: [] },
@@ -110,6 +112,16 @@ export default function App() {
 
   function openCharacter(char) {
     setActiveChar(char);
+  }
+
+  // Launch a scene: create a fresh chat for the chosen character seeded with the
+  // scene's opening, then open it (ChatView auto-selects the newest chat).
+  async function playScene(scene, char) {
+    const chat = buildSceneChat(char, scene);
+    char.chats = char.chats || {};
+    char.chats[chat.id] = chat;
+    await saveCharacter(char);
+    setActiveChar({ ...char });
   }
 
   const overlays = (
@@ -253,6 +265,11 @@ export default function App() {
           </span>
         </div>
       </div>
+
+      {/* Scenes shelf (reusable roleplay situations) */}
+      {!favOnly && !query && !category && chars && chars.length > 0 && (
+        <Scenes chars={chars} settings={settings} onPlay={playScene} />
+      )}
 
       {/* Favorites shelf */}
       {!favOnly && !query && !category && favorites.length > 0 && (

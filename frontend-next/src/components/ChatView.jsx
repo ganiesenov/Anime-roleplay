@@ -728,9 +728,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   return (
     <div className="relative isolate flex h-screen flex-col">
-      {char.background && (
+      {((chat && chat.background) || char.background) && (
         <div className="pointer-events-none absolute inset-0 -z-10">
-          <img src={avatarUrl(char.background)} alt="" className="h-full w-full object-cover opacity-30" />
+          <img src={avatarUrl((chat && chat.background) || char.background)} alt="" className="h-full w-full object-cover opacity-30" />
           <div className="absolute inset-0 bg-em-bg/75" />
         </div>
       )}
