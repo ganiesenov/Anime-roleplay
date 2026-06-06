@@ -40,7 +40,7 @@ export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav
     .split(',')
     .map((t) => t.trim())
     .filter(Boolean)
-    .slice(0, 3);
+    .slice(0, 2);
 
   function handleError() {
     const isHttp = /^https?:\/\//i.test(char.avatar || '');
@@ -126,9 +126,9 @@ export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav
             </div>
           )}
           {tags.length > 0 && (
-            <div className="mt-1 flex flex-wrap gap-1">
+            <div className="mt-1 flex flex-nowrap gap-1 overflow-hidden">
               {tags.map((t) => (
-                <span key={t} className="rounded-full bg-em-accent/15 px-2 py-0.5 text-[10px] font-medium text-em-accent">
+                <span key={t} className="max-w-[7rem] shrink-0 truncate rounded-full bg-em-accent/15 px-2 py-0.5 text-[10px] font-medium text-em-accent">
                   {t}
                 </span>
               ))}

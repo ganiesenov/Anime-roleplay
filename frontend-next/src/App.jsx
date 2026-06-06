@@ -9,6 +9,7 @@ import { loadSettings, saveSettings } from './lib/settings.js';
 import { applyDesignSettings } from './lib/design.js';
 import { exportBackup, importFile } from './lib/io.js';
 import { PlusIcon, DotsIcon, GearIcon, UploadIcon, DownloadIcon, HelpIcon, SearchIcon, HomeIcon, StarIcon } from './components/icons.jsx';
+import { ArrowUp } from 'lucide-react';
 import Scenes from './components/Scenes.jsx';
 import { buildSceneChat } from './lib/scenes.js';
 
@@ -28,8 +29,11 @@ function matchesCategory(char, cat) {
   return cat.keywords.some((k) => hay.includes(k));
 }
 
+// "Recently used" ranks by last activity, but a freshly-created character has no
+// chats yet — fall back to its creation time so new cards surface at the top.
+const recentKey = (c) => { const s = characterStats(c); return Math.max(s.lastTs, s.createdTs); };
 const SORTS = {
-  recent: (a, b) => characterStats(b).lastTs - characterStats(a).lastTs,
+  recent: (a, b) => recentKey(b) - recentKey(a),
   newest: (a, b) => characterStats(b).createdTs - characterStats(a).createdTs,
   name: (a, b) => (a.name || '').localeCompare(b.name || ''),
   messages: (a, b) => characterStats(b).messages - characterStats(a).messages,
@@ -46,6 +50,7 @@ export default function App() {
   const [settings, setSettings] = useState(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showTop, setShowTop] = useState(false);
   const [showTutorial, setShowTutorial] = useState(() => {
     try { return !localStorage.getItem(TUTORIAL_FLAG); } catch (e) { return false; }
   });
@@ -59,6 +64,13 @@ export default function App() {
 
   // Apply appearance settings (CSS vars) once on load; saves re-apply via onSaveSettings.
   useEffect(() => { applyDesignSettings(settings); }, []);
+
+  // Show a "back to top" button once the user has scrolled down the library.
+  useEffect(() => {
+    const onScroll = () => setShowTop(window.scrollY > 700);
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
 
   async function onImportFile(e) {
     const file = e.target.files && e.target.files[0];
@@ -327,6 +339,17 @@ export default function App() {
           </div>
         )}
       </main>
+
+      {/* Back to top */}
+      {showTop && (
+        <button
+          onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+          title="Back to top"
+          className="fixed bottom-6 right-6 z-30 grid h-11 w-11 place-items-center rounded-full border border-em-accent/40 bg-em-panel/90 text-em-accent shadow-2xl backdrop-blur transition hover:-translate-y-0.5 hover:bg-em-panel active:scale-90"
+        >
+          <ArrowUp className="h-5 w-5" />
+        </button>
+      )}
     </div>
   );
 }
