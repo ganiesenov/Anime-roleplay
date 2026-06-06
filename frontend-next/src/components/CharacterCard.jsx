@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { MessageSquare, Zap, Star, Heart } from 'lucide-react';
 import { characterStats } from '../lib/db.js';
 import { presenceFor } from '../lib/presence.js';
@@ -53,8 +54,13 @@ export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav
   }
 
   return (
-    <button
+    <motion.button
       onClick={() => onOpen && onOpen(char)}
+      initial={{ opacity: 0, y: 12 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.3, ease: 'easeOut' }}
+      whileHover={{ y: -4 }}
+      whileTap={{ scale: 0.97 }}
       className="char-card group relative flex flex-col overflow-hidden rounded-2xl border border-white/10 bg-white/[0.03] text-left shadow-lg shadow-black/40 backdrop-blur focus:outline-none focus-visible:ring-2 focus-visible:ring-em-accent"
     >
       <div className="relative aspect-[3/4] w-full overflow-hidden bg-em-panel">
@@ -130,6 +136,6 @@ export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav
           )}
         </div>
       </div>
-    </button>
+    </motion.button>
   );
 }

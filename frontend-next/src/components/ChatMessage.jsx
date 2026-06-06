@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { motion } from 'framer-motion';
 import { avatarUrl } from '../lib/media.js';
 import {
   displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, stripPhotoTag,
@@ -73,7 +74,13 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
 
   const avChar = group ? speaker : char;
   return (
-    <div id={anchorId} className={'group flex w-full scroll-mt-24 items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}>
+    <motion.div
+      id={anchorId}
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.25, ease: 'easeOut' }}
+      className={'group flex w-full scroll-mt-24 items-start gap-2 ' + (isUser ? 'justify-end' : 'justify-start')}
+    >
       {!isUser && (
         <div
           className="shrink-0 overflow-hidden rounded-full bg-em-panel"
@@ -157,6 +164,6 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
         </div>
       )}
       </div>
-    </div>
+    </motion.div>
   );
 }

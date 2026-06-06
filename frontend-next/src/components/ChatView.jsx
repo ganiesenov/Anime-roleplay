@@ -819,7 +819,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {showChats && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setShowChats(false)} />
-            <div className="absolute right-3 top-full z-40 mt-1 max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
+            <div className="pop-in absolute right-3 top-full z-40 mt-1max-h-[70vh] w-72 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
               <div className="flex items-center justify-between px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-em-text-dim">
                 <span>Chats</span>
                 <button onClick={newChatClicked} className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-em-accent transition hover:bg-em-accent/10"><PlusIcon /> New</button>
@@ -847,7 +847,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {showPinned && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setShowPinned(false)} />
-            <div className="absolute right-3 top-full z-40 mt-1 max-h-[70vh] w-80 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
+            <div className="pop-in absolute right-3 top-full z-40 mt-1max-h-[70vh] w-80 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
               <div className="px-2 py-1.5 text-xs font-semibold uppercase tracking-wide text-em-text-dim">📌 Pinned</div>
               {pinnedMsgs.length === 0 && <p className="px-2 py-3 text-center text-sm text-em-text-dim">No pinned messages.</p>}
               {pinnedMsgs.map((m) => (
@@ -867,7 +867,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {showWallpaper && (
           <>
             <div className="fixed inset-0 z-30" onClick={() => setShowWallpaper(false)} />
-            <div className="absolute right-3 top-full z-40 mt-1 w-80 rounded-xl border border-white/10 bg-em-panel p-3 shadow-2xl">
+            <div className="pop-in absolute right-3 top-full z-40 mt-1w-80 rounded-xl border border-white/10 bg-em-panel p-3 shadow-2xl">
               <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-em-text-dim">Wallpaper (this chat)</div>
               <div className="mb-2 h-20 w-full overflow-hidden rounded-lg border border-white/10 bg-em-bg">
                 {chat && chat.background
