@@ -1,8 +1,9 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { saveCharacter } from '../lib/db.js';
 import { syncCharacterToServer, fileToDataUrl } from '../lib/api.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
+import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
 
 function avatarSrc(url) {
   if (!url) return '';
@@ -38,6 +39,8 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [avatar, setAvatar] = useState(char?.avatar || '');
   const [background, setBackground] = useState(char?.background || '');
   const [danceUrl, setDanceUrl] = useState(char?.danceUrl || '');
+  const [voiceURI, setVoiceURI] = useState(char?.voiceURI || '');
+  const [voices, setVoices] = useState([]);
   const [appearance, setAppearance] = useState(char?.appearance || '');
   const [tags, setTags] = useState(char?.tags || '');
   const [description, setDescription] = useState(char?.description || '');
@@ -53,6 +56,12 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [concept, setConcept] = useState('');
   const [aiBusy, setAiBusy] = useState('');   // '' | 'char' | 'scenario'
   const [aiError, setAiError] = useState('');
+
+  useEffect(() => {
+    if (!ttsSupported()) return undefined;
+    setVoices(getVoices());
+    return onVoicesChanged(setVoices);
+  }, []);
 
   async function pickAvatar(e) {
     const file = e.target.files && e.target.files[0];
@@ -119,6 +128,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       avatar,
       background,
       danceUrl: danceUrl.trim(),
+      voiceURI,
       appearance: appearance.trim(),
       description,
       lore,
@@ -225,6 +235,19 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
               {danceUrl && <button onClick={() => setDanceUrl('')} className="shrink-0 text-xs text-em-text-dim transition hover:text-red-400">Clear</button>}
             </div>
           </Field>
+
+          {ttsSupported() && (
+            <Field label="Voice (TTS)" hint="This character's speaking voice. Overrides the default voice in Settings.">
+              <select value={voiceURI} onChange={(e) => setVoiceURI(e.target.value)} className={inputCls}>
+                <option value="">(Use default voice)</option>
+                {groupVoices(voices).map(([label, list]) => (
+                  <optgroup key={label} label={label}>
+                    {list.map((v) => <option key={v.voiceURI} value={v.voiceURI}>{v.name} ({v.lang})</option>)}
+                  </optgroup>
+                ))}
+              </select>
+            </Field>
+          )}
 
           <Field label="Appearance (for AI photos)" hint="Visual tags for selfie generation. Click ✨ Auto to let the AI identify the character and write Danbooru tags (e.g. 'akame (akame ga kill!)…'). Generated automatically on the first photo if left blank. Enable AI photos in Settings.">
             <div className="flex items-center gap-2">

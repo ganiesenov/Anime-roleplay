@@ -49,6 +49,14 @@ const AUTONOMY_DIRECTIVE = '--- AUTONOMY (you are a person, not an assistant) --
   + 'or be in a bad mood when it fits you — do NOT simply mirror, flatter or accommodate the user. You may be '
   + 'wrong, withhold, or have your own agenda. Never break character to be helpful.';
 
+// Optional writing-style presets (opt-in via Settings → Model → Writing style).
+const STYLE_DIRECTIVE = {
+  novelistic: 'Write immersively in vivid third-person prose: strong sensory detail and the character\'s inner thoughts woven around the dialogue.',
+  concise: 'Keep replies tight and punchy — minimal narration, mostly dialogue with a single beat of action.',
+  dialogue: 'Favour spoken dialogue; keep narration and action to a light minimum.',
+  dramatic: 'Heighten emotion and tension — cinematic, expressive, with strong emotional beats.',
+};
+
 const PHOTO_DIRECTIVE = '--- SENDING PHOTOS ---\n'
   + 'You can send the user a photo of yourself when it genuinely fits the moment — flirting, showing off, '
   + 'reacting, or when asked. To do so, add ONE tag on its own line at the very END of your reply: '
@@ -163,6 +171,9 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   if (opts.presenceText) sections.push(opts.presenceText);
   if (REPLY_LEN_MAP[opts.replyLength]) {
     sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');
+  }
+  if (opts.style && STYLE_DIRECTIVE[opts.style]) {
+    sections.push('--- WRITING STYLE ---\n' + STYLE_DIRECTIVE[opts.style]);
   }
   return sections.join('\n\n');
 }
@@ -376,6 +387,9 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   if (opts.presenceText) sections.push(opts.presenceText);
   if (REPLY_LEN_MAP[opts.replyLength]) {
     sections.push('--- REPLY LENGTH ---\nWrite roughly ' + REPLY_LEN_MAP[opts.replyLength] + ' sentences.');
+  }
+  if (opts.style && STYLE_DIRECTIVE[opts.style]) {
+    sections.push('--- WRITING STYLE ---\n' + STYLE_DIRECTIVE[opts.style]);
   }
   return sections.join('\n\n');
 }

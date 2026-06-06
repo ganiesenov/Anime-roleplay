@@ -6,6 +6,7 @@ export const DEFAULT_SETTINGS = {
   model: 'local-qwen',       // '' / 'local-qwen' → backend OLLAMA_MODEL; else exact tag
   temperature: 0.7,
   replyLength: 'default',    // default | short | medium | long | verylong
+  style: 'default',          // writing style preset: default | novelistic | concise | dialogue | dramatic
   showThink: true,
   replyOptions: true,        // suggest 2 user replies after each AI turn
   relationship: true,        // living relationship state (affection/trust/tension)

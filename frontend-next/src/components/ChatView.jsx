@@ -322,9 +322,14 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   useEffect(() => { setSlashIdx(0); }, [input]);
 
   // ── Text-to-speech ────────────────────────────────────────────────────────
+  // A message is read in its speaker's own voice, falling back to the global one.
+  function voiceFor(msg) {
+    const spk = speakerOf(msg);
+    return (spk && spk.voiceURI) || settings.ttsVoiceURI;
+  }
   function speakMessage(msg) {
     if (speakingId === msg.id) { cancelSpeech(); setSpeakingId(null); return; }
-    const ok = speak(getMessageText(msg), { voiceURI: settings.ttsVoiceURI, onend: () => setSpeakingId(null) });
+    const ok = speak(getMessageText(msg), { voiceURI: voiceFor(msg), onend: () => setSpeakingId(null) });
     setSpeakingId(ok ? msg.id : null);
   }
 
@@ -457,7 +462,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         maybeUpdateRelationship();
         generateSuggestions();
         if (settings.tts) {
-          const ok = speak(getMessageText(aiMsg), { voiceURI: settings.ttsVoiceURI, onend: () => setSpeakingId(null) });
+          const ok = speak(getMessageText(aiMsg), { voiceURI: voiceFor(aiMsg), onend: () => setSpeakingId(null) });
           if (ok) setSpeakingId(aiMsg.id);
         }
         if (photoPrompt) generatePhoto(v, charsById[aiMsg.speakerId] || char, photoPrompt);
@@ -802,6 +807,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const spk = speaker || char;
     return {
       replyLength: settings.replyLength,
+      style: settings.style,
       relationship: settings.relationship,
       autonomy: settings.autonomy,
       aiPhotos: settings.aiPhotos,
