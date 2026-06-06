@@ -88,7 +88,9 @@ function appearanceForPhoto(char) {
 //  • 'pollinations'→ hosted service via the image proxy (needs a free token now)
 export function buildPhotoUrl(char, prompt, settings) {
   settings = settings || {};
-  const QUALITY = 'selfie, looking at viewer, masterpiece, best quality, very aesthetic, absurdres';
+  // Quality tags only — do NOT force a "selfie/looking at viewer" framing here, or it
+  // fights any scene the [photo:] tag describes. The tag itself carries the composition.
+  const QUALITY = 'masterpiece, best quality, very aesthetic, absurdres';
   const full = [appearanceForPhoto(char), prompt, QUALITY].filter(Boolean).join(', ');
   const seed = Math.floor(Math.random() * 1e6);
   const size = [512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768;
