@@ -4,6 +4,7 @@ import { syncCharacterToServer, fileToDataUrl, fetchAsDataUrl } from '../lib/api
 import { buildWallpaperUrl } from '../lib/chat.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
+import { searchShikimori, getShikimoriCharacter, cleanShikiDescription } from '../lib/shikimori.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
 
 function avatarSrc(url) {
@@ -58,6 +59,34 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [concept, setConcept] = useState('');
   const [aiBusy, setAiBusy] = useState('');   // '' | 'char' | 'scenario'
   const [aiError, setAiError] = useState('');
+
+  // Shikimori import
+  const [showShiki, setShowShiki] = useState(false);
+  const [shikiQ, setShikiQ] = useState('');
+  const [shikiResults, setShikiResults] = useState([]);
+  const [shikiBusy, setShikiBusy] = useState(false);
+
+  async function doShikiSearch() {
+    if (!shikiQ.trim() || shikiBusy) return;
+    setShikiBusy(true); setAiError('');
+    try { setShikiResults(await searchShikimori(shikiQ.trim())); }
+    catch (err) { setAiError('Shikimori search failed.'); }
+    finally { setShikiBusy(false); }
+  }
+  async function importShiki(item) {
+    setShikiBusy(true); setAiError('');
+    try {
+      const c = await getShikimoriCharacter(item.id);
+      setName(c.name || item.name || name);
+      if (c.description) setDescription(cleanShikiDescription(c.description));
+      if (c.image) {
+        try { setAvatar(await fetchAsDataUrl('/api/img?url=' + encodeURIComponent(c.image))); }
+        catch (e) { setAvatar(c.image); }
+      }
+      setShowShiki(false);
+    } catch (err) { setAiError('Shikimori import failed.'); }
+    finally { setShikiBusy(false); }
+  }
 
   useEffect(() => {
     if (!ttsSupported()) return undefined;
@@ -208,6 +237,46 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
             </div>
             <p className="mt-1 text-xs text-em-text-dim">Fills name, description, tags & instructions. Existing images are kept.</p>
             {aiError && <p className="mt-1 text-xs text-red-400">{aiError}</p>}
+          </div>
+
+          {/* Import from Shikimori (anime DB) */}
+          <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+            <button type="button" onClick={() => setShowShiki((v) => !v)} className="flex w-full items-center justify-between text-sm font-semibold text-em-text">
+              <span>⇩ Import from Shikimori (anime character)</span>
+              <span className="text-em-text-dim">{showShiki ? '▲' : '▼'}</span>
+            </button>
+            {showShiki && (
+              <div className="mt-2">
+                <div className="flex gap-2">
+                  <input
+                    value={shikiQ}
+                    onChange={(e) => setShikiQ(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doShikiSearch(); } }}
+                    placeholder="Search a character (e.g. Akame, Makima)…"
+                    className={inputCls}
+                  />
+                  <button type="button" onClick={doShikiSearch} disabled={shikiBusy} className="shrink-0 rounded-xl bg-em-accent px-4 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-50">
+                    {shikiBusy ? '…' : 'Search'}
+                  </button>
+                </div>
+                {shikiResults.length > 0 && (
+                  <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
+                    {shikiResults.map((r) => (
+                      <button key={r.id} type="button" onClick={() => importShiki(r)} disabled={shikiBusy}
+                        className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-left transition hover:border-em-accent/40 hover:bg-white/[0.06] disabled:opacity-50">
+                        <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-em-bg">
+                          {r.image && <img src={avatarSrc(r.image)} alt="" className="h-full w-full object-cover" />}
+                        </div>
+                        <div className="min-w-0">
+                          <div className="truncate text-xs font-medium text-em-text">{r.name}</div>
+                          {r.russian && <div className="truncate text-[10px] text-em-text-dim">{r.russian}</div>}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-4">

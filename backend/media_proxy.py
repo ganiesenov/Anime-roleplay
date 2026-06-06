@@ -20,9 +20,57 @@ from urllib.parse import urlparse
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 
 router = APIRouter()
+
+# Shikimori (anime DB) needs a descriptive User-Agent and blocks browser CORS, so
+# we proxy it server-side. https://shikimori.one/api/doc
+_SHIKI_BASE = "https://shikimori.one/api"
+_SHIKI_UA = "Aria-Roleplay/1.0 (local roleplay app)"
+
+
+async def _shiki_get(path: str, params: dict | None = None):
+    try:
+        async with httpx.AsyncClient(timeout=20.0, follow_redirects=True) as client:
+            resp = await client.get(
+                _SHIKI_BASE + path,
+                params=params or {},
+                headers={"User-Agent": _SHIKI_UA, "Accept": "application/json"},
+            )
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Shikimori fetch failed: {e}") from e
+    if resp.status_code != 200:
+        raise HTTPException(resp.status_code, "Shikimori returned an error")
+    return resp.json()
+
+
+@router.get("/api/shikimori/search")
+async def shikimori_search(q: str = Query(..., min_length=1)):
+    data = await _shiki_get("/characters/search", {"search": q})
+    # Trim to the fields the frontend needs.
+    def img_url(c):
+        rel = (c.get("image") or {}).get("preview") or (c.get("image") or {}).get("original")
+        return ("https://shikimori.one" + rel) if rel else ""
+    out = [
+        {"id": c.get("id"), "name": c.get("name"), "russian": c.get("russian"), "image": img_url(c)}
+        for c in (data or [])[:20]
+    ]
+    return JSONResponse(out)
+
+
+@router.get("/api/shikimori/character")
+async def shikimori_character(id: int = Query(...)):
+    c = await _shiki_get(f"/characters/{id}")
+    img = c.get("image") or {}
+    return JSONResponse({
+        "id": c.get("id"),
+        "name": c.get("name"),
+        "russian": c.get("russian"),
+        "japanese": c.get("japanese"),
+        "description": c.get("description_html") or c.get("description") or "",
+        "image": ("https://shikimori.one" + img["original"]) if img.get("original") else "",
+    })
 
 _NEG_DEFAULT = (
     "lowres, worst quality, low quality, bad anatomy, bad hands, missing fingers, "
