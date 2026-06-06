@@ -67,3 +67,41 @@ export function PinIcon() {
 export function ForkIcon() {
   return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="5" r="2.5" /><circle cx="18" cy="5" r="2.5" /><circle cx="12" cy="19" r="2.5" /><path d="M6 7.5v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3v-3" /><path d="M12 13.5v3" /></svg>;
 }
+
+// ── Tool-bar / header glyphs (same 16px stroke style) ──────────────────────
+export function MemoryIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M6 3h11l3 3v15H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z" /><path d="M9 8h7M9 12h7M9 16h4" /></svg>;
+}
+export function MusicIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></svg>;
+}
+export function SparkleIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="currentColor"><path d="M12 2l1.9 5.1L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.9z" /><path d="M19 14l.9 2.4L22 17l-2.1.9L19 20l-.9-2.1L16 17l2.1-.6z" /></svg>;
+}
+export function CastIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="8" r="3" /><path d="M3 20a6 6 0 0 1 12 0" /><circle cx="17.5" cy="9" r="2.5" /><path d="M16 14.3A5 5 0 0 1 21 19" /></svg>;
+}
+export function PersonaIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="8" r="3.5" /><path d="M5 20a7 7 0 0 1 14 0" /></svg>;
+}
+export function MoodIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /><path d="M8.5 14a4 4 0 0 0 7 0" /><path d="M9 9h.01M15 9h.01" /></svg>;
+}
+
+// A consistent pill button for the chat tools bar (icon + label, toggle state).
+export function Pill({ onClick, active, title, children }) {
+  return (
+    <button
+      onClick={onClick}
+      title={title}
+      className={
+        'flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-sm transition ' +
+        (active
+          ? 'border-em-accent/50 bg-em-accent/10 text-em-accent'
+          : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')
+      }
+    >
+      {children}
+    </button>
+  );
+}

@@ -17,7 +17,10 @@ import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
 import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import MessageBubble from './ChatMessage.jsx';
-import { SendIcon, StopIcon, Meter } from './icons.jsx';
+import {
+  SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
+  MemoryIcon, MusicIcon, SparkleIcon, CastIcon, PersonaIcon, MoodIcon,
+} from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
 
 // Parse the creation timestamp baked into a `chat-<ms>` id (newest first).
@@ -851,8 +854,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                       <div className={'truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.name || 'Chat'}</div>
                       <div className="text-[11px] text-em-text-dim">{count} message{count === 1 ? '' : 's'}</div>
                     </button>
-                    <button onClick={() => renameChat(s.id)} title="Rename chat" className="rounded p-1 text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100">✏️</button>
-                    <button onClick={() => deleteChatSession(s.id)} title="Delete chat" className="rounded p-1 text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100">🗑️</button>
+                    <button onClick={() => renameChat(s.id)} title="Rename chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
+                    <button onClick={() => deleteChatSession(s.id)} title="Delete chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100"><TrashIcon /></button>
                   </div>
                 );
               })}
@@ -866,7 +869,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         <>
         <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
           <label className="flex items-center gap-1.5 text-em-text-dim">
-            <span>👤 You as</span>
+            <PersonaIcon /><span className="hidden sm:inline">You as</span>
             <select
               value={chat.activePersonaId || ''}
               onChange={(e) => { if (e.target.value === '__new') createPersona(); else setPersona(e.target.value); }}
@@ -879,7 +882,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           </label>
 
           <label className="flex items-center gap-1.5 text-em-text-dim">
-            <span>🎭 Mood</span>
+            <MoodIcon /><span className="hidden sm:inline">Mood</span>
             <select
               value={chat.mood || ''}
               onChange={(e) => setMood(e.target.value)}
@@ -890,33 +893,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             </select>
           </label>
 
-          <button
-            onClick={() => setShowMemories(true)}
-            className={'rounded-lg border px-2.5 py-1 transition ' + (chat.memories && chat.memories.trim() ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
-          >
-            🧠 Memories
-          </button>
-
-          <button
-            onClick={() => setShowMusic((v) => !v)}
-            className={'rounded-lg border px-2.5 py-1 transition ' + (musicPlaying ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
-          >
-            🎵 Music
-          </button>
-
-          <button
-            onClick={() => setShowEffects((v) => !v)}
-            className={'rounded-lg border px-2.5 py-1 transition ' + (char.particleEffect && char.particleEffect !== 'none' ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
-          >
-            ✨ Effects
-          </button>
-
-          <button
-            onClick={() => setShowCast((v) => !v)}
-            className={'rounded-lg border px-2.5 py-1 transition ' + (isGroup() ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:text-em-text')}
-          >
-            👥 Cast{isGroup() ? ' (' + activeParticipants().length + ')' : ''}
-          </button>
+          <Pill onClick={() => setShowMemories(true)} active={!!(chat.memories && chat.memories.trim())} title="Memories">
+            <MemoryIcon /> Memories
+          </Pill>
+          <Pill onClick={() => setShowMusic((v) => !v)} active={musicPlaying} title="Background music">
+            <MusicIcon /> Music
+          </Pill>
+          <Pill onClick={() => setShowEffects((v) => !v)} active={!!(char.particleEffect && char.particleEffect !== 'none')} title="Ambient effects">
+            <SparkleIcon /> Effects
+          </Pill>
+          <Pill onClick={() => setShowCast((v) => !v)} active={isGroup()} title="Group cast">
+            <CastIcon /> Cast{isGroup() ? ' (' + activeParticipants().length + ')' : ''}
+          </Pill>
         </div>
 
         {showCast && (
