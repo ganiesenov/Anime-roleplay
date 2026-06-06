@@ -347,7 +347,7 @@ export default function App() {
           <h2 className="mb-3 text-lg font-bold">Favorites ({favorites.length})</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {favorites.slice(0, 12).map((c) => (
-              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
+              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} onTag={setQuery} />
             ))}
           </div>
         </section>
@@ -359,7 +359,7 @@ export default function App() {
           <h2 className="mb-3 text-lg font-bold">Recently added</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {newest.map((c) => (
-              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
+              <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} onTag={setQuery} />
             ))}
           </div>
         </section>
@@ -376,7 +376,7 @@ export default function App() {
             {!favOnly && !query && !category && <h2 className="mb-3 text-lg font-bold">All characters</h2>}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {filtered.map((c) => (
-                <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} />
+                <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} onTag={setQuery} />
               ))}
             </div>
           </>

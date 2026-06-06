@@ -30,7 +30,7 @@ function BoltIcon({ className }) { return <Zap className={className} fill="curre
 function StarIcon({ className, filled }) { return <Star className={className} fill={filled ? 'currentColor' : 'none'} />; }
 function HeartIcon({ className }) { return <Heart className={className} fill="currentColor" />; }
 
-export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav }) {
+export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav, onTag }) {
   const [src, setSrc] = useState(char.avatar || '');
   const [stage, setStage] = useState('direct');
   const stats = characterStats(char);
@@ -128,7 +128,12 @@ export default function CharacterCard({ char, settings = {}, onOpen, onToggleFav
           {tags.length > 0 && (
             <div className="mt-1 flex flex-nowrap gap-1 overflow-hidden">
               {tags.map((t) => (
-                <span key={t} className="max-w-[7rem] shrink-0 truncate rounded-full bg-em-accent/15 px-2 py-0.5 text-[10px] font-medium text-em-accent">
+                <span
+                  key={t}
+                  role={onTag ? 'button' : undefined}
+                  onClick={onTag ? (e) => { e.stopPropagation(); onTag(t); } : undefined}
+                  className={'max-w-[7rem] shrink-0 truncate rounded-full bg-em-accent/15 px-2 py-0.5 text-[10px] font-medium text-em-accent ' + (onTag ? 'hover:bg-em-accent/30' : '')}
+                >
                   {t}
                 </span>
               ))}
