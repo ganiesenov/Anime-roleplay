@@ -158,6 +158,35 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     else startNewChat(0);
   }
 
+  // Fork: branch a new chat from the conversation up to and including this message.
+  function newChatFromHere(msg) {
+    if (!chat) return;
+    const idx = chat.history.indexOf(msg);
+    if (idx === -1) return;
+    const c = newChat(char, 0);
+    c.history = chat.history.slice(0, idx + 1).map((m) => JSON.parse(JSON.stringify(m)));
+    c.name = 'Fork · ' + (chat.name || 'chat');
+    c.participants = Array.isArray(chat.participants) ? [...chat.participants] : c.participants;
+    c.activePersonaId = chat.activePersonaId || null;
+    c.memories = chat.memories || '';
+    if (chat.relationship) c.relationship = JSON.parse(JSON.stringify(chat.relationship));
+    chats[c.id] = c;
+    setChatId(c.id);
+    setShowChats(false);
+    setUndo(null);
+    clearSuggestions();
+    cancelSpeech();
+    setSpeakingId(null);
+    saveCharacter(char);
+  }
+
+  // Pin / unpin a message — pinned messages are kept in the prompt context.
+  function togglePin(msg) {
+    msg.pinned = !msg.pinned;
+    saveCharacter(char);
+    rerender();
+  }
+
   // ── Chat session list (switch / rename / delete) ──────────────────────────
   function switchChat(id) {
     if (!chats[id] || id === chatId) { setShowChats(false); return; }
@@ -776,6 +805,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       relationship: settings.relationship,
       autonomy: settings.autonomy,
       aiPhotos: settings.aiPhotos,
+      pinned: chat ? chat.history.filter((m) => m.pinned).map((m) => getMessageText(m)).filter(Boolean) : [],
       presenceText: settings.presence ? buildPresenceText(displayName(spk), spk.id, new Date(), lastMsgTs()) : '',
     };
   }
@@ -1062,6 +1092,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             onDelete={() => deleteMessage(m)}
             onSpeak={() => speakMessage(m)}
             speaking={speakingId === m.id}
+            onFork={() => newChatFromHere(m)}
+            onPin={() => togglePin(m)}
+            pinned={!!m.pinned}
             speaker={speakerOf(m)}
             group={isGroup()}
           />
@@ -1354,8 +1387,21 @@ function PencilIcon() {
 function TrashIcon() {
   return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18" /><path d="M8 6V4a1 1 0 0 1 1-1h6a1 1 0 0 1 1 1v2" /><path d="M6 6l1 14a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-14" /><path d="M10 11v6M14 11v6" /></svg>;
 }
+function CopyIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a2 2 0 0 1 2-2h10" /></svg>;
+}
+function CheckIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 6 9 17l-5-5" /></svg>;
+}
+function PinIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17v5" /><path d="M9 3h6l-1 6 3 3H7l3-3-1-6z" /></svg>;
+}
+function ForkIcon() {
+  return <svg className={ICO} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round"><circle cx="6" cy="5" r="2.5" /><circle cx="18" cy="5" r="2.5" /><circle cx="12" cy="19" r="2.5" /><path d="M6 7.5v3a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3v-3" /><path d="M12 13.5v3" /></svg>;
+}
 
-function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, speaker, group }) {
+function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group }) {
+  const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -1372,6 +1418,9 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
   function beginEdit() { setDraft(getMessageText(msg)); setEditing(true); }
   function commitEdit() { onEditSave(draft); setEditing(false); }
   function cancelEdit() { setEditing(false); }
+  function doCopy() {
+    try { navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 1200); } catch (e) { /* ignore */ }
+  }
 
   const avChar = group ? speaker : char;
   return (
@@ -1387,6 +1436,7 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
         </div>
       )}
       <div className={'flex min-w-0 flex-1 flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
+      {pinned && <div className="px-1 text-[11px] text-em-accent">📌 pinned</div>}
       {!isUser && msg.offscreen && (
         <div className="max-w-[85%] px-1 text-[11px] italic text-em-text-dim">📔 While you were away: {msg.offscreen}</div>
       )}
@@ -1451,6 +1501,9 @@ function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = tru
           {!isUser && <CtrlBtn onClick={onContinue} disabled={streaming} title="Continue this reply"><ContinueIcon /></CtrlBtn>}
           {!isUser && ttsSupported() && <CtrlBtn onClick={onSpeak} active={speaking} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? <StopIcon /> : <SpeakIcon />}</CtrlBtn>}
           <CtrlBtn onClick={beginEdit} disabled={streaming} title="Edit message"><PencilIcon /></CtrlBtn>
+          <CtrlBtn onClick={doCopy} active={copied} title={copied ? 'Copied!' : 'Copy text'}>{copied ? <CheckIcon /> : <CopyIcon />}</CtrlBtn>
+          <CtrlBtn onClick={onPin} active={pinned} title={pinned ? 'Unpin' : 'Pin (keep in context)'}><PinIcon /></CtrlBtn>
+          <CtrlBtn onClick={onFork} disabled={streaming} title="New chat from here"><ForkIcon /></CtrlBtn>
           <CtrlBtn onClick={onDelete} disabled={streaming} danger title="Delete this and following messages"><TrashIcon /></CtrlBtn>
         </div>
       )}

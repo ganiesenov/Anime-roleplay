@@ -154,6 +154,9 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   if (chat.memories && chat.memories.trim()) {
     sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
   }
+  if (opts.pinned && opts.pinned.length) {
+    sections.push('--- PINNED (the user marked these as important — always keep them in mind) ---\n' + opts.pinned.map((t) => '- ' + t).join('\n'));
+  }
   if (opts.relationship && chat.relationship) {
     sections.push(relationshipSection(chat.relationship, cName, uName));
   }
@@ -363,6 +366,9 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   if (chat.mood) sections.push('--- CURRENT MOOD (IMPORTANT) ---\n' + sName + ' is currently feeling ' + chat.mood + '.');
   if (chat.memories && chat.memories.trim()) {
     sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
+  }
+  if (opts.pinned && opts.pinned.length) {
+    sections.push('--- PINNED (the user marked these as important — always keep them in mind) ---\n' + opts.pinned.map((t) => '- ' + t).join('\n'));
   }
   if (opts.relationship && chat.relationship) {
     sections.push(relationshipSection(chat.relationship, sName, uName));
