@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { saveCharacter, getAllPersonas, savePersona, getAllCharacters } from '../lib/db.js';
+import { saveCharacter, savePersona } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
 import ParticleField from './ParticleField.jsx';
 import { PARTICLE_EFFECTS } from '../lib/particles.js';
@@ -24,6 +24,8 @@ import {
 import useMusic from '../hooks/useMusic.js';
 import useTts from '../hooks/useTts.js';
 import useSuggestions from '../hooks/useSuggestions.js';
+import useChatScroll from '../hooks/useChatScroll.js';
+import useLibrary from '../hooks/useLibrary.js';
 
 // Parse the creation timestamp baked into a `chat-<ms>` id (newest first).
 function chatTs(id) {
@@ -59,7 +61,6 @@ const SLASH_COMMANDS = [
 
 export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings }) {
   const [char, setChar] = useState(character);
-  const [personas, setPersonas] = useState({});
   const [chatId, setChatId] = useState(null);
   const [streaming, setStreaming] = useState(false);
   const [input, setInput] = useState('');
@@ -70,17 +71,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
   const sug = useSuggestions(settings);                // suggested-reply state + helpers
   const tts = useTts();                                // text-to-speech (speakingId + helpers)
+  const { personas, setPersonas, charsById, setCharsById } = useLibrary(); // personas + character library
+  const { scrollRef, onScroll, stick } = useChatScroll();                  // message-list auto-scroll
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
-  const [charsById, setCharsById] = useState({});        // whole library, for group casting
   const [showCast, setShowCast] = useState(false);       // group cast panel
   const [showInner, setShowInner] = useState(false);     // relationship + diary viewer
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
   const inputRef = useRef(null);
-  const scrollRef = useRef(null);
   const proactiveTriedRef = useRef(false); // ensures the "texts first" check fires once per open
-  const autoScroll = useRef(true);
   const autoSumRef = useRef(false);
 
   // Background music (self-contained controller).
@@ -97,16 +97,6 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Pick most-recent existing chat, or create one.
   useEffect(() => {
-    getAllPersonas().then((ps) => {
-      const map = {};
-      ps.forEach((p) => { if (p && p.id) map[p.id] = p; });
-      setPersonas(map);
-    });
-    getAllCharacters().then((list) => {
-      const map = {};
-      list.forEach((c) => { if (c && c.id) map[c.id] = c; });
-      setCharsById(map);
-    });
     const ids = Object.keys(chats);
     if (ids.length) {
       ids.sort((a, b) => parseInt(b.replace('chat-', ''), 10) - parseInt(a.replace('chat-', ''), 10));
@@ -121,16 +111,6 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   }, []);
 
   const chat = chatId ? chats[chatId] : null;
-
-  useEffect(() => {
-    if (autoScroll.current && scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  });
-
-  function onScroll() {
-    const el = scrollRef.current;
-    if (!el) return;
-    autoScroll.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-  }
 
   function startNewChat(scenarioIndex = 0) {
     const c = newChat(char, scenarioIndex);
@@ -266,7 +246,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setUndo(null);
     msg.isStreaming = true;
     msg.streamingVariant = msg.activeVariant || 0;
-    autoScroll.current = true;
+    stick();
     rerender();
     await runStream(msg, instruction, { seed: original, messages });
   }
@@ -479,7 +459,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     };
     if (offscreen) chat.diary = [...(chat.diary || []), { ts: Date.now(), text: offscreen }].slice(-10);
     chat.history.push(aiMsg);
-    autoScroll.current = true;
+    stick();
     rerender();
 
     const instruction = 'The user has just come back after being away for ' + gapText + '.'
@@ -514,7 +494,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (!text || streaming || !chat) return;
     setInput('');
     setUndo(null);
-    autoScroll.current = true;
+    stick();
     const speaker = resolveSpeaker();
     chat.history.push({ id: genId(), sender: 'user', main: text });
     const aiMsg = {
