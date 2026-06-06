@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { saveCharacter, savePersona } from '../lib/db.js';
+import { saveCharacter, savePersona, deletePersona } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
+import PersonaModal from './PersonaModal.jsx';
 import ParticleField from './ParticleField.jsx';
 import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
@@ -10,7 +11,7 @@ import {
 } from '../lib/chat.js';
 import { generateAppearance, tagsFromText } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
-import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship } from '../lib/relationship.js';
+import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES } from '../lib/relationship.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
@@ -96,6 +97,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
   const [showCast, setShowCast] = useState(false);       // group cast panel
   const [showInner, setShowInner] = useState(false);     // relationship + diary viewer
+  const [showMoodMenu, setShowMoodMenu] = useState(false);   // mood chip popover
+  const [showPersonaMenu, setShowPersonaMenu] = useState(false); // persona switcher popover
+  const [personaEdit, setPersonaEdit] = useState(null);  // null=closed; {} new; persona = edit
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -862,16 +866,31 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   }
   function saveMemories(text) { chat.memories = text; setShowMemories(false); saveCharacter(char); rerender(); }
 
-  async function createPersona() {
-    const name = window.prompt('New persona name (this is who YOU are in the chat):');
-    if (!name || !name.trim()) return;
-    const p = { id: 'persona-' + Date.now(), name: name.trim(), description: '' };
+  // ── Personas (you in the chat) — full editor modal ────────────────────────
+  function newPersona() { setShowPersonaMenu(false); setPersonaEdit({}); }
+  function editPersona(p) { setShowPersonaMenu(false); setPersonaEdit(p); }
+  async function savePersonaFromModal(p) {
+    const isNew = !personas[p.id];
     await savePersona(p);
     setPersonas((prev) => ({ ...prev, [p.id]: p }));
-    setPersona(p.id);
+    if (isNew || (chat && chat.activePersonaId === p.id)) setPersona(p.id);
+    setPersonaEdit(null);
   }
+  async function deletePersonaFromModal(id) {
+    await deletePersona(id);
+    setPersonas((prev) => { const next = { ...prev }; delete next[id]; return next; });
+    if (chat && chat.activePersonaId === id) setPersona(null);
+    setPersonaEdit(null);
+  }
+  const activePersona = chat && chat.activePersonaId ? personas[chat.activePersonaId] : null;
 
-  const MOODS = ['happy', 'sad', 'angry', 'flirty', 'scared', 'calm', 'excited', 'nervous'];
+  const MOODS = [
+    { key: 'happy', emoji: '😊' }, { key: 'sad', emoji: '😢' }, { key: 'angry', emoji: '😠' },
+    { key: 'flirty', emoji: '😏' }, { key: 'scared', emoji: '😨' }, { key: 'calm', emoji: '😌' },
+    { key: 'excited', emoji: '🤩' }, { key: 'nervous', emoji: '😰' }, { key: 'playful', emoji: '😜' },
+    { key: 'tired', emoji: '🥱' }, { key: 'jealous', emoji: '😒' }, { key: 'loving', emoji: '🥰' },
+  ];
+  const moodEmoji = (k) => (MOODS.find((m) => m.key === k) || {}).emoji || '🎭';
 
   const history = chat ? chat.history : [];
   const sessions = Object.values(chats).sort((a, b) => chatTs(b.id) - chatTs(a.id));
@@ -929,9 +948,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {settings.relationship && chat && chat.relationship && (
           <button
             onClick={() => setShowInner(true)}
-            title="Inner life — relationship & diary"
-            className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-rose-300 hover:border-rose-300/40 sm:flex"
+            title={`Inner life — ${stageFor(chat.relationship.affection).label} (${chat.relationship.affection})`}
+            className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-rose-300/40 hover:text-rose-300 sm:flex"
           >
+            <span className="text-base leading-none">{stageFor(chat.relationship.affection).emoji}</span>
             <span className="text-rose-400"><HeartIcon /></span> {chat.relationship.affection}
           </button>
         )}
@@ -1023,30 +1043,87 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {chat && (
         <>
         <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
-          <label className="flex items-center gap-1.5 text-em-text-dim">
-            <PersonaIcon /><span className="hidden sm:inline">You as</span>
-            <select
-              value={chat.activePersonaId || ''}
-              onChange={(e) => { if (e.target.value === '__new') createPersona(); else setPersona(e.target.value); }}
-              className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
+          {/* You as (persona) */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowPersonaMenu((v) => !v); setShowMoodMenu(false); }}
+              title="You as — your persona in this chat"
+              className={'flex items-center gap-1.5 rounded-lg border px-2 py-1 transition ' + (showPersonaMenu ? 'border-em-accent/50 text-em-accent' : 'border-white/10 bg-white/[0.03] text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}
             >
-              <option value="">User</option>
-              {Object.values(personas).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-              <option value="__new">＋ New persona…</option>
-            </select>
-          </label>
+              {activePersona && activePersona.avatar
+                ? <img src={avatarUrl(activePersona.avatar)} alt="" className="h-5 w-5 rounded-full object-cover" />
+                : <PersonaIcon />}
+              <span className="hidden text-em-text-dim sm:inline">You:</span>
+              <span className="max-w-[8rem] truncate font-medium text-em-text">{activePersona ? activePersona.name : 'User'}</span>
+            </button>
+            {showPersonaMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowPersonaMenu(false)} />
+                <div className="pop-in absolute left-0 top-full z-40 mt-1.5 max-h-[60vh] w-64 overflow-y-auto rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl" style={{ transformOrigin: 'top left' }}>
+                  <div className="px-2 py-1.5 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">Play as</div>
+                  <button onClick={() => { setPersona(null); setShowPersonaMenu(false); }} className={'flex w-full items-center gap-2 rounded-lg px-2 py-1.5 text-left transition ' + (!chat.activePersonaId ? 'bg-em-accent/15 text-em-accent' : 'hover:bg-white/5 text-em-text')}>
+                    <span className="grid h-7 w-7 place-items-center rounded-full bg-white/5"><PersonaIcon /></span>
+                    <span className="flex-1 text-sm">User <span className="text-em-text-dim">(default)</span></span>
+                  </button>
+                  {Object.values(personas).map((p) => {
+                    const active = chat.activePersonaId === p.id;
+                    return (
+                      <div key={p.id} className={'group flex items-center gap-2 rounded-lg px-2 py-1.5 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
+                        <button onClick={() => { setPersona(p.id); setShowPersonaMenu(false); }} className="flex min-w-0 flex-1 items-center gap-2 text-left">
+                          {p.avatar
+                            ? <img src={avatarUrl(p.avatar)} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
+                            : <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/5 text-xs">🧑</span>}
+                          <span className={'truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{p.name}</span>
+                        </button>
+                        <button onClick={() => editPersona(p)} title="Edit persona" className="grid h-7 w-7 shrink-0 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
+                      </div>
+                    );
+                  })}
+                  <button onClick={newPersona} className="mt-1 flex w-full items-center gap-2 rounded-lg border border-em-accent/30 px-2 py-1.5 text-sm font-medium text-em-accent transition hover:bg-em-accent/10">
+                    <PlusIcon /> Create persona
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
 
-          <label className="flex items-center gap-1.5 text-em-text-dim">
-            <MoodIcon /><span className="hidden sm:inline">Mood</span>
-            <select
-              value={chat.mood || ''}
-              onChange={(e) => setMood(e.target.value)}
-              className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
+          {/* Mood */}
+          <div className="relative">
+            <button
+              onClick={() => { setShowMoodMenu((v) => !v); setShowPersonaMenu(false); }}
+              title="Set the character's current mood"
+              className={'flex items-center gap-1.5 rounded-lg border px-2 py-1 transition ' + (chat.mood ? 'border-em-accent/50 bg-em-accent/15 text-em-accent' : (showMoodMenu ? 'border-em-accent/50 text-em-accent' : 'border-white/10 bg-white/[0.03] text-em-text-dim hover:border-em-accent/40 hover:text-em-text'))}
             >
-              <option value="">none</option>
-              {MOODS.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </label>
+              <span className="text-base leading-none">{chat.mood ? moodEmoji(chat.mood) : <MoodIcon />}</span>
+              <span className="font-medium capitalize">{chat.mood || 'Mood'}</span>
+            </button>
+            {showMoodMenu && (
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowMoodMenu(false)} />
+                <div className="pop-in absolute left-0 top-full z-40 mt-1.5 w-64 rounded-xl border border-white/10 bg-em-panel p-2 shadow-2xl" style={{ transformOrigin: 'top left' }}>
+                  <div className="mb-1.5 flex items-center justify-between px-1">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">Mood</span>
+                    {chat.mood && <button onClick={() => { setMood(''); setShowMoodMenu(false); }} className="text-[11px] text-em-text-dim transition hover:text-red-400">Clear</button>}
+                  </div>
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {MOODS.map((m) => {
+                      const active = chat.mood === m.key;
+                      return (
+                        <button
+                          key={m.key}
+                          onClick={() => { setMood(m.key); setShowMoodMenu(false); }}
+                          className={'flex flex-col items-center gap-0.5 rounded-lg border px-1 py-2 text-xs capitalize transition ' + (active ? 'border-em-accent/60 bg-em-accent/15 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:bg-white/5 hover:text-em-text')}
+                        >
+                          <span className="text-xl leading-none">{m.emoji}</span>
+                          {m.key}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </>
+            )}
+          </div>
 
           <Pill onClick={() => setShowMemories(true)} active={!!(chat.memories && chat.memories.trim())} title="Memories">
             <MemoryIcon /> Memories
@@ -1138,28 +1215,39 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         )}
 
         {showMusic && (
-          <div className="flex flex-wrap items-center gap-2 border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
-            <input
-              value={musicUrl}
-              onChange={(e) => setMusicUrl(e.target.value)}
-              placeholder="Music URL (direct audio or YouTube)…"
-              className="min-w-0 flex-1 rounded-lg border border-white/10 bg-em-panel px-3 py-1.5 text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
-            />
-            <button onClick={() => (musicPlaying ? toggleMusic() : playMusic())} title={musicPlaying ? 'Pause' : 'Play'} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
-              {musicPlaying ? <PauseIcon /> : <PlayIcon />}{musicPlaying ? 'Pause' : 'Play'}
-            </button>
-            <button onClick={stopMusic} title="Stop" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><StopIcon /> Stop</button>
-            <div className="flex items-center gap-2 text-em-text-dim" title="Volume">
-              <span className="text-base">🔉</span>
-              <input
-                type="range"
-                min="0"
-                max="1"
-                step="0.01"
-                value={musicVolume}
-                onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
-                className="h-1.5 w-28 cursor-pointer accent-em-accent"
-              />
+          <div className="border-b border-white/5 bg-white/[0.02] px-4 py-3">
+            <div className="mx-auto flex w-full max-w-4xl items-center gap-3 rounded-2xl border border-white/10 bg-em-panel/60 p-2.5 backdrop-blur">
+              {/* big play/pause */}
+              <button
+                onClick={() => (musicPlaying ? toggleMusic() : playMusic())}
+                title={musicPlaying ? 'Pause' : 'Play'}
+                className={'grid h-11 w-11 shrink-0 place-items-center rounded-full transition active:scale-90 ' + (musicPlaying ? 'bg-em-accent text-em-bg beat-ring' : 'border border-em-accent/40 text-em-accent hover:bg-em-accent/10')}
+              >
+                {musicPlaying ? <PauseIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+              </button>
+              <div className="min-w-0 flex-1">
+                <div className="mb-1 flex items-center gap-2 text-[11px] font-medium uppercase tracking-wide text-em-text-dim">
+                  <MusicIcon className="h-3.5 w-3.5" />
+                  {musicPlaying ? <span className="flex items-center gap-1.5 text-em-accent">Now playing <span className="eq"><i /><i /><i /><i /></span></span> : 'Background music'}
+                </div>
+                <input
+                  value={musicUrl}
+                  onChange={(e) => setMusicUrl(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') playMusic(); }}
+                  placeholder="Paste a YouTube link or direct audio URL…"
+                  className="w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
+                />
+              </div>
+              <div className="hidden items-center gap-1.5 text-em-text-dim sm:flex" title="Volume">
+                <span className="text-base">{musicVolume < 0.01 ? '🔇' : musicVolume < 0.5 ? '🔉' : '🔊'}</span>
+                <input
+                  type="range" min="0" max="1" step="0.01"
+                  value={musicVolume}
+                  onChange={(e) => setMusicVolume(parseFloat(e.target.value))}
+                  className="h-1.5 w-24 cursor-pointer accent-em-accent"
+                />
+              </div>
+              <button onClick={stopMusic} title="Stop" className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/10 text-em-text-dim transition hover:border-red-400/40 hover:text-red-400"><StopIcon /></button>
             </div>
           </div>
         )}
@@ -1167,7 +1255,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       )}
 
       {/* Messages */}
-      <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)' }} className="mx-auto flex w-full max-w-3xl flex-1 flex-col overflow-y-auto px-4 py-6">
+      <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)' }} className="mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto px-4 py-6">
         {history.map((m) => (
           <MessageBubble
             key={m.id}
@@ -1236,7 +1324,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {/* Composer */}
       <div className="border-t border-white/10 bg-em-bg/70 backdrop-blur-xl">
         {settings.replyOptions && !streaming && chat && (sug.suggesting || sug.suggestions.length > 0) && (
-          <div className="mx-auto flex w-full max-w-3xl flex-wrap gap-2 px-4 pt-3">
+          <div className="mx-auto flex w-full max-w-4xl flex-wrap gap-2 px-4 pt-3">
             {sug.suggesting && sug.suggestions.length === 0 ? (
               <span className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-em-text-dim">💡 thinking of replies…</span>
             ) : (
@@ -1253,7 +1341,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             )}
           </div>
         )}
-        <div className="relative mx-auto w-full max-w-3xl px-4 py-3">
+        <div className="relative mx-auto w-full max-w-4xl px-4 py-3">
           {/* Slash-command autocomplete */}
           {slashMatches.length > 0 && (
             <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl glass-panel p-1.5 shadow-2xl backdrop-blur">
@@ -1340,6 +1428,15 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         <MemoriesModal char={char} chat={chat} personas={personas} onSave={saveMemories} onClose={() => setShowMemories(false)} />
       )}
 
+      {personaEdit && (
+        <PersonaModal
+          persona={personaEdit && personaEdit.id ? personaEdit : null}
+          onSave={savePersonaFromModal}
+          onDelete={deletePersonaFromModal}
+          onClose={() => setPersonaEdit(null)}
+        />
+      )}
+
       {showScenarioPick && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowScenarioPick(false)}>
           <div className="max-h-[85vh] w-full max-w-md overflow-y-auto rounded-3xl glass-panel p-6 shadow-2xl" onClick={(e) => e.stopPropagation()}>
@@ -1374,6 +1471,28 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
             {chat.relationship ? (
               <div className="space-y-3">
+                {(() => {
+                  const st = stageFor(chat.relationship.affection);
+                  const idx = REL_STAGES.indexOf(st);
+                  const next = REL_STAGES[idx + 1];
+                  return (
+                    <div className="rounded-2xl border border-em-accent/25 bg-em-accent/[0.06] p-3">
+                      <div className="flex items-center gap-2">
+                        <span className="text-2xl leading-none">{st.emoji}</span>
+                        <div className="min-w-0">
+                          <div className="text-sm font-semibold text-em-accent">{st.label}</div>
+                          <div className="text-[11px] text-em-text-dim">How {displayName(char)} acts toward you right now</div>
+                        </div>
+                      </div>
+                      {next && (
+                        <div className="mt-2 text-[11px] text-em-text-dim">
+                          {next.emoji} <span className="text-em-text">{next.label}</span> unlocks at {next.min} affection
+                          <span className="text-em-text-dim/70"> · {next.min - chat.relationship.affection} to go</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
                 <Meter label="Affection" value={chat.relationship.affection} />
                 <Meter label="Trust" value={chat.relationship.trust} />
                 <Meter label="Tension" value={chat.relationship.tension} />
