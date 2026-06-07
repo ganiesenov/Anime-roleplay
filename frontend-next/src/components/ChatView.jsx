@@ -132,6 +132,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showDirector, setShowDirector] = useState(false); // director quick-actions menu
   const [showSearch, setShowSearch] = useState(false);   // in-chat message search
   const [searchQ, setSearchQ] = useState('');            // search query
+  const [summarizing, setSummarizing] = useState(false); // manual "summarize now" in progress
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -223,6 +224,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     showToast('🌱 New chat forked from here');
   }
 
+  // React to a message (single emoji, toggle off with '').
+  function reactMessage(msg, emoji) {
+    msg.reaction = emoji || undefined;
+    saveCharacter(char);
+    rerender();
+  }
+
   // Pin / unpin a message — pinned messages are kept in the prompt context.
   function togglePin(msg) {
     msg.pinned = !msg.pinned;
@@ -286,6 +294,29 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2600);
+  }
+
+  // Manually distill the conversation into chat.memories right now (one click).
+  async function summarizeNow() {
+    if (!chat || summarizing) return;
+    setSummarizing(true);
+    try {
+      const bullets = await summarizeChat(char, chat, personas, resolveModel(settings, settings.summaryModelId || settings.model));
+      if (bullets && bullets.trim()) {
+        const header = '--- Summary (' + new Date().toLocaleDateString() + ') ---\n';
+        chat.memories = ((chat.memories || '').trim() ? chat.memories.trim() + '\n\n' : '') + header + bullets.trim();
+        chat._lastAutoSummaryLen = chat.history.length;
+        await saveCharacter(char);
+        rerender();
+        showToast('🧠 Summarized to memory');
+      } else {
+        showToast('Nothing to summarize yet');
+      }
+    } catch (e) {
+      showToast('Summarize failed');
+    } finally {
+      setSummarizing(false);
+    }
   }
 
   // Export the active chat as a Markdown transcript (download).
@@ -1486,6 +1517,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                 speaker={speakerOf(m)}
                 group={isGroup()}
                 onOpenImage={setLightbox}
+                onReact={(emoji) => reactMessage(m, emoji)}
               />
             </Fragment>
           );
@@ -1761,7 +1793,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                 <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
                   <div className={'h-full rounded-full ' + (pct > 85 ? 'bg-red-400' : pct > 60 ? 'bg-amber-400' : 'bg-em-accent')} style={{ width: Math.max(2, pct) + '%' }} />
                 </div>
-                {pct > 85 && <div className="mt-1 text-[10px] text-red-300/80">Nearly full — older turns may drop. Summarize to memory.</div>}
+                <button onClick={summarizeNow} disabled={summarizing} className="mt-2 flex w-full items-center justify-center gap-1.5 rounded-lg border border-white/10 px-2 py-1.5 text-[11px] text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text disabled:opacity-50">
+                  <MemoryIcon /> {summarizing ? 'Summarizing…' : 'Summarize to memory'}
+                </button>
+                {pct > 85 && <div className="mt-1 text-[10px] text-red-300/80">Nearly full — older turns may drop.</div>}
               </div>
             );
           })()}

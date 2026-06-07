@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
+import { SmilePlus } from 'lucide-react';
 import { avatarUrl } from '../lib/media.js';
 import {
   displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, getMessageImagePrompt, stripPhotoTag,
@@ -56,6 +57,8 @@ function fmtTime(ts) {
   try { return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
 }
 
+const REACTIONS = ['❤️', '😂', '😮', '😢', '🔥', '👍'];
+
 const REWRITE_OPTS = [
   { label: 'Shorter', tweak: 'make it noticeably shorter and tighter' },
   { label: 'Longer', tweak: 'make it longer and more detailed' },
@@ -64,12 +67,13 @@ const REWRITE_OPTS = [
   { label: 'Different take', tweak: 'take a clearly different direction than before' },
 ];
 
-export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onRegenerateTweak, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage }) {
+export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onRegenerateTweak, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage, onReact }) {
   const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
   const [showRewrite, setShowRewrite] = useState(false);
+  const [showReact, setShowReact] = useState(false);
   const isUser = msg.sender === 'user';
   const text = stripPhotoTag(getMessageText(msg));   // hide any [photo: …] tag from view
   const image = isUser ? '' : getMessageImage(msg);
@@ -167,6 +171,10 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
         )}
       </div>
 
+      {msg.reaction && (
+        <button onClick={() => onReact && onReact(msg.reaction)} title="Remove reaction" className="-mt-1 rounded-full border border-white/10 bg-em-panel/80 px-2 py-0.5 text-sm leading-none shadow">{msg.reaction}</button>
+      )}
+
       {/* Controls (not while this message streams or is being edited) */}
       {!isStreamingThis && !editing && (
         <div className="flex items-center gap-0.5 px-1">
@@ -200,6 +208,21 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
           <CtrlBtn onClick={doCopy} active={copied} title={copied ? 'Copied!' : 'Copy text'}>{copied ? <CheckIcon /> : <CopyIcon />}</CtrlBtn>
           <CtrlBtn onClick={onPin} active={pinned} title={pinned ? 'Unpin' : 'Pin (keep in context)'}><PinIcon /></CtrlBtn>
           <CtrlBtn onClick={onFork} disabled={streaming} title="New chat from here"><ForkIcon /></CtrlBtn>
+          {onReact && (
+            <div className="relative">
+              <CtrlBtn onClick={() => setShowReact((v) => !v)} active={showReact || !!msg.reaction} title="React"><SmilePlus className="h-[18px] w-[18px]" /></CtrlBtn>
+              {showReact && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowReact(false)} />
+                  <div className="pop-in absolute left-0 top-full z-40 mt-1 flex gap-0.5 rounded-full border border-white/10 bg-em-panel p-1 shadow-2xl" style={{ transformOrigin: 'top left' }}>
+                    {REACTIONS.map((r) => (
+                      <button key={r} onClick={() => { setShowReact(false); onReact(msg.reaction === r ? '' : r); }} className={'grid h-8 w-8 place-items-center rounded-full text-lg transition hover:bg-white/10 ' + (msg.reaction === r ? 'bg-em-accent/20' : '')}>{r}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           <CtrlBtn onClick={onDelete} disabled={streaming} danger title="Delete this and following messages"><TrashIcon /></CtrlBtn>
           {ts ? <span className="ml-1 select-none text-[10px] text-em-text-dim/60 opacity-0 transition group-hover:opacity-100">{fmtTime(ts)}</span> : null}
         </div>

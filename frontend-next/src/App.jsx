@@ -54,6 +54,7 @@ export default function App() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [showTop, setShowTop] = useState(false);
   const [showPalette, setShowPalette] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
   const [showTutorial, setShowTutorial] = useState(() => {
     try { return !localStorage.getItem(TUTORIAL_FLAG); } catch (e) { return false; }
   });
@@ -75,12 +76,20 @@ export default function App() {
     return () => window.removeEventListener('scroll', onScroll);
   }, []);
 
-  // ⌘K / Ctrl+K opens the command palette (quick character switcher) anywhere.
+  // Global shortcuts: ⌘K/Ctrl+K command palette; "?" opens the shortcuts help
+  // (only when not typing in a field).
   useEffect(() => {
     const onKey = (e) => {
       if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
         e.preventDefault();
         setShowPalette((v) => !v);
+        return;
+      }
+      const el = e.target;
+      const typing = el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.isContentEditable);
+      if (e.key === '?' && !typing && !e.metaKey && !e.ctrlKey) {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
       }
     };
     window.addEventListener('keydown', onKey);
@@ -176,6 +185,7 @@ export default function App() {
       {showSettings && <SettingsModal settings={settings} onSave={onSaveSettings} onClose={() => setShowSettings(false)} />}
       {showTutorial && <TutorialModal onClose={closeTutorial} />}
       {showPalette && <CommandPalette chars={chars || []} onOpen={openCharacter} onClose={() => setShowPalette(false)} />}
+      {showShortcuts && <ShortcutsModal onClose={() => setShowShortcuts(false)} />}
     </>
   );
 
@@ -223,6 +233,7 @@ export default function App() {
                     <MenuItem onClick={() => { setMenuOpen(false); fileRef.current && fileRef.current.click(); }} icon={<UploadIcon className="h-4 w-4" />} label="Import…" hint="backup / card" />
                     <MenuItem onClick={() => { setMenuOpen(false); exportBackup(); }} icon={<DownloadIcon className="h-4 w-4" />} label="Export backup" />
                     <div className="my-1 border-t border-white/10" />
+                    <MenuItem onClick={() => { setMenuOpen(false); setShowShortcuts(true); }} icon={<HelpIcon className="h-4 w-4" />} label="Keyboard shortcuts" hint="?" />
                     <MenuItem onClick={() => { setMenuOpen(false); setShowTutorial(true); }} icon={<HelpIcon className="h-4 w-4" />} label="How it works" />
                   </div>
                 </>
@@ -454,6 +465,36 @@ function MenuItem({ onClick, icon, label, hint }) {
   );
 }
 
+
+function ShortcutsModal({ onClose }) {
+  const rows = [
+    ['⌘ / Ctrl + K', 'Open the command palette (jump to a character)'],
+    ['?', 'Show this shortcuts help'],
+    ['Enter', 'Send message'],
+    ['Shift + Enter', 'New line in the message'],
+    ['/', 'Slash commands (/me, /roll, /photo, …)'],
+    ['Esc', 'Close a dialog or popover'],
+    ['↑ / ↓ then ↵', 'Navigate & open in the command palette'],
+  ];
+  return (
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={onClose}>
+      <div className="w-full max-w-md rounded-3xl glass-panel p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-center justify-between">
+          <h2 className="text-lg font-bold">⌨️ Keyboard shortcuts</h2>
+          <button onClick={onClose} className="grid h-8 w-8 place-items-center rounded-lg text-em-text-dim transition hover:bg-white/5 hover:text-em-text">✕</button>
+        </div>
+        <div className="divide-y divide-white/5">
+          {rows.map(([k, d]) => (
+            <div key={k} className="flex items-center justify-between gap-4 py-2.5">
+              <span className="text-sm text-em-text-dim">{d}</span>
+              <kbd className="shrink-0 rounded-lg border border-white/15 bg-white/5 px-2 py-1 text-xs font-medium text-em-text">{k}</kbd>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function GridSkeleton() {
   return (
