@@ -231,6 +231,19 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
     onSaved && onSaved(updated);
   }
 
+  function exportCard() {
+    const card = buildRecord(false);
+    delete card.chats;
+    const payload = { version: 3, characters: [card], personas: [] };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (name || 'character').replace(/[^\w-]+/g, '_').slice(0, 50) + '.json';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   async function duplicate() {
     if (!name.trim() || busy) return;
     setBusy(true);
@@ -540,6 +553,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-white/10 px-5 py-4">
           {editing && <button onClick={duplicate} disabled={!name.trim() || busy} className="mr-auto rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40" title="Save a copy as a new character">⧉ Duplicate</button>}
+          <button onClick={exportCard} disabled={!name.trim()} className={(editing ? '' : 'mr-auto ') + 'inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40'} title="Export as a shareable character card (JSON)"><Download className="h-4 w-4" /> Export</button>
           <button onClick={() => onClose()} className="rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition hover:text-em-text">Cancel</button>
           <button onClick={save} disabled={!name.trim() || busy} className="rounded-xl bg-em-accent px-5 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-40">
             {busy ? 'Saving…' : editing ? 'Save' : 'Create'}

@@ -16,7 +16,7 @@ import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship
 import { archetypeRelationship } from '../lib/personality.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
-import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
+import { DEFAULT_SETTINGS, resolveModel, fetchAvailableModels } from '../lib/settings.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
@@ -94,7 +94,7 @@ const SLASH_COMMANDS = [
   { cmd: 'photoraw', arg: '<prompt>', icon: '🖼', desc: 'Generate from your exact prompt (verbatim, no extras)' },
 ];
 
-export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings }) {
+export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings, onChangeModel }) {
   const [char, setChar] = useState(character);
   const [chatId, setChatId] = useState(null);
   const [streaming, setStreaming] = useState(false);
@@ -146,6 +146,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [impersonating, setImpersonating] = useState(false); // "write my reply" in progress
   const [confirm, setConfirm] = useState(null);          // { message, label, onYes } in-app confirm
   function askConfirm(message, onYes, label = 'Delete') { setConfirm({ message, onYes, label }); }
+  const [localModels, setLocalModels] = useState([]);    // downloaded Ollama models for the in-chat picker
+  useEffect(() => { if (onChangeModel) fetchAvailableModels().then(setLocalModels); }, [onChangeModel]);
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -1282,7 +1284,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                       );
                     }
                     return (
-                      <div key={s.id} className={'group flex items-center gap-1 rounded-xl px-3 py-2 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
+                      <div
+                        key={s.id}
+                        draggable
+                        onDragStart={(e) => { e.dataTransfer.setData('text/chatid', s.id); e.dataTransfer.effectAllowed = 'move'; }}
+                        className={'group flex cursor-grab items-center gap-1 rounded-xl px-3 py-2 active:cursor-grabbing ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}
+                      >
                         <button onClick={() => switchChat(s.id)} className="min-w-0 flex-1 text-left">
                           <div className={'flex items-center gap-1 truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.pinned && <span className="text-em-accent"><PinIcon /></span>}<span className="truncate">{s.name || 'Chat'}</span></div>
                           <div className="text-[11px] text-em-text-dim">{count} message{count === 1 ? '' : 's'}</div>
@@ -1294,9 +1301,20 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                       </div>
                     );
                   };
+                  const onDropTo = (folder) => (e) => { e.preventDefault(); const id = e.dataTransfer.getData('text/chatid'); if (id) moveToFolder(id, folder); };
+                  const hasFolders = folderNames.length > 0;
                   return names.map((fn) => (
                     <Fragment key={'grp-' + fn}>
-                      {fn && <div className="flex items-center gap-1.5 px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim"><Folder className="h-3.5 w-3.5" /> {fn}</div>}
+                      {(fn || hasFolders) && (
+                        <div
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={onDropTo(fn)}
+                          className="flex items-center gap-1.5 rounded-lg px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim transition hover:bg-em-accent/5"
+                          title="Drop a chat here to move it"
+                        >
+                          <Folder className="h-3.5 w-3.5" /> {fn || 'No folder'}
+                        </div>
+                      )}
                       {groups[fn].map(renderRow)}
                     </Fragment>
                   ));
@@ -1453,6 +1471,30 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           <Pill onClick={() => setShowCast((v) => !v)} active={isGroup()} title="Group cast">
             <CastIcon /> Cast{isGroup() ? ' (' + activeParticipants().length + ')' : ''}
           </Pill>
+
+          {/* In-chat model switcher (table-stakes; switch mid-conversation) */}
+          {onChangeModel && (
+            <label className="ml-auto flex items-center gap-1.5 text-em-text-dim" title="Model used for replies">
+              <span className="hidden sm:inline">Model</span>
+              <select
+                value={settings.model}
+                onChange={(e) => onChangeModel(e.target.value)}
+                className="max-w-[10rem] rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
+              >
+                <option value="local-qwen">Default (backend)</option>
+                {localModels.length > 0 && (
+                  <optgroup label="Local (Ollama)">
+                    {localModels.map((m) => <option key={m} value={m}>{m}</option>)}
+                  </optgroup>
+                )}
+                {(settings.remoteModels || []).filter((m) => m.id).length > 0 && (
+                  <optgroup label="Remote">
+                    {(settings.remoteModels || []).filter((m) => m.id).map((m) => <option key={m.id} value={m.id}>{m.name || m.id}</option>)}
+                  </optgroup>
+                )}
+              </select>
+            </label>
+          )}
         </div>
 
         {showCast && (

@@ -65,6 +65,7 @@ export default function App() {
   const fileRef = useRef(null);
 
   function onSaveSettings(next) { setSettings(next); saveSettings(next); applyDesignSettings(next); setShowSettings(false); }
+  function onChangeModel(modelId) { const next = { ...settings, model: modelId }; setSettings(next); saveSettings(next); }
 
   // Apply appearance settings (CSS vars) once on load; saves re-apply via onSaveSettings.
   useEffect(() => { applyDesignSettings(settings); }, []);
@@ -193,7 +194,7 @@ export default function App() {
     return (
       <>
         {overlays}
-        <ChatView character={activeChar} settings={settings} onBack={() => setActiveChar(null)} onEdit={(c) => setEditing(c)} onOpenSettings={() => setShowSettings(true)} />
+        <ChatView character={activeChar} settings={settings} onBack={() => setActiveChar(null)} onEdit={(c) => setEditing(c)} onOpenSettings={() => setShowSettings(true)} onChangeModel={onChangeModel} />
       </>
     );
   }
