@@ -6,7 +6,7 @@ import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
 import { searchShikimori, getShikimoriCharacter, cleanShikiDescription } from '../lib/shikimori.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
-import { User, MessageSquare, BookOpen, Clapperboard, SlidersHorizontal } from 'lucide-react';
+import { User, MessageSquare, BookOpen, Clapperboard, SlidersHorizontal, Download } from 'lucide-react';
 
 const EDITOR_TABS = [
   { key: 'basics', Icon: User, label: 'Basics' },
@@ -288,41 +288,42 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
               </div>
 
               {/* Import from Shikimori (anime DB) */}
-              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
-                <button type="button" onClick={() => setShowShiki((v) => !v)} className="flex w-full items-center justify-between text-sm font-semibold text-em-text">
-                  <span>⇩ Import from Shikimori (anime character)</span>
-                  <span className="text-em-text-dim">{showShiki ? '▲' : '▼'}</span>
-                </button>
-                {showShiki && (
-                  <div className="mt-2">
-                    <div className="flex gap-2">
-                      <input
-                        value={shikiQ}
-                        onChange={(e) => setShikiQ(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doShikiSearch(); } }}
-                        placeholder="Search a character (e.g. Akame, Makima)…"
-                        className={inputCls}
-                      />
-                      <button type="button" onClick={doShikiSearch} disabled={shikiBusy} className="shrink-0 rounded-xl bg-em-accent px-4 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-50">
-                        {shikiBusy ? '…' : 'Search'}
+              <div className="rounded-2xl border border-sky-400/20 bg-sky-400/[0.05] p-3">
+                <div className="mb-2 flex items-center gap-2">
+                  <span className="grid h-7 w-7 place-items-center rounded-lg bg-sky-400/15 text-sky-300"><Download className="h-4 w-4" /></span>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold text-sky-200">Import from Shikimori</div>
+                    <div className="text-[11px] text-em-text-dim">Pull an anime character's name, tags, description & avatar in one click.</div>
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <input
+                    value={shikiQ}
+                    onChange={(e) => setShikiQ(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); doShikiSearch(); } }}
+                    placeholder="e.g. Akame, Makima, Rem…"
+                    className={inputCls}
+                  />
+                  <button type="button" onClick={doShikiSearch} disabled={shikiBusy} className="shrink-0 rounded-xl bg-sky-400 px-4 py-2 font-semibold text-sky-950 transition enabled:hover:bg-sky-300 disabled:opacity-50">
+                    {shikiBusy ? '…' : 'Search'}
+                  </button>
+                </div>
+                {shikiResults.length > 0 && (
+                  <div className="mt-2 grid max-h-64 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-4">
+                    {shikiResults.map((r) => (
+                      <button key={r.id} type="button" onClick={() => importShiki(r)} disabled={shikiBusy}
+                        className="group/shiki overflow-hidden rounded-xl border border-white/10 bg-white/[0.03] text-left transition hover:border-sky-400/50 hover:bg-white/[0.06] disabled:opacity-50">
+                        <div className="aspect-[3/4] w-full overflow-hidden bg-em-bg">
+                          {r.image
+                            ? <img src={avatarSrc(r.image)} alt="" className="h-full w-full object-cover transition group-hover/shiki:scale-105" />
+                            : <div className="flex h-full w-full items-center justify-center text-2xl text-em-text-dim/40">🎴</div>}
+                        </div>
+                        <div className="p-1.5">
+                          <div className="truncate text-xs font-medium text-em-text">{r.name}</div>
+                          {r.russian && <div className="truncate text-[10px] text-em-text-dim">{r.russian}</div>}
+                        </div>
                       </button>
-                    </div>
-                    {shikiResults.length > 0 && (
-                      <div className="mt-2 grid max-h-60 grid-cols-2 gap-2 overflow-y-auto sm:grid-cols-3">
-                        {shikiResults.map((r) => (
-                          <button key={r.id} type="button" onClick={() => importShiki(r)} disabled={shikiBusy}
-                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/[0.03] p-1.5 text-left transition hover:border-em-accent/40 hover:bg-white/[0.06] disabled:opacity-50">
-                            <div className="h-10 w-10 shrink-0 overflow-hidden rounded-md bg-em-bg">
-                              {r.image && <img src={avatarSrc(r.image)} alt="" className="h-full w-full object-cover" />}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="truncate text-xs font-medium text-em-text">{r.name}</div>
-                              {r.russian && <div className="truncate text-[10px] text-em-text-dim">{r.russian}</div>}
-                            </div>
-                          </button>
-                        ))}
-                      </div>
-                    )}
+                    ))}
                   </div>
                 )}
               </div>

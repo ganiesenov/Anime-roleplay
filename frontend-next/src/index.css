@@ -46,6 +46,7 @@ body {
   --ai-avatar-size: 40px;
   --chat-font-size: 15px;
   --message-spacing: 20px;
+  --chat-max-width: 896px;
   --main-text-color: #e9f5ef;
   --dialogue-color: #ffd952;
   --user-bubble-color: rgba(46, 230, 160, 0.15);

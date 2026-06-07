@@ -1250,7 +1250,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
         {showMusic && (
           <div className="border-b border-white/5 bg-white/[0.02] px-4 py-3">
-            <div className="mx-auto flex w-full max-w-4xl items-center gap-3 rounded-2xl border border-white/10 bg-em-panel/60 p-2.5 backdrop-blur">
+            <div style={{ maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-em-panel/60 p-2.5 backdrop-blur">
               {/* big play/pause */}
               <button
                 onClick={() => (musicPlaying ? toggleMusic() : playMusic())}
@@ -1292,7 +1292,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       <div className="flex min-h-0 flex-1 overflow-hidden">
       <div className="relative flex min-w-0 flex-1 flex-col">
       {/* Messages */}
-      <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)' }} className="mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto px-4 py-6">
+      <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)', maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full flex-1 flex-col overflow-y-auto px-4 py-6">
         {history.map((m) => (
           <MessageBubble
             key={m.id}
@@ -1361,7 +1361,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {/* Composer */}
       <div className="border-t border-white/10 bg-em-bg/70 backdrop-blur-xl">
         {settings.replyOptions && !streaming && chat && (sug.suggesting || sug.suggestions.length > 0) && (
-          <div className="mx-auto flex w-full max-w-4xl flex-wrap gap-2 px-4 pt-3">
+          <div style={{ maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full flex-wrap gap-2 px-4 pt-3">
             {sug.suggesting && sug.suggestions.length === 0 ? (
               <span className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-em-text-dim">💡 thinking of replies…</span>
             ) : (
@@ -1378,7 +1378,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             )}
           </div>
         )}
-        <div className="relative mx-auto w-full max-w-4xl px-4 py-3">
+        <div style={{ maxWidth: 'var(--chat-max-width)' }} className="relative mx-auto w-full px-4 py-3">
           {/* Slash-command autocomplete */}
           {slashMatches.length > 0 && (
             <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl glass-panel p-1.5 shadow-2xl backdrop-blur">

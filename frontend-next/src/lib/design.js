@@ -43,6 +43,7 @@ export function applyDesignSettings(s) {
   root.setProperty('--ai-avatar-size', num(s.avatarSize, 40) + 'px');
   root.setProperty('--chat-font-size', num(s.fontSize, 15) + 'px');
   root.setProperty('--message-spacing', num(s.messageSpacing, 20) + 'px');
+  root.setProperty('--chat-max-width', num(s.chatWidth, 896) + 'px');
   root.setProperty('--main-text-color', s.mainTextColor || '#e9f5ef');
   root.setProperty('--dialogue-color', s.dialogueColor || '#ffd952');
   root.setProperty('--user-bubble-color', hexToRgba(s.userBubbleColor || '#2ee6a0', s.userBubbleOpacity != null ? s.userBubbleOpacity : 0.15));

@@ -40,6 +40,7 @@ export const DEFAULT_SETTINGS = {
   avatarSize: 40,            // AI speaker avatar beside each reply (px)
   fontSize: 15,              // chat message font size (px)
   messageSpacing: 20,        // vertical gap between messages (px)
+  chatWidth: 896,            // max width of the message column (px) — 896 ≈ max-w-4xl
   mainTextColor: '#e9f5ef',  // narration / main text
   dialogueColor: '#ffd952',  // "quoted speech"
   userBubbleColor: '#2ee6a0',

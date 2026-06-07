@@ -1,8 +1,48 @@
 import { useEffect, useState } from 'react';
-import { fetchAvailableModels } from '../lib/settings.js';
-import { ACCENTS } from '../lib/design.js';
+import { fetchAvailableModels, DEFAULT_SETTINGS } from '../lib/settings.js';
+import { ACCENTS, hexToRgba } from '../lib/design.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
-import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph } from 'lucide-react';
+import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph, RotateCcw } from 'lucide-react';
+
+// One-click looks — each sets the accent + prose colours together.
+const THEME_PRESETS = [
+  { key: 'emerald', label: 'Emerald', accent: 'emerald', mainTextColor: '#e9f5ef', dialogueColor: '#ffd952', userBubbleColor: '#2ee6a0', aiBubbleColor: '#ffffff' },
+  { key: 'midnight', label: 'Midnight', accent: 'blue', mainTextColor: '#e8eefc', dialogueColor: '#7dd3fc', userBubbleColor: '#60a5fa', aiBubbleColor: '#cbd5e1' },
+  { key: 'rose', label: 'Rosé', accent: 'rose', mainTextColor: '#fbe9ef', dialogueColor: '#fbbf24', userBubbleColor: '#fb7185', aiBubbleColor: '#ffffff' },
+  { key: 'violet', label: 'Amethyst', accent: 'violet', mainTextColor: '#efeafe', dialogueColor: '#c4b5fd', userBubbleColor: '#a78bfa', aiBubbleColor: '#e9d5ff' },
+];
+
+const APPEARANCE_KEYS = ['accent', 'charAccent', 'avatarSize', 'fontSize', 'messageSpacing', 'chatWidth', 'mainTextColor', 'dialogueColor', 'userBubbleColor', 'userBubbleOpacity', 'aiBubbleColor', 'aiBubbleOpacity', 'blur'];
+
+function Section({ title, children }) {
+  return (
+    <div className="py-3">
+      <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">{title}</div>
+      <div className="divide-y divide-white/5">{children}</div>
+    </div>
+  );
+}
+
+// Live preview of how messages will look with the current appearance settings.
+function BubblePreview({ s }) {
+  const userBg = hexToRgba(s.userBubbleColor || '#2ee6a0', s.userBubbleOpacity != null ? s.userBubbleOpacity : 0.15);
+  const aiBg = hexToRgba(s.aiBubbleColor || '#ffffff', s.aiBubbleOpacity != null ? s.aiBubbleOpacity : 0.04);
+  const blur = (s.blur || 0) + 6;
+  const fz = (s.fontSize || 15) + 'px';
+  return (
+    <div className="rounded-2xl border border-white/10 bg-em-bg/50 p-3" style={{ display: 'flex', flexDirection: 'column', gap: (s.messageSpacing || 20) + 'px' }}>
+      <div className="self-start max-w-[85%] rounded-2xl px-3 py-2" style={{ background: `linear-gradient(${aiBg},${aiBg}), rgba(7,18,13,0.5)`, backdropFilter: `blur(${blur}px)` }}>
+        <span style={{ color: s.mainTextColor || '#e9f5ef', fontSize: fz }}>She steps closer, </span>
+        <span style={{ color: '#5cffc4', fontSize: fz, fontStyle: 'italic' }}>eyes narrowing</span>
+        <span style={{ color: s.mainTextColor || '#e9f5ef', fontSize: fz }}>. </span>
+        <span style={{ color: s.dialogueColor || '#ffd952', fontSize: fz }}>"You came back."</span>
+      </div>
+      <div className="self-end max-w-[85%] rounded-2xl px-3 py-2" style={{ background: `linear-gradient(${userBg},${userBg}), rgba(7,18,13,0.5)`, backdropFilter: `blur(${blur}px)` }}>
+        <span style={{ color: s.mainTextColor || '#e9f5ef', fontSize: fz }}>I always do.</span>
+      </div>
+    </div>
+  );
+}
 
 const inputCls = 'w-full rounded-xl border border-white/10 bg-white/[0.04] px-3 py-2 text-em-text focus:border-em-accent/50 focus:outline-none';
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
@@ -253,49 +293,96 @@ export default function SettingsModal({ settings, onSave, onClose }) {
             )}
 
             {tab === 'appearance' && (
-              <div className={rows}>
-                <Row label="Accent color" hint="Recolors the whole UI.">
-                  <div className="flex flex-wrap gap-2">
-                    {Object.entries(ACCENTS).map(([key, a]) => (
-                      <button key={key} type="button" onClick={() => set('accent', key)} title={a.label}
-                        className={'h-7 w-7 rounded-full border-2 transition ' + ((s.accent || 'emerald') === key ? 'border-white scale-110' : 'border-white/20 hover:border-white/50')}
-                        style={{ background: a.accent }} />
-                    ))}
+              <div>
+                {/* Live preview */}
+                <div className="mb-3 sticky top-0 z-10 -mx-5 -mt-5 bg-em-panel/80 px-5 pb-3 pt-5 backdrop-blur">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">Preview</span>
+                    <button
+                      onClick={() => { const d = DEFAULT_SETTINGS; APPEARANCE_KEYS.forEach((k) => set(k, d[k])); }}
+                      className="inline-flex items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-[11px] text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"
+                    >
+                      <RotateCcw className="h-3 w-3" /> Reset
+                    </button>
                   </div>
-                </Row>
-                <Row label="Theme per character" hint="Tint the UI with a colour pulled from the character's avatar while chatting.">
-                  <Toggle checked={s.charAccent !== false} onChange={(v) => set('charAccent', v)} />
-                </Row>
-                <Row label={`AI avatar size: ${s.avatarSize || 40}px`} hint="Avatar shown beside each reply.">
-                  <input type="range" min="24" max="96" step="2" value={s.avatarSize || 40} onChange={(e) => set('avatarSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
-                </Row>
-                <Row label={`Font size: ${s.fontSize || 15}px`}>
-                  <input type="range" min="11" max="28" step="1" value={s.fontSize || 15} onChange={(e) => set('fontSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
-                </Row>
-                <Row label={`Message spacing: ${s.messageSpacing || 20}px`}>
-                  <input type="range" min="4" max="48" step="2" value={s.messageSpacing || 20} onChange={(e) => set('messageSpacing', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
-                </Row>
-                <Row label="Main text color">
-                  <input type="color" value={s.mainTextColor || '#e9f5ef'} onChange={(e) => set('mainTextColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
-                </Row>
-                <Row label="Dialogue color" hint='Colour of "quoted speech".'>
-                  <input type="color" value={s.dialogueColor || '#ffd952'} onChange={(e) => set('dialogueColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
-                </Row>
-                <Row label="User bubble" hint={`Opacity ${Math.round((s.userBubbleOpacity != null ? s.userBubbleOpacity : 0.15) * 100)}%`}>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={s.userBubbleColor || '#2ee6a0'} onChange={(e) => set('userBubbleColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
-                    <input type="range" min="0" max="1" step="0.05" value={s.userBubbleOpacity != null ? s.userBubbleOpacity : 0.15} onChange={(e) => set('userBubbleOpacity', parseFloat(e.target.value))} className="w-28 accent-em-accent" />
+                  <BubblePreview s={s} />
+                </div>
+
+                <Section title="Theme presets">
+                  <div className="flex flex-wrap gap-2 py-2">
+                    {THEME_PRESETS.map((p) => {
+                      const a = ACCENTS[p.accent];
+                      const active = s.accent === p.accent && s.dialogueColor === p.dialogueColor;
+                      return (
+                        <button
+                          key={p.key}
+                          onClick={() => { p.accent && set('accent', p.accent); set('mainTextColor', p.mainTextColor); set('dialogueColor', p.dialogueColor); set('userBubbleColor', p.userBubbleColor); set('aiBubbleColor', p.aiBubbleColor); }}
+                          className={'flex items-center gap-2 rounded-xl border px-3 py-2 text-sm transition ' + (active ? 'border-em-accent/60 bg-em-accent/10 text-em-text' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}
+                        >
+                          <span className="flex -space-x-1">
+                            <span className="h-4 w-4 rounded-full border border-em-bg" style={{ background: a.accent }} />
+                            <span className="h-4 w-4 rounded-full border border-em-bg" style={{ background: p.dialogueColor }} />
+                          </span>
+                          {p.label}
+                        </button>
+                      );
+                    })}
                   </div>
-                </Row>
-                <Row label="AI bubble" hint={`Opacity ${Math.round((s.aiBubbleOpacity != null ? s.aiBubbleOpacity : 0.04) * 100)}%`}>
-                  <div className="flex items-center gap-2">
-                    <input type="color" value={s.aiBubbleColor || '#ffffff'} onChange={(e) => set('aiBubbleColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
-                    <input type="range" min="0" max="1" step="0.05" value={s.aiBubbleOpacity != null ? s.aiBubbleOpacity : 0.04} onChange={(e) => set('aiBubbleOpacity', parseFloat(e.target.value))} className="w-28 accent-em-accent" />
-                  </div>
-                </Row>
-                <Row label={`Bubble blur: ${s.blur || 0}px`}>
-                  <input type="range" min="0" max="20" step="1" value={s.blur || 0} onChange={(e) => set('blur', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
-                </Row>
+                </Section>
+
+                <Section title="Accent & theme">
+                  <Row label="Accent color" hint="Recolors the whole UI.">
+                    <div className="flex flex-wrap gap-2">
+                      {Object.entries(ACCENTS).map(([key, a]) => (
+                        <button key={key} type="button" onClick={() => set('accent', key)} title={a.label}
+                          className={'h-7 w-7 rounded-full border-2 transition ' + ((s.accent || 'emerald') === key ? 'border-white scale-110' : 'border-white/20 hover:border-white/50')}
+                          style={{ background: a.accent }} />
+                      ))}
+                    </div>
+                  </Row>
+                  <Row label="Theme per character" hint="Tint the UI with a colour pulled from the character's avatar while chatting.">
+                    <Toggle checked={s.charAccent !== false} onChange={(v) => set('charAccent', v)} />
+                  </Row>
+                </Section>
+
+                <Section title="Layout & text">
+                  <Row label={`Chat width: ${s.chatWidth || 896}px`} hint="How wide the message column is.">
+                    <input type="range" min="640" max="1280" step="16" value={s.chatWidth || 896} onChange={(e) => set('chatWidth', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
+                  </Row>
+                  <Row label={`AI avatar size: ${s.avatarSize || 40}px`} hint="Avatar shown beside each reply.">
+                    <input type="range" min="24" max="96" step="2" value={s.avatarSize || 40} onChange={(e) => set('avatarSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
+                  </Row>
+                  <Row label={`Font size: ${s.fontSize || 15}px`}>
+                    <input type="range" min="11" max="28" step="1" value={s.fontSize || 15} onChange={(e) => set('fontSize', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
+                  </Row>
+                  <Row label={`Message spacing: ${s.messageSpacing || 20}px`}>
+                    <input type="range" min="4" max="48" step="2" value={s.messageSpacing || 20} onChange={(e) => set('messageSpacing', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
+                  </Row>
+                  <Row label="Main text color">
+                    <input type="color" value={s.mainTextColor || '#e9f5ef'} onChange={(e) => set('mainTextColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
+                  </Row>
+                  <Row label="Dialogue color" hint='Colour of "quoted speech".'>
+                    <input type="color" value={s.dialogueColor || '#ffd952'} onChange={(e) => set('dialogueColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
+                  </Row>
+                </Section>
+
+                <Section title="Message bubbles">
+                  <Row label="User bubble" hint={`Opacity ${Math.round((s.userBubbleOpacity != null ? s.userBubbleOpacity : 0.15) * 100)}%`}>
+                    <div className="flex items-center gap-2">
+                      <input type="color" value={s.userBubbleColor || '#2ee6a0'} onChange={(e) => set('userBubbleColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
+                      <input type="range" min="0" max="1" step="0.05" value={s.userBubbleOpacity != null ? s.userBubbleOpacity : 0.15} onChange={(e) => set('userBubbleOpacity', parseFloat(e.target.value))} className="w-28 accent-em-accent" />
+                    </div>
+                  </Row>
+                  <Row label="AI bubble" hint={`Opacity ${Math.round((s.aiBubbleOpacity != null ? s.aiBubbleOpacity : 0.04) * 100)}%`}>
+                    <div className="flex items-center gap-2">
+                      <input type="color" value={s.aiBubbleColor || '#ffffff'} onChange={(e) => set('aiBubbleColor', e.target.value)} className="h-8 w-12 cursor-pointer rounded border border-white/10 bg-transparent" />
+                      <input type="range" min="0" max="1" step="0.05" value={s.aiBubbleOpacity != null ? s.aiBubbleOpacity : 0.04} onChange={(e) => set('aiBubbleOpacity', parseFloat(e.target.value))} className="w-28 accent-em-accent" />
+                    </div>
+                  </Row>
+                  <Row label={`Bubble blur: ${s.blur || 0}px`}>
+                    <input type="range" min="0" max="20" step="1" value={s.blur || 0} onChange={(e) => set('blur', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
+                  </Row>
+                </Section>
               </div>
             )}
 
