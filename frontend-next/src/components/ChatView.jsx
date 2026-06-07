@@ -13,6 +13,7 @@ import {
 import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES } from '../lib/relationship.js';
+import { archetypeRelationship } from '../lib/personality.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
@@ -63,7 +64,12 @@ function newChat(char, scenarioIndex = 0) {
       variations: [{ main: expandPlaceholders(greeting, displayName(char), 'User'), think: null }],
     });
   }
-  return { id: 'chat-' + Date.now(), name: 'Chat ' + new Date().toLocaleString(), history, memories: '', participants: [char.id], activePersonaId: null, mood: null };
+  const seed = archetypeRelationship(char.archetype);
+  return {
+    id: 'chat-' + Date.now(), name: 'Chat ' + new Date().toLocaleString(), history,
+    memories: '', participants: [char.id], activePersonaId: null, mood: null,
+    relationship: seed ? { affection: 50, trust: 50, tension: 10, mood: '', beats: [], ...seed } : undefined,
+  };
 }
 
 // Director quick-actions — one-tap storytelling nudges sent as a stage direction.

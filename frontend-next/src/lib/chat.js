@@ -2,6 +2,7 @@
 // prompt- and storage-compatible with the backend and AriaBD.
 import { splitThink } from './format.js';
 import { relationshipSection } from './relationship.js';
+import { personalitySection } from './personality.js';
 
 export function genId(first) {
   if (first) return 'msg-' + Date.now();
@@ -209,6 +210,7 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
   if (opts.aiPhotos) sections.push(PHOTO_DIRECTIVE);
   if (char.description) sections.push('--- CHARACTER DESCRIPTION ---\n' + exp(char.description));
+  { const ps = personalitySection(char, uName); if (ps) sections.push(ps); }
   if (char.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(char.lore));
   if (chat.mood) sections.push('--- CHARACTER CURRENT MOOD (IMPORTANT) ---\n' + cName + ' is currently feeling ' + chat.mood + '.');
   if (chat.memories && chat.memories.trim()) {
@@ -456,6 +458,7 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
     sections.push('--- EXACT USER PERSONA ---\n' + (p.name || 'User') + (p.description ? '\n' + exp(p.description) : ''));
   }
   if (speaker.instructions) sections.push('--- YOUR INSTRUCTIONS (' + sName + ') ---\n' + exp(speaker.instructions));
+  { const ps = personalitySection(speaker, uName); if (ps) sections.push(ps); }
   if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
   if (opts.aiPhotos) sections.push(PHOTO_DIRECTIVE);
   if (speaker.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(speaker.lore));

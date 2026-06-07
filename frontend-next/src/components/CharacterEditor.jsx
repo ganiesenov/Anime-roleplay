@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react';
 import { saveCharacter } from '../lib/db.js';
 import { syncCharacterToServer, fileToDataUrl, fetchAsDataUrl } from '../lib/api.js';
-import { buildWallpaperUrl } from '../lib/chat.js';
+import { buildWallpaperUrl, buildPhotoUrl } from '../lib/chat.js';
+import { TRAIT_DEFS, ARCHETYPES } from '../lib/personality.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
 import { searchShikimori, getShikimoriCharacter, cleanShikiDescription } from '../lib/shikimori.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
 import { loadThemes } from '../lib/themes.js';
-import { User, MessageSquare, BookOpen, Clapperboard, SlidersHorizontal, Download } from 'lucide-react';
+import { User, MessageSquare, BookOpen, Clapperboard, SlidersHorizontal, Download, HeartHandshake } from 'lucide-react';
 
 const EDITOR_TABS = [
   { key: 'basics', Icon: User, label: 'Basics' },
+  { key: 'personality', Icon: HeartHandshake, label: 'Personality' },
   { key: 'greetings', Icon: MessageSquare, label: 'Greetings' },
   { key: 'lore', Icon: BookOpen, label: 'Lore' },
   { key: 'media', Icon: Clapperboard, label: 'Media & Voice' },
@@ -66,6 +68,9 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [tab, setTab] = useState('basics');
   const savedThemes = loadThemes();
   const [themeName, setThemeName] = useState(char?.themeName || '');
+  const [archetype, setArchetype] = useState(char?.archetype || '');
+  const [traits, setTraits] = useState(char?.traits || {});
+  const setTrait = (k, v) => setTraits((prev) => ({ ...prev, [k]: v }));
 
   // AI generation
   const [concept, setConcept] = useState('');
@@ -160,6 +165,18 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       setAiError(formatGenError(err));
     } finally { setAiBusy(''); }
   }
+  async function aiGenerateAvatar() {
+    if (aiBusy) return;
+    setAiBusy('avatar'); setAiError('');
+    try {
+      const charLike = { name, appearance, tags };
+      const url = buildPhotoUrl(charLike, 'portrait, upper body, looking at viewer, solo, simple background, detailed face', settings);
+      const dataUrl = await fetchAsDataUrl(url);
+      setAvatar(dataUrl);
+    } catch (err) {
+      setAiError(formatGenError(err));
+    } finally { setAiBusy(''); }
+  }
   async function aiGenerateScenario(i) {
     if (aiBusy) return;
     setAiBusy('scenario'); setAiError('');
@@ -194,6 +211,8 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       reminder,
       narratorReminder,
       scenarios: cleanScenarios.length ? cleanScenarios : (base.scenarios || []),
+      archetype: archetype || undefined,
+      traits,
       themeName: themeName || undefined,
       themeValues: (savedThemes.find((t) => t.name === themeName) || {}).values
         || (themeName && themeName === char?.themeName ? char?.themeValues : undefined),
@@ -227,6 +246,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   // Count of filled fields per tab → a small badge so the user can see what's set.
   const counts = {
     basics: [name, avatar, tags, description].filter((x) => x && x.trim()).length,
+    personality: (archetype ? 1 : 0) + TRAIT_DEFS.filter((d) => typeof traits[d.key] === 'number' && traits[d.key] !== 50).length,
     greetings: scenarios.filter((s) => s.text && s.text.trim()).length,
     lore: [lore].filter((x) => x && x.trim()).length,
     media: [background, danceUrl, voiceURI, appearance].filter((x) => x && x.trim()).length,
@@ -343,6 +363,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
                     Upload
                     <input type="file" accept="image/*" className="hidden" onChange={pickAvatar} />
                   </label>
+                  <button type="button" onClick={aiGenerateAvatar} disabled={aiBusy === 'avatar'} title="Generate an avatar with your Photos provider" className="rounded-lg border border-em-accent/30 bg-em-accent/10 px-2 py-1 text-xs font-medium text-em-accent transition hover:bg-em-accent/20 disabled:opacity-40">{aiBusy === 'avatar' ? '…' : '✨ Generate'}</button>
                 </div>
                 <div className="flex-1 space-y-4">
                   <Field label="Name">
@@ -358,9 +379,40 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
                 <input value={tags} onChange={(e) => setTags(e.target.value)} placeholder="anime, isekai" className={inputCls} />
               </Field>
 
-              <Field label="Description" hint="Who they are: personality, speech, appearance. {{char}} / {{user}} supported.">
+              <Field label="Description" hint="Who they are: personality, speech, appearance. Write facts plainly OR in a creative voice — both work. {{char}} / {{user}} supported.">
                 <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={6} className={inputCls} />
+                <span className="mt-1 block text-right text-[11px] text-em-text-dim/70">{description.length} chars · ~{Math.ceil(description.length / 4)} tokens</span>
               </Field>
+            </div>
+          )}
+
+          {/* ── PERSONALITY ── */}
+          {tab === 'personality' && (
+            <div className="space-y-5">
+              <Field label="Relationship to you" hint="Sets the starting dynamic and seeds affection / trust / tension for new chats.">
+                <select value={archetype} onChange={(e) => setArchetype(e.target.value)} className={inputCls}>
+                  {ARCHETYPES.map((a) => <option key={a.key || 'none'} value={a.key}>{a.label}</option>)}
+                </select>
+              </Field>
+              <div>
+                <div className="mb-1 text-sm font-medium text-em-text">Personality</div>
+                <p className="mb-3 text-xs text-em-text-dim">Slide toward a trait to make it part of who they are. Centre = no strong lean (not injected).</p>
+                <div className="space-y-4">
+                  {TRAIT_DEFS.map((d) => {
+                    const v = typeof traits[d.key] === 'number' ? traits[d.key] : 50;
+                    return (
+                      <div key={d.key}>
+                        <div className="mb-1 flex items-center justify-between text-xs">
+                          <span className="text-em-text-dim">{d.low}</span>
+                          <span className="font-semibold text-em-accent">{d.label}</span>
+                          <span className="text-em-text-dim">{d.high}</span>
+                        </div>
+                        <input type="range" min="0" max="100" step="1" value={v} onChange={(e) => setTrait(d.key, parseInt(e.target.value, 10))} className="w-full accent-em-accent" />
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
             </div>
           )}
 
@@ -393,6 +445,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
           {tab === 'lore' && (
             <Field label="Lore" hint="Background facts. Lines starting with [key1, key2] inject only when a key appears recently.">
               <textarea value={lore} onChange={(e) => setLore(e.target.value)} rows={12} className={inputCls} placeholder="World, history, relationships, secrets…" />
+              <span className="mt-1 block text-right text-[11px] text-em-text-dim/70">{lore.length} chars · ~{Math.ceil(lore.length / 4)} tokens</span>
             </Field>
           )}
 
