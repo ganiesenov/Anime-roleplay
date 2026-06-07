@@ -12,7 +12,7 @@ import {
 } from '../lib/chat.js';
 import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
-import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES } from '../lib/relationship.js';
+import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES, trustEffect, tensionEffect } from '../lib/relationship.js';
 import { archetypeRelationship } from '../lib/personality.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
@@ -22,7 +22,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images, Folder } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images, Folder, Dices } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -790,7 +790,22 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         resolveModel(settings, settings.model),
       );
       const next = parseRelationship(raw, prev);
-      if (next) { chat.relationship = next; await saveCharacter(char); rerender(); }
+      if (next) {
+        chat.relationship = next;
+        // Stamp the change onto the AI turn that caused it, so the user can SEE the
+        // scale move (e.g. +3 affection, −2 tension) instead of it shifting invisibly.
+        const delta = {
+          affection: next.affection - prev.affection,
+          trust: next.trust - prev.trust,
+          tension: next.tension - prev.tension,
+        };
+        if (delta.affection || delta.trust || delta.tension) {
+          for (let i = chat.history.length - 1; i >= 0; i--) {
+            if (chat.history[i].sender === 'ai' && !chat.history[i].isStreaming) { chat.history[i].relDelta = delta; break; }
+          }
+        }
+        await saveCharacter(char); rerender();
+      }
     } catch (e) { /* best effort */ }
   }
 
@@ -885,7 +900,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   }
 
   // Actually push a user turn + stream the reply. `send` wraps this with slash-command parsing.
-  async function sendText(raw) {
+  async function sendText(raw, extra) {
     const text = String(raw || '').trim();
     if (!text || streaming || !chat) return;
     setInput('');
@@ -896,7 +911,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (isFirstUser && /^Chat\s/.test(chat.name || '')) {
       chat.name = text.slice(0, 40).trim() + (text.length > 40 ? '…' : '');
     }
-    chat.history.push({ id: genId(), sender: 'user', main: text });
+    chat.history.push({ id: genId(), sender: 'user', main: text, ...(extra || {}) });
     rerender();
 
     // Group + Auto speaker → let several cast members reply in turn so they
@@ -947,7 +962,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     switch (cmd) {
       case 'me':       if (rest) sendText('*' + rest + '*'); return true;
       case 'ooc':      if (rest) sendText('(OOC: ' + rest + ')'); return true;
-      case 'roll':     sendText(rollDice(rest || 'd20')); return true;
+      case 'roll':     { const r = rollDice(rest || 'd20'); sendText(r.text, r.dice ? { dice: r.dice } : undefined); return true; }
       case 'retry':
       case 'regen':    { const last = lastAiMessage(); if (last) regenerate(last); return true; }
       case 'continue': { const last = lastAiMessage(); if (last) continueMessage(last); return true; }
@@ -976,21 +991,22 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     generatePhoto(v, speaker, prompt, raw);
   }
 
-  // Parse a dice spec like "2d6", "d20", "3d8+1" and return an italic action string.
+  // Parse a dice spec like "2d6", "d20", "3d8+1" and return both a clean text line
+  // (for the prompt, so the character reacts to the roll) and structured `dice`
+  // metadata so the message renders as a real dice chip instead of plain italics.
   function rollDice(spec) {
     const m = String(spec).replace(/\s+/g, '').match(/^(\d*)d(\d+)([+-]\d+)?$/i);
-    if (!m) return '*rolls the dice*';
+    if (!m) return { text: '*rolls the dice*' };
     const n = Math.min(Math.max(parseInt(m[1] || '1', 10), 1), 20);
     const sides = Math.min(Math.max(parseInt(m[2], 10), 2), 1000);
-    const mod = parseInt(m[3] || '0', 10);
+    const modStr = m[3] || '';
+    const mod = parseInt(modStr || '0', 10);
     const rolls = [];
     let sum = 0;
     for (let i = 0; i < n; i++) { const r = 1 + Math.floor(Math.random() * sides); rolls.push(r); sum += r; }
     sum += mod;
-    const detail = rolls.join(' + ') + (mod ? ' ' + m[3] : '');
-    const breakdown = (n > 1 || mod) ? ` (${detail})` : '';
-    // Plain, single-level italics — nested *…**…*** confused the markdown renderer.
-    return `*🎲 rolls ${n}d${sides}${m[3] || ''} → ${sum}${breakdown}*`;
+    const label = `${n}d${sides}${modStr}`;
+    return { text: `rolls ${label} → ${sum}`, dice: { label, n, sides, modStr, rolls, sum } };
   }
 
   // Focus the composer and drop the caret at the very end of its current value.
@@ -1322,12 +1338,19 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                         <div
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={onDropTo(fn)}
-                          className={'mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5 transition first:mt-0 ' + (fn ? 'border border-em-accent/20 bg-em-accent/[0.07]' : 'bg-white/[0.03]')}
+                          className={'group/fold relative mt-3 flex items-center gap-3 overflow-hidden rounded-xl px-3 py-2.5 transition first:mt-0 ' + (fn ? 'border border-em-accent/25 bg-em-accent/[0.08] hover:bg-em-accent/[0.12]' : 'border border-white/5 bg-white/[0.03] hover:bg-white/[0.05]')}
                           title="Drop a chat here to move it"
                         >
-                          <Folder className={'h-4 w-4 ' + (fn ? 'text-em-accent' : 'text-em-text-dim')} />
-                          <span className={'flex-1 truncate text-sm font-semibold ' + (fn ? 'text-em-text' : 'text-em-text-dim')}>{fn || 'No folder'}</span>
-                          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/10 px-1.5 text-[11px] text-em-text-dim">{groups[fn].length}</span>
+                          {/* accent spine */}
+                          <span className={'absolute inset-y-0 left-0 w-1 ' + (fn ? 'bg-em-accent/70' : 'bg-white/15')} />
+                          <span className={'grid h-8 w-8 shrink-0 place-items-center rounded-lg ' + (fn ? 'bg-em-accent/15 text-em-accent' : 'bg-white/5 text-em-text-dim')}>
+                            <Folder className="h-[18px] w-[18px]" />
+                          </span>
+                          <div className="min-w-0 flex-1">
+                            <div className={'truncate text-[15px] font-semibold leading-tight ' + (fn ? 'text-em-text' : 'text-em-text-dim')}>{fn || 'No folder'}</div>
+                            <div className="text-[11px] text-em-text-dim/70">{groups[fn].length} {groups[fn].length === 1 ? 'chat' : 'chats'}</div>
+                          </div>
+                          <span className={'grid h-6 min-w-6 shrink-0 place-items-center rounded-full px-2 text-xs font-semibold tabular-nums ' + (fn ? 'bg-em-accent/20 text-em-accent' : 'bg-white/10 text-em-text-dim')}>{groups[fn].length}</span>
                         </div>
                       )}
                       {groups[fn].map(renderRow)}
@@ -1907,7 +1930,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             <div className="flex items-center gap-1 pb-0.5">
               <button onClick={() => { setInput((v) => (v === '/' ? '' : '/')); focusInputEnd(); }} title="Commands (/)" className={'grid h-9 w-9 place-items-center rounded-xl border transition ' + (input === '/' ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}>⌘</button>
               <button onClick={insertAction} title="Insert action (*…*)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent"><span className="italic">A</span></button>
-              <button onClick={() => sendText(rollDice('d20'))} disabled={streaming} title="Roll a d20" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">🎲</button>
+              <button onClick={() => { const r = rollDice('d20'); sendText(r.text, r.dice ? { dice: r.dice } : undefined); }} disabled={streaming} title="Roll a d20" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40"><Dices className="h-4 w-4" /></button>
               <button onClick={continueScene} disabled={streaming || history.length === 0} title="Continue the scene (no new message)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40"><ContinueIcon /></button>
               <button onClick={impersonate} disabled={streaming || impersonating || history.length === 0} title="Write my reply for me (impersonate)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">{impersonating ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> : <PenLine className="h-4 w-4" />}</button>
               {/* Director — storytelling nudges */}
@@ -2132,9 +2155,22 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                           <div className="text-[11px] text-em-text-dim">How {displayName(char)} acts toward you right now</div>
                         </div>
                       </div>
+                      {st.unlocks && st.unlocks.length > 0 && (
+                        <ul className="mt-2.5 space-y-1">
+                          {st.unlocks.map((u, i) => (
+                            <li key={i} className="flex items-start gap-1.5 text-[12px] text-em-text"><span className="mt-px text-em-accent">✓</span><span>{u}</span></li>
+                          ))}
+                        </ul>
+                      )}
+                      {(() => { const te = trustEffect(chat.relationship.trust), xe = tensionEffect(chat.relationship.tension); return (te || xe) ? (
+                        <div className="mt-2 space-y-0.5 border-t border-white/10 pt-2 text-[11px] text-em-text-dim">
+                          {te && <div>🤝 {te}</div>}
+                          {xe && <div>⚡ {xe}</div>}
+                        </div>
+                      ) : null; })()}
                       {next && (
-                        <div className="mt-2 text-[11px] text-em-text-dim">
-                          {next.emoji} <span className="text-em-text">{next.label}</span> unlocks at {next.min} affection
+                        <div className="mt-2 border-t border-white/10 pt-2 text-[11px] text-em-text-dim">
+                          Next: {next.emoji} <span className="text-em-text">{next.label}</span> at {next.min} affection
                           <span className="text-em-text-dim/70"> · {next.min - chat.relationship.affection} to go</span>
                         </div>
                       )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { SmilePlus } from 'lucide-react';
+import { SmilePlus, Dices } from 'lucide-react';
 import { avatarUrl } from '../lib/media.js';
 import {
   displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, getMessageImagePrompt, stripPhotoTag,
@@ -52,6 +52,50 @@ function PhotoMessage({ src, onOpen }) {
   );
 }
 
+// A dice roll, rendered as a real chip (not plain italic markdown): the die icon,
+// the spec, a big result, and a breakdown when there's more than one die / a mod.
+function DiceChip({ dice }) {
+  const { label, sum, rolls = [], modStr, n = 1 } = dice || {};
+  const detail = (n > 1 || modStr) ? rolls.join(' + ') + (modStr ? ' ' + modStr : '') : '';
+  const crit = n === 1 && rolls[0] === dice.sides;   // natural max on a single die
+  const fail = n === 1 && rolls[0] === 1;
+  return (
+    <div className="flex items-center gap-3 rounded-2xl border border-em-accent/30 bg-em-accent/10 px-4 py-2.5">
+      <Dices className="h-6 w-6 shrink-0 text-em-accent" />
+      <div className="flex flex-col leading-tight">
+        <span className="text-[11px] font-medium uppercase tracking-wide text-em-text-dim">rolls {label}</span>
+        {detail && <span className="text-[11px] tabular-nums text-em-text-dim/80">{detail}</span>}
+      </div>
+      <div className="ml-auto flex items-baseline gap-1.5">
+        <span className="text-em-text-dim">→</span>
+        <span className={'text-2xl font-bold tabular-nums ' + (crit ? 'text-emerald-300' : fail ? 'text-rose-400' : 'text-em-accent')}>{sum}</span>
+        {crit && <span className="text-[10px] font-semibold uppercase text-emerald-300">crit!</span>}
+        {fail && <span className="text-[10px] font-semibold uppercase text-rose-400">fail</span>}
+      </div>
+    </div>
+  );
+}
+
+// Tiny chips showing how the last exchange moved the relationship scale, so the
+// numbers visibly react to what was said. Hidden when nothing changed.
+function RelDelta({ d }) {
+  const items = [
+    { key: 'affection', label: 'affection', v: d.affection, up: 'text-rose-300', down: 'text-rose-400/70' },
+    { key: 'trust', label: 'trust', v: d.trust, up: 'text-emerald-300', down: 'text-emerald-400/70' },
+    { key: 'tension', label: 'tension', v: d.tension, up: 'text-amber-300', down: 'text-amber-400/70' },
+  ].filter((x) => x.v);
+  if (!items.length) return null;
+  return (
+    <div className="-mt-0.5 flex flex-wrap items-center gap-1 px-1">
+      {items.map((x) => (
+        <span key={x.key} className={'rounded-full border border-white/10 bg-em-panel/70 px-1.5 py-0.5 text-[10px] font-medium tabular-nums ' + (x.v > 0 ? x.up : x.down)}>
+          {x.v > 0 ? '+' : ''}{x.v} {x.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function fmtTime(ts) {
   if (!ts) return '';
   try { return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
@@ -75,6 +119,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
   const [showRewrite, setShowRewrite] = useState(false);
   const [showReact, setShowReact] = useState(false);
   const isUser = msg.sender === 'user';
+  const dice = isUser ? msg.dice : null;             // a /roll result → render as a chip
   const text = stripPhotoTag(getMessageText(msg));   // hide any [photo: …] tag from view
   const image = isUser ? '' : getMessageImage(msg);
   const imageLoading = isUser ? false : getMessageImageLoading(msg);
@@ -119,6 +164,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
       {!isUser && (group ? speaker : char) && (
         <div className="px-1 text-xs font-semibold text-em-accent/90">{displayName(group ? speaker : char)}</div>
       )}
+      {dice ? <DiceChip dice={dice} /> : (
       <div
         className={
           'chat-bubble w-fit max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
@@ -170,10 +216,13 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
           </>
         )}
       </div>
+      )}
 
       {msg.reaction && (
         <button onClick={() => onReact && onReact(msg.reaction)} title="Remove reaction" className="-mt-1 rounded-full border border-white/10 bg-em-panel/80 px-2 py-0.5 text-sm leading-none shadow">{msg.reaction}</button>
       )}
+
+      {!isUser && msg.relDelta && <RelDelta d={msg.relDelta} />}
 
       {/* Controls (not while this message streams or is being edited) */}
       {!isStreamingThis && !editing && (
