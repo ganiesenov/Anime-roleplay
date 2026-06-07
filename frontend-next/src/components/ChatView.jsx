@@ -416,15 +416,17 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       let rawImage = false;     // true → send photoPrompt verbatim to the image model
       if (v && !errored && settings.aiPhotos && v.main) {
         const ip = extractImagePrompt(v.main);
-        if (ip.prompt) {
-          // The model wrote a full [IMAGE PROMPT: …] → send it straight to ComfyUI.
-          v.main = ip.clean; photoPrompt = ip.prompt; rawImage = true; v.imageLoading = true;
-        } else {
-          const ex = extractPhotoTag(v.main);   // legacy [photo: …] tag (scene-aware build)
-          if (ex.prompt) { v.main = ex.clean; photoPrompt = ex.prompt; v.imageLoading = true; }
-          // User asked for a photo in plain chat but the model emitted no tag →
-          // generate one anyway, built from the scene (no /photo command needed).
-          else if (opts.forcePhoto) { forcePhoto = true; v.imageLoading = true; }
+        const ex = ip.prompt ? null : extractPhotoTag(v.main);
+        // Always strip any emitted tag from the visible text, even if we won't render it.
+        if (ip.prompt) v.main = ip.clean;
+        else if (ex && ex.prompt) v.main = ex.clean;
+        // Generate a photo ONLY when the user explicitly asked this turn — no
+        // spontaneous/greeting selfies (the model is told the same in PHOTO_DIRECTIVE).
+        if (opts.forcePhoto) {
+          if (ip.prompt) { photoPrompt = ip.prompt; rawImage = true; }   // [IMAGE PROMPT] → verbatim
+          else if (ex && ex.prompt) { photoPrompt = ex.prompt; }          // legacy tag → scene-aware
+          else { forcePhoto = true; }                                     // no tag → build from scene
+          v.imageLoading = true;
         }
       }
       aiMsg.isStreaming = false;
@@ -1011,6 +1013,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         <button onClick={() => setShowChats((v) => !v)} title="Chats" className={'inline-flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-sm transition ' + (showChats ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><ChatsIcon /><span className="hidden sm:inline">Chats</span> ({sessions.length})</button>
         <button onClick={newChatClicked} title="New chat" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><PlusIcon /><span className="hidden sm:inline">New chat</span></button>
 
+      </header>
+
+      {/* Header dropdowns rendered as full modals OUTSIDE <header> — the header's
+          backdrop-filter would otherwise trap position:fixed and shove them off-frame. */}
         {/* Chat session list (centered modal) */}
         {showChats && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowChats(false)}>
@@ -1093,7 +1099,6 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             </div>
           </div>
         )}
-      </header>
 
       {/* Tools: persona · mood · memories · music */}
       {chat && (

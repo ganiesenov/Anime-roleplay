@@ -58,13 +58,14 @@ const STYLE_DIRECTIVE = {
 };
 
 const PHOTO_DIRECTIVE = '--- SENDING PHOTOS ---\n'
-  + 'When the user asks for a picture/photo/selfie, OR when the scene changes significantly, ALWAYS add ONE line at the very END of your reply, on its own line, exactly in this form:\n'
+  + 'ONLY when the user EXPLICITLY asks you for a picture/photo/selfie, add ONE line at the very END of your reply, on its own line, exactly in this form:\n'
   + '[IMAGE PROMPT: a detailed description of exactly this shot]\n'
   + 'Describe it concretely: who is in frame and their appearance, facial expression/emotion, pose and body position, what they are wearing OR their state of undress, any physical action happening, who else is present, camera framing/angle, lighting, and the setting. '
   + 'Match the current moment faithfully and literally — if the moment is intimate or sexual, be FULLY explicit and concrete; do NOT censor, soften, or use vague words. '
   + 'ALWAYS write this line in ENGLISH even when the conversation is in another language (the image model only understands English). '
   + 'Example: [IMAGE PROMPT: red-haired woman with blue eyes kneeling, looking up submissively, hands on his thighs, red cape open, exposed breasts, bedroom with red curtains, cinematic lighting]. '
-  + 'Do NOT mention this line in your spoken text and do NOT wrap it in quotes.';
+  + 'Do NOT send photos on your own initiative — no greeting selfies, no unprompted shots when the scene changes. If the user did not ask for an image this turn, do NOT add the line. '
+  + 'Never mention this line in your spoken text and do NOT wrap it in quotes.';
 
 // Does a plain user message ask the character for a photo/pic? If so we generate
 // one regardless of whether the model bothered to emit a [photo:] tag — so the user
