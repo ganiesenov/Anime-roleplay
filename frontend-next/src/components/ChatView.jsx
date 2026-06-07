@@ -26,7 +26,7 @@ import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
   MemoryIcon, MusicIcon, SparkleIcon, WallpaperIcon, CastIcon, PersonaIcon, MoodIcon,
-  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon, CheckIcon, SearchIcon, DownloadIcon,
+  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon, CheckIcon, SearchIcon, DownloadIcon, ContinueIcon,
 } from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
 import useTts from '../hooks/useTts.js';
@@ -279,6 +279,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setChatId(id);
     setShowChats(false);
   }
+
+  // Pin a chat session to the top of the list.
+  function togglePinChat(id) { const c = chats[id]; if (!c) return; c.pinned = !c.pinned; saveCharacter(char); rerender(); }
 
   // Inline rename inside the Chats modal (no native window.prompt).
   function beginRename(c) { setRenamingId(c.id); setRenameDraft(c.name || ''); }
@@ -661,7 +664,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const every = Math.max(10, parseInt(settings.autoSummarizeEvery, 10) || 30);
     const len = chat.history.length;
     const prev = chat._lastAutoSummaryLen || 0;
-    if (len - prev < every) return;
+    // Fire on the message-count cadence OR when the context window is filling up
+    // (rough estimate), so long chats compact themselves before turns get dropped.
+    const byCount = len - prev >= every;
+    const tokens = (chat.history || []).reduce((n, m) => n + getMessageText(m).length, 0) / 4;
+    const maxCtx = resolveModel(settings, settings.model).numCtx || 131072;
+    const byContext = tokens / maxCtx > 0.85 && len - prev >= 6;
+    if (!byCount && !byContext) return;
     autoSumRef.current = true;
     chat._lastAutoSummaryLen = len;
     try {
@@ -769,6 +778,28 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     stick();
     rerender();
     await runStream(aiMsg, userText, { messages: groupMessagesFor(speaker, userText) });
+  }
+
+  // Let the scene advance with no new user message — the character (or, in an
+  // Auto group, the next speaker) acts on their own and moves things forward.
+  async function continueScene() {
+    if (streaming || !chat) return;
+    setUndo(null);
+    stick();
+    const speaker = resolveSpeaker();
+    if (isGroup() && !chat.activeSpeakerId) {
+      await groupTurn(speaker, '(Continue the scene — respond in character as ' + displayName(speaker) + ', reacting to what was just said.)');
+      return;
+    }
+    const aiMsg = {
+      id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
+      activeVariant: 0, variations: [{ main: '', think: null }], isStreaming: true, streamingVariant: 0,
+    };
+    chat.history.push(aiMsg);
+    rerender();
+    const instr = '(Continue the scene on your own — move it forward in character; do not wait for the user.)';
+    const opts = isGroup() ? { messages: groupMessagesFor(speaker, instr) } : {};
+    await runStream(aiMsg, instr, opts);
   }
 
   // Actually push a user turn + stream the reply. `send` wraps this with slash-command parsing.
@@ -1058,7 +1089,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const moodEmoji = (k) => (MOODS.find((m) => m.key === k) || {}).emoji || '🎭';
 
   const history = chat ? chat.history : [];
-  const sessions = Object.values(chats).sort((a, b) => chatTs(b.id) - chatTs(a.id));
+  const sessions = Object.values(chats).sort((a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || chatTs(b.id) - chatTs(a.id));
   const pinnedMsgs = history.filter((m) => m.pinned);
 
   // Slash-command autocomplete: only while typing the command word (no space yet).
@@ -1171,9 +1202,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                   return (
                     <div key={s.id} className={'group flex items-center gap-1 rounded-xl px-3 py-2 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
                       <button onClick={() => switchChat(s.id)} className="min-w-0 flex-1 text-left">
-                        <div className={'truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.name || 'Chat'}</div>
+                        <div className={'flex items-center gap-1 truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.pinned && <span className="text-em-accent"><PinIcon /></span>}<span className="truncate">{s.name || 'Chat'}</span></div>
                         <div className="text-[11px] text-em-text-dim">{count} message{count === 1 ? '' : 's'}</div>
                       </button>
+                      <button onClick={() => togglePinChat(s.id)} title={s.pinned ? 'Unpin chat' : 'Pin chat to top'} className={'grid h-7 w-7 place-items-center rounded transition ' + (s.pinned ? 'text-em-accent' : 'text-em-text-dim opacity-0 hover:text-em-text group-hover:opacity-100')}><PinIcon /></button>
                       <button onClick={() => beginRename(s)} title="Rename chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
                       <button onClick={() => deleteChatSession(s.id)} title="Delete chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100"><TrashIcon /></button>
                     </div>
@@ -1674,6 +1706,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               <button onClick={() => { setInput((v) => (v === '/' ? '' : '/')); focusInputEnd(); }} title="Commands (/)" className={'grid h-9 w-9 place-items-center rounded-xl border transition ' + (input === '/' ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}>⌘</button>
               <button onClick={insertAction} title="Insert action (*…*)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent"><span className="italic">A</span></button>
               <button onClick={() => sendText(rollDice('d20'))} disabled={streaming} title="Roll a d20" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">🎲</button>
+              <button onClick={continueScene} disabled={streaming || history.length === 0} title="Continue the scene (no new message)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40"><ContinueIcon /></button>
               {/* Director — storytelling nudges */}
               <div className="relative">
                 <button onClick={() => setShowDirector((v) => !v)} disabled={streaming} title="Director — steer the story" className={'grid h-9 w-9 place-items-center rounded-xl border transition disabled:opacity-40 ' + (showDirector ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}><Clapperboard className="h-4 w-4" /></button>
