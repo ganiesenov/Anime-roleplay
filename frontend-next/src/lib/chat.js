@@ -236,6 +236,7 @@ export function buildMessagesArray(char, chat, personas, lastUserText, opts) {
   const messages = [{ role: 'system', content: buildSystemPrompt(char, chat, personas, opts) }];
 
   let history = (chat.history || []).filter((m) => !m.isStreaming);
+  if (chat.promptFloor) history = history.slice(chat.promptFloor);   // drop turns already folded into memory
   if (lastUserText != null && history.length && history[history.length - 1].sender === 'user') {
     history = history.slice(0, -1);
   }
@@ -485,6 +486,7 @@ export function buildGroupMessages(speaker, participants, charsById, chat, perso
   const messages = [{ role: 'system', content: buildGroupSystemPrompt(speaker, participants, chat, personas, opts) }];
 
   let history = (chat.history || []).filter((m) => !m.isStreaming);
+  if (chat.promptFloor) history = history.slice(chat.promptFloor);   // drop turns already folded into memory
   if (lastUserText != null && history.length && history[history.length - 1].sender === 'user') {
     history = history.slice(0, -1);
   }

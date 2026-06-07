@@ -191,7 +191,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
               {showRewrite && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowRewrite(false)} />
-                  <div className="pop-in absolute left-0 top-full z-40 mt-1 w-44 rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl" style={{ transformOrigin: 'top left' }}>
+                  <div className="pop-in absolute bottom-full left-0 z-40 mb-1 w-44 rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl" style={{ transformOrigin: 'bottom left' }}>
                     <button onClick={() => { setShowRewrite(false); onRegenerate(); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-em-text transition hover:bg-white/5"><RegenIcon /> Try again</button>
                     <div className="my-1 border-t border-white/10" />
                     {REWRITE_OPTS.map((o) => (
@@ -214,7 +214,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
               {showReact && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowReact(false)} />
-                  <div className="pop-in absolute left-0 top-full z-40 mt-1 flex gap-0.5 rounded-full border border-white/10 bg-em-panel p-1 shadow-2xl" style={{ transformOrigin: 'top left' }}>
+                  <div className="pop-in absolute bottom-full left-0 z-40 mb-1 flex gap-0.5 rounded-full border border-white/10 bg-em-panel p-1 shadow-2xl" style={{ transformOrigin: 'bottom left' }}>
                     {REACTIONS.map((r) => (
                       <button key={r} onClick={() => { setShowReact(false); onReact(msg.reaction === r ? '' : r); }} className={'grid h-8 w-8 place-items-center rounded-full text-lg transition hover:bg-white/10 ' + (msg.reaction === r ? 'bg-em-accent/20' : '')}>{r}</button>
                     ))}

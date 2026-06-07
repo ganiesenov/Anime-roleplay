@@ -310,9 +310,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         const header = '--- Summary (' + new Date().toLocaleDateString() + ') ---\n';
         chat.memories = ((chat.memories || '').trim() ? chat.memories.trim() + '\n\n' : '') + header + bullets.trim();
         chat._lastAutoSummaryLen = chat.history.length;
+        // Actually compact: fold everything but the last few turns into memory so
+        // the prompt (and the context meter) shrink.
+        const nonStream = chat.history.filter((m) => !m.isStreaming).length;
+        chat.promptFloor = Math.max(0, nonStream - 8);
         await saveCharacter(char);
         rerender();
-        showToast('🧠 Summarized to memory');
+        showToast('🧠 Summarized — context compacted');
       } else {
         showToast('Nothing to summarize yet');
       }
@@ -681,7 +685,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     // Fire on the message-count cadence OR when the context window is filling up
     // (rough estimate), so long chats compact themselves before turns get dropped.
     const byCount = len - prev >= every;
-    const tokens = (chat.history || []).reduce((n, m) => n + getMessageText(m).length, 0) / 4;
+    const tokens = (chat.history || []).filter((m) => !m.isStreaming).slice(chat.promptFloor || 0)
+      .reduce((n, m) => n + getMessageText(m).length, 0) / 4;
     const maxCtx = resolveModel(settings, settings.model).numCtx || 131072;
     const byContext = tokens / maxCtx > 0.85 && len - prev >= 6;
     if (!byCount && !byContext) return;
@@ -693,6 +698,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         const header = '--- Auto-summary (' + new Date().toLocaleDateString() + ') ---\n';
         chat.memories = (chat.memories || '').trim();
         chat.memories = (chat.memories ? chat.memories + '\n\n' : '') + header + bullets.trim();
+        const nonStream = chat.history.filter((m) => !m.isStreaming).length;
+        chat.promptFloor = Math.max(0, nonStream - 8);
         await saveCharacter(char);
         rerender();
       } else {
@@ -1827,7 +1834,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
           {/* Context fill — rough estimate of how much of the model's window the chat uses */}
           {chat && (() => {
-            const histChars = (chat.history || []).reduce((n, m) => n + getMessageText(m).length, 0);
+            const active = (chat.history || []).filter((m) => !m.isStreaming).slice(chat.promptFloor || 0);
+            const histChars = active.reduce((n, m) => n + getMessageText(m).length, 0);
             const extra = (char.description || '').length + (chat.memories || '').length + (char.lore || '').length;
             const tokens = Math.round((histChars + extra) / 4);
             const max = resolveModel(settings, settings.model).numCtx || 131072;
