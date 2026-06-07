@@ -51,7 +51,12 @@ function PhotoMessage({ src, onOpen }) {
   );
 }
 
-export default function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage }) {
+function fmtTime(ts) {
+  if (!ts) return '';
+  try { return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
+}
+
+export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage }) {
   const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -171,6 +176,7 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
           <CtrlBtn onClick={onPin} active={pinned} title={pinned ? 'Unpin' : 'Pin (keep in context)'}><PinIcon /></CtrlBtn>
           <CtrlBtn onClick={onFork} disabled={streaming} title="New chat from here"><ForkIcon /></CtrlBtn>
           <CtrlBtn onClick={onDelete} disabled={streaming} danger title="Delete this and following messages"><TrashIcon /></CtrlBtn>
+          {ts ? <span className="ml-1 select-none text-[10px] text-em-text-dim/60 opacity-0 transition group-hover:opacity-100">{fmtTime(ts)}</span> : null}
         </div>
       )}
       </div>

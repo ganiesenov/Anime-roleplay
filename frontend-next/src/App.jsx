@@ -5,6 +5,7 @@ import ChatView from './components/ChatView.jsx';
 import CharacterEditor from './components/CharacterEditor.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import TutorialModal, { TUTORIAL_FLAG } from './components/TutorialModal.jsx';
+import CommandPalette from './components/CommandPalette.jsx';
 import { loadSettings, saveSettings } from './lib/settings.js';
 import { applyDesignSettings } from './lib/design.js';
 import { exportBackup, importFile } from './lib/io.js';
@@ -52,6 +53,7 @@ export default function App() {
   const [showSettings, setShowSettings] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [showTop, setShowTop] = useState(false);
+  const [showPalette, setShowPalette] = useState(false);
   const [showTutorial, setShowTutorial] = useState(() => {
     try { return !localStorage.getItem(TUTORIAL_FLAG); } catch (e) { return false; }
   });
@@ -71,6 +73,18 @@ export default function App() {
     const onScroll = () => setShowTop(window.scrollY > 700);
     window.addEventListener('scroll', onScroll, { passive: true });
     return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+
+  // ⌘K / Ctrl+K opens the command palette (quick character switcher) anywhere.
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        setShowPalette((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   }, []);
 
   async function onImportFile(e) {
@@ -161,6 +175,7 @@ export default function App() {
       {editing !== null && <CharacterEditor char={editing} settings={settings} onClose={() => setEditing(null)} onSaved={onEditorSaved} />}
       {showSettings && <SettingsModal settings={settings} onSave={onSaveSettings} onClose={() => setShowSettings(false)} />}
       {showTutorial && <TutorialModal onClose={closeTutorial} />}
+      {showPalette && <CommandPalette chars={chars || []} onOpen={openCharacter} onClose={() => setShowPalette(false)} />}
     </>
   );
 

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, Fragment } from 'react';
 import { saveCharacter, savePersona, deletePersona } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
 import PersonaModal from './PersonaModal.jsx';
@@ -26,13 +26,23 @@ import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
   MemoryIcon, MusicIcon, SparkleIcon, WallpaperIcon, CastIcon, PersonaIcon, MoodIcon,
-  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon, CheckIcon,
+  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon, CheckIcon, SearchIcon, DownloadIcon,
 } from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
 import useTts from '../hooks/useTts.js';
 import useSuggestions from '../hooks/useSuggestions.js';
 import useChatScroll from '../hooks/useChatScroll.js';
 import useLibrary from '../hooks/useLibrary.js';
+
+// A friendly day label for the in-chat date dividers.
+function dayLabel(ts) {
+  const d = new Date(ts);
+  const today = new Date();
+  const yest = new Date(); yest.setDate(today.getDate() - 1);
+  if (d.toDateString() === today.toDateString()) return 'Today';
+  if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+  return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: d.getFullYear() === today.getFullYear() ? undefined : 'numeric' });
+}
 
 // Parse the creation timestamp baked into a `chat-<ms>` id (newest first).
 function chatTs(id) {
@@ -120,6 +130,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const toastTimer = useRef(null);
   const [lightbox, setLightbox] = useState(null);        // full-size image overlay (src)
   const [showDirector, setShowDirector] = useState(false); // director quick-actions menu
+  const [showSearch, setShowSearch] = useState(false);   // in-chat message search
+  const [searchQ, setSearchQ] = useState('');            // search query
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -274,6 +286,26 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2600);
+  }
+
+  // Export the active chat as a Markdown transcript (download).
+  function exportChat() {
+    if (!chat) return;
+    const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'You';
+    const lines = ['# ' + (chat.name || 'Chat') + ' — ' + displayName(char), ''];
+    chat.history.filter((m) => !m.isStreaming).forEach((m) => {
+      const who = m.sender === 'user' ? uName : displayName(speakerOf(m));
+      const txt = stripPhotoTag(getMessageText(m)).trim();
+      if (txt) lines.push('**' + who + ':** ' + txt, '');
+    });
+    const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = (chat.name || 'chat').replace(/[^\w-]+/g, '_').slice(0, 60) + '.md';
+    document.body.appendChild(a); a.click(); a.remove();
+    URL.revokeObjectURL(url);
+    showToast('⬇ Chat exported');
   }
 
   function deleteChatSession(id) {
@@ -1053,6 +1085,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         )}
         {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
         {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><GearIcon /></button>}
+        <button onClick={() => { setShowSearch(true); setSearchQ(''); }} title="Search in chat" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><SearchIcon /></button>
         <button onClick={() => setShowSidebar((v) => !v)} title="Toggle profile panel" className={'hidden h-9 w-9 place-items-center rounded-lg border transition xl:grid ' + (showSidebar ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><PanelRight className="h-4 w-4" /></button>
         <button onClick={() => { setShowWallpaper((v) => !v); setShowPinned(false); }} title="Wallpaper (this chat)" className={'grid h-9 w-9 place-items-center rounded-lg border transition ' + (showWallpaper ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><WallpaperIcon /></button>
         <button onClick={startCall} title="Voice call" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-accent active:scale-95"><Phone className="h-4 w-4" /></button>
@@ -1073,6 +1106,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
                 <h2 className="flex items-center gap-2 text-lg font-bold"><ChatsIcon /> Chats <span className="text-em-text-dim">({sessions.length})</span></h2>
                 <div className="flex items-center gap-1">
+                  <button onClick={exportChat} title="Export current chat (Markdown)" className="grid h-8 w-8 place-items-center rounded-lg text-em-text-dim transition hover:bg-white/5 hover:text-em-text"><DownloadIcon /></button>
                   <button onClick={newChatClicked} className="inline-flex items-center gap-1 rounded-lg border border-em-accent/40 px-2.5 py-1 text-sm text-em-accent transition hover:bg-em-accent/10"><PlusIcon /> New</button>
                   <button onClick={() => setShowChats(false)} className="grid h-8 w-8 place-items-center rounded-lg text-em-text-dim transition hover:bg-white/5 hover:text-em-text">✕</button>
                 </div>
@@ -1413,29 +1447,41 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       <div className="relative flex min-w-0 flex-1 flex-col">
       {/* Messages */}
       <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)', maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full flex-1 flex-col overflow-y-auto px-4 py-6">
-        {history.map((m) => (
-          <MessageBubble
-            key={m.id}
-            anchorId={'msg-' + m.id}
-            msg={m}
-            char={char}
-            streaming={streaming}
-            showThink={settings.showThink}
-            onRegenerate={() => regenerate(m)}
-            onContinue={() => continueMessage(m)}
-            onSwipe={(d) => swipe(m, d)}
-            onEditSave={(text) => saveMessageEdit(m, text)}
-            onDelete={() => deleteMessage(m)}
-            onSpeak={() => speakMessage(m)}
-            speaking={tts.speakingId === m.id}
-            onFork={() => newChatFromHere(m)}
-            onPin={() => togglePin(m)}
-            pinned={!!m.pinned}
-            speaker={speakerOf(m)}
-            group={isGroup()}
-            onOpenImage={setLightbox}
-          />
-        ))}
+        {history.map((m, i) => {
+          const ts = tsFromMsgId(m.id);
+          const prevTs = i > 0 ? tsFromMsgId(history[i - 1].id) : 0;
+          const divider = ts && (i === 0 || new Date(ts).toDateString() !== new Date(prevTs).toDateString());
+          return (
+            <Fragment key={m.id}>
+              {divider ? (
+                <div className="flex items-center justify-center py-1" style={{ marginTop: i === 0 ? 0 : 'calc(var(--message-spacing) / 2)' }}>
+                  <span className="rounded-full border border-white/10 bg-em-bg/60 px-3 py-0.5 text-[11px] text-em-text-dim backdrop-blur">{dayLabel(ts)}</span>
+                </div>
+              ) : null}
+              <MessageBubble
+                anchorId={'msg-' + m.id}
+                msg={m}
+                char={char}
+                ts={ts}
+                streaming={streaming}
+                showThink={settings.showThink}
+                onRegenerate={() => regenerate(m)}
+                onContinue={() => continueMessage(m)}
+                onSwipe={(d) => swipe(m, d)}
+                onEditSave={(text) => saveMessageEdit(m, text)}
+                onDelete={() => deleteMessage(m)}
+                onSpeak={() => speakMessage(m)}
+                speaking={tts.speakingId === m.id}
+                onFork={() => newChatFromHere(m)}
+                onPin={() => togglePin(m)}
+                pinned={!!m.pinned}
+                speaker={speakerOf(m)}
+                group={isGroup()}
+                onOpenImage={setLightbox}
+              />
+            </Fragment>
+          );
+        })}
         {history.length === 0 && <div className="py-20 text-center text-em-text-dim">Say hello to start the scene…</div>}
       </div>
 
@@ -1488,6 +1534,38 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           <div className="absolute right-4 top-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
             <a href={lightbox} download={'aria-' + Date.now() + '.png'} target="_blank" rel="noreferrer" title="Download / open" className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-em-panel/80 text-em-text transition hover:border-em-accent/50 hover:text-em-accent"><DownloadGlyph className="h-5 w-5" /></a>
             <button onClick={() => setLightbox(null)} title="Close" className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-em-panel/80 text-em-text transition hover:text-em-text">✕</button>
+          </div>
+        </div>
+      )}
+
+      {/* In-chat message search */}
+      {showSearch && (
+        <div className="fixed inset-0 z-[60] flex items-start justify-center bg-black/70 p-4 pt-[10vh] backdrop-blur-sm" onClick={() => setShowSearch(false)}>
+          <div className="flex max-h-[75vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl glass-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
+              <SearchIcon className="h-4 w-4 shrink-0 text-em-text-dim" />
+              <input autoFocus value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search this conversation…" className="w-full bg-transparent text-em-text placeholder:text-em-text-dim/60 focus:outline-none" />
+              <button onClick={() => setShowSearch(false)} className="text-em-text-dim transition hover:text-em-text">✕</button>
+            </div>
+            <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
+              {(() => {
+                const s = searchQ.trim().toLowerCase();
+                if (!s) return <p className="px-3 py-6 text-center text-sm text-em-text-dim">Type to search messages.</p>;
+                const matches = history.filter((m) => stripPhotoTag(getMessageText(m)).toLowerCase().includes(s));
+                if (!matches.length) return <p className="px-3 py-6 text-center text-sm text-em-text-dim">No matches.</p>;
+                return matches.map((m) => {
+                  const txt = stripPhotoTag(getMessageText(m));
+                  const at = txt.toLowerCase().indexOf(s);
+                  const snippet = (at > 40 ? '…' : '') + txt.slice(Math.max(0, at - 40), at + 80) + (txt.length > at + 80 ? '…' : '');
+                  return (
+                    <button key={m.id} onClick={() => { setShowSearch(false); jumpToMessage(m.id); }} className="block w-full rounded-xl px-3 py-2 text-left transition hover:bg-white/5">
+                      <div className="text-[11px] font-medium text-em-accent">{m.sender === 'user' ? 'You' : displayName(speakerOf(m))}</div>
+                      <div className="line-clamp-2 text-sm text-em-text/90">{snippet}</div>
+                    </button>
+                  );
+                });
+              })()}
+            </div>
           </div>
         </div>
       )}
@@ -1656,6 +1734,27 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             {onEdit && <button onClick={() => onEdit(char)} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PencilIcon /> Edit</button>}
             <button onClick={newChatClicked} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PlusIcon /> New chat</button>
           </div>
+
+          {/* Context fill — rough estimate of how much of the model's window the chat uses */}
+          {chat && (() => {
+            const histChars = (chat.history || []).reduce((n, m) => n + getMessageText(m).length, 0);
+            const extra = (char.description || '').length + (chat.memories || '').length + (char.lore || '').length;
+            const tokens = Math.round((histChars + extra) / 4);
+            const max = resolveModel(settings, settings.model).numCtx || 131072;
+            const pct = Math.min(100, Math.round((tokens / max) * 100));
+            return (
+              <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+                <div className="mb-1 flex items-center justify-between text-[11px] text-em-text-dim">
+                  <span className="font-semibold uppercase tracking-wide">Context</span>
+                  <span>{tokens >= 1000 ? (tokens / 1000).toFixed(1) + 'k' : tokens} / {max >= 1000 ? Math.round(max / 1000) + 'k' : max} tok</span>
+                </div>
+                <div className="h-1.5 w-full overflow-hidden rounded-full bg-white/10">
+                  <div className={'h-full rounded-full ' + (pct > 85 ? 'bg-red-400' : pct > 60 ? 'bg-amber-400' : 'bg-em-accent')} style={{ width: Math.max(2, pct) + '%' }} />
+                </div>
+                {pct > 85 && <div className="mt-1 text-[10px] text-red-300/80">Nearly full — older turns may drop. Summarize to memory.</div>}
+              </div>
+            );
+          })()}
         </aside>
       )}
       </div>
