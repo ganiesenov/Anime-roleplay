@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { fileToDataUrl } from '../lib/api.js';
-import { avatarUrl } from '../lib/media.js';
+import Avatar from './Avatar.jsx';
 import { TrashIcon, PersonaIcon } from './icons.jsx';
 
 const inputCls =
@@ -42,9 +42,7 @@ export default function PersonaModal({ persona, onSave, onClose, onDelete }) {
         <div className="flex gap-4">
           <div className="flex flex-col items-center gap-2">
             <div className="h-24 w-24 overflow-hidden rounded-2xl border border-white/10 bg-em-bg">
-              {avatar
-                ? <img src={avatarUrl(avatar)} alt="" className="h-full w-full object-cover" />
-                : <div className="flex h-full w-full items-center justify-center text-3xl text-em-text-dim/40">🧑</div>}
+              <Avatar src={avatar} name={name || 'You'} size={96} rounded="rounded-2xl" />
             </div>
             <label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
               Upload

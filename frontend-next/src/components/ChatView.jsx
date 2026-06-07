@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { saveCharacter, savePersona, deletePersona } from '../lib/db.js';
 import MemoriesModal from './MemoriesModal.jsx';
 import PersonaModal from './PersonaModal.jsx';
+import Avatar from './Avatar.jsx';
 import ParticleField from './ParticleField.jsx';
 import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
@@ -20,7 +21,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -100,6 +101,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showMoodMenu, setShowMoodMenu] = useState(false);   // mood chip popover
   const [showPersonaMenu, setShowPersonaMenu] = useState(false); // persona switcher popover
   const [personaEdit, setPersonaEdit] = useState(null);  // null=closed; {} new; persona = edit
+  const [showAddCast, setShowAddCast] = useState(false); // visual add-character picker
+  const [castQuery, setCastQuery] = useState('');        // cast picker search
+  const [showSidebar, setShowSidebar] = useState(true);  // right profile sidebar (wide screens)
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -957,6 +961,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         )}
         {onEdit && <button onClick={() => onEdit(char)} title="Edit character" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><PencilIcon /><span className="hidden sm:inline">Edit</span></button>}
         {onOpenSettings && <button onClick={onOpenSettings} title="Settings" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><GearIcon /></button>}
+        <button onClick={() => setShowSidebar((v) => !v)} title="Toggle profile panel" className={'hidden h-9 w-9 place-items-center rounded-lg border transition xl:grid ' + (showSidebar ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><PanelRight className="h-4 w-4" /></button>
         <button onClick={() => { setShowWallpaper((v) => !v); setShowPinned(false); }} title="Wallpaper (this chat)" className={'grid h-9 w-9 place-items-center rounded-lg border transition ' + (showWallpaper ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}><WallpaperIcon /></button>
         <button onClick={startCall} title="Voice call" className="grid h-9 w-9 place-items-center rounded-lg border border-white/10 bg-white/[0.03] text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-accent active:scale-95"><Phone className="h-4 w-4" /></button>
         {pinnedMsgs.length > 0 && (
@@ -1050,8 +1055,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               title="You as — your persona in this chat"
               className={'flex items-center gap-1.5 rounded-lg border px-2 py-1 transition ' + (showPersonaMenu ? 'border-em-accent/50 text-em-accent' : 'border-white/10 bg-white/[0.03] text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}
             >
-              {activePersona && activePersona.avatar
-                ? <img src={avatarUrl(activePersona.avatar)} alt="" className="h-5 w-5 rounded-full object-cover" />
+              {activePersona
+                ? <Avatar src={activePersona.avatar} name={activePersona.name} size={20} />
                 : <PersonaIcon />}
               <span className="hidden text-em-text-dim sm:inline">You:</span>
               <span className="max-w-[8rem] truncate font-medium text-em-text">{activePersona ? activePersona.name : 'User'}</span>
@@ -1070,9 +1075,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                     return (
                       <div key={p.id} className={'group flex items-center gap-2 rounded-lg px-2 py-1.5 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
                         <button onClick={() => { setPersona(p.id); setShowPersonaMenu(false); }} className="flex min-w-0 flex-1 items-center gap-2 text-left">
-                          {p.avatar
-                            ? <img src={avatarUrl(p.avatar)} alt="" className="h-7 w-7 shrink-0 rounded-full object-cover" />
-                            : <span className="grid h-7 w-7 shrink-0 place-items-center rounded-full bg-white/5 text-xs">🧑</span>}
+                          <Avatar src={p.avatar} name={p.name} size={28} className="shrink-0" />
                           <span className={'truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{p.name}</span>
                         </button>
                         <button onClick={() => editPersona(p)} title="Edit persona" className="grid h-7 w-7 shrink-0 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
@@ -1140,47 +1143,78 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         </div>
 
         {showCast && (
-          <div className="border-b border-white/5 bg-white/[0.02] px-4 py-2 text-sm">
+          <div className="border-b border-white/5 bg-white/[0.02] px-4 py-3 text-sm">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <span className="text-em-text-dim">In scene:</span>
-              {activeParticipants().map((c) => (
-                <span key={c.id} className="flex items-center gap-1 rounded-full border border-white/10 bg-em-panel px-2 py-1">
-                  {c.id === char.id ? '★ ' : ''}{displayName(c)}
-                  {c.id !== char.id && (
-                    <button onClick={() => removeParticipant(c.id)} className="text-em-text-dim transition hover:text-red-400" title="Remove from scene">✕</button>
-                  )}
-                </span>
-              ))}
+              {activeParticipants().map((c) => {
+                const host = c.id === char.id;
+                const speaking = !!chat.activeSpeakerId && chat.activeSpeakerId === c.id;
+                return (
+                  <span key={c.id} className={'flex items-center gap-1.5 rounded-full border py-1 pl-1 pr-2 ' + (speaking ? 'border-em-accent/60 bg-em-accent/10' : 'border-white/10 bg-em-panel')}>
+                    <Avatar src={c.avatar} name={displayName(c)} size={22} />
+                    <span className="font-medium text-em-text">{displayName(c)}</span>
+                    {host && <span title="Host" className="text-[10px] text-em-accent">★</span>}
+                    {!host && (
+                      <button onClick={() => removeParticipant(c.id)} className="text-em-text-dim transition hover:text-red-400" title="Remove from scene">✕</button>
+                    )}
+                  </span>
+                );
+              })}
+
+              {/* Visual add-character picker */}
+              <div className="relative">
+                <button
+                  onClick={() => { setShowAddCast((v) => !v); setCastQuery(''); }}
+                  className={'flex items-center gap-1.5 rounded-full border px-3 py-1.5 transition ' + (showAddCast ? 'border-em-accent/50 text-em-accent' : 'border-dashed border-white/20 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}
+                >
+                  <PlusIcon /> Add character
+                </button>
+                {showAddCast && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setShowAddCast(false)} />
+                    <div className="pop-in absolute left-0 top-full z-40 mt-1.5 w-72 rounded-xl border border-white/10 bg-em-panel p-2 shadow-2xl" style={{ transformOrigin: 'top left' }}>
+                      <input
+                        autoFocus
+                        value={castQuery}
+                        onChange={(e) => setCastQuery(e.target.value)}
+                        placeholder="Search your characters…"
+                        className="mb-2 w-full rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 text-sm text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none"
+                      />
+                      <div className="grid max-h-72 grid-cols-3 gap-1.5 overflow-y-auto">
+                        {Object.values(charsById)
+                          .filter((c) => !participantIds().includes(c.id) && !c.isArchived)
+                          .filter((c) => !castQuery.trim() || displayName(c).toLowerCase().includes(castQuery.trim().toLowerCase()))
+                          .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
+                          .map((c) => (
+                            <button
+                              key={c.id}
+                              onClick={() => { addParticipant(c.id); setShowAddCast(false); }}
+                              title={displayName(c)}
+                              className="flex flex-col items-center gap-1 rounded-lg border border-transparent p-1.5 text-center transition hover:border-em-accent/40 hover:bg-white/5"
+                            >
+                              <Avatar src={c.avatar} name={displayName(c)} size={48} rounded="rounded-xl" />
+                              <span className="w-full truncate text-[11px] text-em-text">{displayName(c)}</span>
+                            </button>
+                          ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-            <div className="flex flex-wrap items-center gap-3">
+            {isGroup() && (
               <label className="flex items-center gap-1.5 text-em-text-dim">
-                <span>＋ Add</span>
+                <span>🎙 Speaker</span>
                 <select
-                  value=""
-                  onChange={(e) => { addParticipant(e.target.value); e.target.value = ''; }}
+                  value={chat.activeSpeakerId || ''}
+                  onChange={(e) => setSpeaker(e.target.value)}
                   className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
                 >
-                  <option value="">character…</option>
-                  {Object.values(charsById)
-                    .filter((c) => !participantIds().includes(c.id) && !c.isArchived)
-                    .sort((a, b) => (a.name || '').localeCompare(b.name || ''))
-                    .map((c) => <option key={c.id} value={c.id}>{displayName(c)}</option>)}
+                  <option value="">Auto (rotate)</option>
+                  {activeParticipants().map((c) => <option key={c.id} value={c.id}>{displayName(c)}</option>)}
                 </select>
               </label>
-              {isGroup() && (
-                <label className="flex items-center gap-1.5 text-em-text-dim">
-                  <span>🎙 Speaker</span>
-                  <select
-                    value={chat.activeSpeakerId || ''}
-                    onChange={(e) => setSpeaker(e.target.value)}
-                    className="rounded-lg border border-white/10 bg-em-panel px-2 py-1 text-em-text focus:border-em-accent/50 focus:outline-none"
-                  >
-                    <option value="">Auto (rotate)</option>
-                    {activeParticipants().map((c) => <option key={c.id} value={c.id}>{displayName(c)}</option>)}
-                  </select>
-                </label>
-              )}
-            </div>
+            )}
           </div>
         )}
 
@@ -1254,6 +1288,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         </>
       )}
 
+      {/* Chat body + profile sidebar */}
+      <div className="flex min-h-0 flex-1 overflow-hidden">
+      <div className="relative flex min-w-0 flex-1 flex-col">
       {/* Messages */}
       <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)' }} className="mx-auto flex w-full max-w-4xl flex-1 flex-col overflow-y-auto px-4 py-6">
         {history.map((m) => (
@@ -1392,6 +1429,64 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             )}
           </div>
         </div>
+      </div>
+      </div>
+
+      {/* Profile sidebar — fills wide-screen side space with character context */}
+      {showSidebar && (
+        <aside className="hidden w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-white/10 bg-em-bg/40 p-4 backdrop-blur-xl xl:flex">
+          <div className="flex flex-col items-center text-center">
+            <div className={'relative ' + (musicPlaying ? 'beat-ring rounded-2xl' : '')}>
+              <Avatar src={char.avatar} name={displayName(char)} size={96} rounded="rounded-2xl" className={musicPlaying ? 'avatar-dancing' : ''} />
+              {settings.presence && (() => {
+                const p = presenceFor(char.id);
+                const asleep = p.state === 'asleep';
+                return <span title={p.label} className={'absolute -bottom-1 -right-1 h-5 w-5 rounded-full border-2 border-em-bg ' + (asleep ? 'bg-indigo-400' : 'bg-em-accent')} />;
+              })()}
+            </div>
+            <div className="mt-3 text-lg font-bold">{displayName(char)}</div>
+            {settings.presence && <div className="text-xs capitalize text-em-text-dim">{presenceFor(char.id).label}</div>}
+            {char.tags && (
+              <div className="mt-2 flex flex-wrap justify-center gap-1">
+                {String(char.tags).split(',').map((t) => t.trim()).filter(Boolean).slice(0, 6).map((t) => (
+                  <span key={t} className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] text-em-text-dim">{t}</span>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {char.description && (
+            <div className="rounded-2xl border border-white/10 bg-white/[0.02] p-3">
+              <div className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">About</div>
+              <p className="line-clamp-5 text-xs leading-relaxed text-em-text/80">{expandPlaceholders(char.description, displayName(char), activePersona ? activePersona.name : 'User')}</p>
+            </div>
+          )}
+
+          {settings.relationship && chat && chat.relationship && (
+            <button onClick={() => setShowInner(true)} className="rounded-2xl border border-white/10 bg-white/[0.02] p-3 text-left transition hover:border-em-accent/40">
+              <div className="mb-2 flex items-center gap-2">
+                <span className="text-xl leading-none">{stageFor(chat.relationship.affection).emoji}</span>
+                <div className="min-w-0">
+                  <div className="text-sm font-semibold text-em-accent">{stageFor(chat.relationship.affection).label}</div>
+                  <div className="text-[10px] text-em-text-dim">tap for inner life →</div>
+                </div>
+              </div>
+              <div className="space-y-1.5">
+                <Meter label="Affection" value={chat.relationship.affection} />
+                <Meter label="Trust" value={chat.relationship.trust} />
+                <Meter label="Tension" value={chat.relationship.tension} />
+              </div>
+            </button>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            <button onClick={() => setShowMemories(true)} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><MemoryIcon /> Memory</button>
+            <button onClick={startCall} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><Phone className="h-4 w-4" /> Call</button>
+            {onEdit && <button onClick={() => onEdit(char)} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PencilIcon /> Edit</button>}
+            <button onClick={newChatClicked} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PlusIcon /> New chat</button>
+          </div>
+        </aside>
+      )}
       </div>
 
       {/* Voice call overlay */}
