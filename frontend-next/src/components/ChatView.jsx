@@ -21,7 +21,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff, PanelRight } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -55,6 +55,16 @@ function newChat(char, scenarioIndex = 0) {
   }
   return { id: 'chat-' + Date.now(), name: 'Chat ' + new Date().toLocaleString(), history, memories: '', participants: [char.id], activePersonaId: null, mood: null };
 }
+
+// Director quick-actions — one-tap storytelling nudges sent as a stage direction.
+const DIRECTOR_ACTIONS = [
+  { icon: '⏭', label: 'Time skip', text: 'skip ahead in time; briefly narrate the transition, then continue the scene' },
+  { icon: '🌪', label: 'Plot twist', text: 'introduce an unexpected but fitting twist into the scene right now' },
+  { icon: '🗺', label: 'Describe scene', text: 'pause and vividly describe the current surroundings, atmosphere and mood' },
+  { icon: '🔥', label: 'Raise the stakes', text: 'raise the tension and stakes — make something happen that demands a reaction' },
+  { icon: '🌙', label: 'New scene', text: 'transition to a new scene or location; set it up in a sentence or two, then continue' },
+  { icon: '🎬', label: 'Wrap up scene', text: 'bring the current scene to a natural, satisfying close' },
+];
 
 // Slash commands surfaced in the composer (type "/" to filter). arg='' = runs immediately.
 const SLASH_COMMANDS = [
@@ -94,7 +104,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const sug = useSuggestions(settings);                // suggested-reply state + helpers
   const tts = useTts();                                // text-to-speech (speakingId + helpers)
   const { personas, setPersonas, charsById, setCharsById } = useLibrary(); // personas + character library
-  const { scrollRef, onScroll, stick } = useChatScroll();                  // message-list auto-scroll
+  const { scrollRef, onScroll, stick, atBottom, scrollToBottom } = useChatScroll(); // message-list auto-scroll + jump-to-latest
   const [showEffects, setShowEffects] = useState(false); // ambient-effects picker
   const [showCast, setShowCast] = useState(false);       // group cast panel
   const [showInner, setShowInner] = useState(false);     // relationship + diary viewer
@@ -108,6 +118,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [renameDraft, setRenameDraft] = useState('');    // inline rename input value
   const [toast, setToast] = useState(null);              // transient bottom toast
   const toastTimer = useRef(null);
+  const [lightbox, setLightbox] = useState(null);        // full-size image overlay (src)
+  const [showDirector, setShowDirector] = useState(false); // director quick-actions menu
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -1421,10 +1433,22 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             pinned={!!m.pinned}
             speaker={speakerOf(m)}
             group={isGroup()}
+            onOpenImage={setLightbox}
           />
         ))}
         {history.length === 0 && <div className="py-20 text-center text-em-text-dim">Say hello to start the scene…</div>}
       </div>
+
+      {/* Jump to latest (only when scrolled up) */}
+      {!atBottom && history.length > 0 && (
+        <button
+          onClick={scrollToBottom}
+          title="Jump to latest"
+          className="pop-in absolute bottom-4 left-1/2 z-20 grid h-10 w-10 -translate-x-1/2 place-items-center rounded-full border border-em-accent/40 bg-em-panel/90 text-em-accent shadow-2xl backdrop-blur transition hover:-translate-x-1/2 hover:bg-em-panel active:scale-90"
+        >
+          <ArrowDown className="h-5 w-5" />
+        </button>
+      )}
 
       {/* Now-playing corner: a real dance clip if the character has one, else a calm framed avatar. */}
       {musicPlaying && showDancer && (char.danceUrl || char.avatar) && (
@@ -1453,6 +1477,17 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           <div className="pointer-events-auto mt-2 flex items-center gap-2 rounded-full border border-white/10 bg-em-bg/70 px-3 py-1 shadow-lg backdrop-blur">
             <span className="eq"><i /><i /><i /><i /></span>
             <span className="max-w-[7rem] truncate text-xs font-medium text-em-text">{displayName(char)}</span>
+          </div>
+        </div>
+      )}
+
+      {/* Image lightbox — view a generated photo full-size */}
+      {lightbox && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-4 backdrop-blur-sm" onClick={() => setLightbox(null)}>
+          <img src={lightbox} alt="" className="max-h-[90vh] max-w-[95vw] rounded-xl object-contain shadow-2xl" onClick={(e) => e.stopPropagation()} />
+          <div className="absolute right-4 top-4 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+            <a href={lightbox} download={'aria-' + Date.now() + '.png'} target="_blank" rel="noreferrer" title="Download / open" className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-em-panel/80 text-em-text transition hover:border-em-accent/50 hover:text-em-accent"><DownloadGlyph className="h-5 w-5" /></a>
+            <button onClick={() => setLightbox(null)} title="Close" className="grid h-10 w-10 place-items-center rounded-full border border-white/20 bg-em-panel/80 text-em-text transition hover:text-em-text">✕</button>
           </div>
         </div>
       )}
@@ -1519,6 +1554,27 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               <button onClick={() => { setInput((v) => (v === '/' ? '' : '/')); focusInputEnd(); }} title="Commands (/)" className={'grid h-9 w-9 place-items-center rounded-xl border transition ' + (input === '/' ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}>⌘</button>
               <button onClick={insertAction} title="Insert action (*…*)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent"><span className="italic">A</span></button>
               <button onClick={() => sendText(rollDice('d20'))} disabled={streaming} title="Roll a d20" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">🎲</button>
+              {/* Director — storytelling nudges */}
+              <div className="relative">
+                <button onClick={() => setShowDirector((v) => !v)} disabled={streaming} title="Director — steer the story" className={'grid h-9 w-9 place-items-center rounded-xl border transition disabled:opacity-40 ' + (showDirector ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}><Clapperboard className="h-4 w-4" /></button>
+                {showDirector && (
+                  <>
+                    <div className="fixed inset-0 z-30" onClick={() => setShowDirector(false)} />
+                    <div className="pop-in absolute bottom-full left-0 z-40 mb-2 w-56 rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl" style={{ transformOrigin: 'bottom left' }}>
+                      <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">🎬 Director</div>
+                      {DIRECTOR_ACTIONS.map((d) => (
+                        <button
+                          key={d.label}
+                          onClick={() => { setShowDirector(false); sendText('(Director note — act on this, do not quote it: ' + d.text + '.)'); }}
+                          className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-em-text transition hover:bg-white/5"
+                        >
+                          <span className="w-5 text-center">{d.icon}</span>{d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <textarea
               ref={inputRef}

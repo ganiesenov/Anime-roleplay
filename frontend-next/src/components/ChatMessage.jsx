@@ -12,7 +12,7 @@ import {
 
 // A character-sent selfie. Image generation can take a few seconds — show a
 // shimmer placeholder until it loads, and gracefully drop out if it fails.
-function PhotoMessage({ src }) {
+function PhotoMessage({ src, onOpen }) {
   const [state, setState] = useState('loading'); // loading | ok | error
   if (!src) {
     return (
@@ -44,13 +44,14 @@ function PhotoMessage({ src }) {
         alt="photo"
         onLoad={() => setState('ok')}
         onError={() => setState('error')}
-        className={'w-72 max-w-full object-cover ' + (state === 'ok' ? 'block' : 'hidden')}
+        onClick={() => state === 'ok' && onOpen && onOpen(src)}
+        className={'w-72 max-w-full cursor-zoom-in object-cover transition hover:brightness-110 ' + (state === 'ok' ? 'block' : 'hidden')}
       />
     </div>
   );
 }
 
-export default function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId }) {
+export default function MessageBubble({ msg, char, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage }) {
   const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -140,7 +141,7 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
           </span>
         ) : (
           <>
-            {(image || imageLoading) && <PhotoMessage src={image} />}
+            {(image || imageLoading) && <PhotoMessage src={image} onOpen={onOpenImage} />}
             {image && imagePrompt && (
               <details className="mb-2 max-w-[18rem] text-[10px] text-em-text-dim/70">
                 <summary className="cursor-pointer select-none">🏷 photo tags</summary>
