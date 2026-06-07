@@ -8,7 +8,7 @@ import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
-  extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl,
+  extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl, isPhotoRequest,
 } from '../lib/chat.js';
 import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
@@ -412,9 +412,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       // If photos are on and the reply ended with a [photo: …] tag, strip it now;
       // the actual image generation runs after the text is shown (see below).
       let photoPrompt = '';
+      let forcePhoto = false;
       if (v && !errored && settings.aiPhotos && v.main) {
         const ex = extractPhotoTag(v.main);
         if (ex.prompt) { v.main = ex.clean; photoPrompt = ex.prompt; v.imageLoading = true; }
+        // User asked for a photo in plain chat but the model didn't emit a tag →
+        // generate one anyway, built from the scene (no /photo command needed).
+        else if (opts.forcePhoto) { forcePhoto = true; v.imageLoading = true; }
       }
       aiMsg.isStreaming = false;
       aiMsg.streamingVariant = null;
@@ -430,7 +434,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         if (settings.tts) {
           tts.autoSpeak(aiMsg, voiceFor(aiMsg));
         }
-        if (photoPrompt) {
+        if (photoPrompt || forcePhoto) {
           const speakerC = charsById[aiMsg.speakerId] || char;
           const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'User';
           const transcript = chat.history.filter((m) => !m.isStreaming).slice(-6)
@@ -671,7 +675,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     };
     chat.history.push(aiMsg);
     rerender();
-    const opts = isGroup() ? { messages: groupMessagesFor(speaker, text) } : {};
+    const forcePhoto = settings.aiPhotos && isPhotoRequest(text);
+    const opts = isGroup() ? { messages: groupMessagesFor(speaker, text), forcePhoto } : { forcePhoto };
     await runStream(aiMsg, text, opts);
   }
 

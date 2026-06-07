@@ -67,6 +67,21 @@ const PHOTO_DIRECTIVE = '--- SENDING PHOTOS ---\n'
   + 'another language (the image model only understands English). When the user asks for a photo, ALWAYS include the tag. '
   + 'Use it sparingly otherwise, only when it feels natural. Do not mention the tag in your spoken text.';
 
+// Does a plain user message ask the character for a photo/pic? If so we generate
+// one regardless of whether the model bothered to emit a [photo:] tag — so the user
+// can just ASK in chat ("show me your face", "пришли фото") instead of using /photo.
+export function isPhotoRequest(text) {
+  const t = String(text || '').toLowerCase();
+  if (!t.trim()) return false;
+  // explicit photo nouns (EN + RU)
+  if (/\b(photo|picture|pic|pics|selfie|snap|snapshot|nudes?)\b/.test(t)) return true;
+  if (/(фото|фотк|сфотк|селфи|картинк|пикчу|нюдс|нюды)/.test(t)) return true;
+  // "show / send / let me see ... (you / yourself / your ...)" request phrasings
+  if (/\b(show me|let me see|lemme see|send me|send a|send your|gimme|give me a)\b/.test(t)) return true;
+  if (/(покажи|покаж|пришл|скинь|скиньт|дай посмотрет|хочу увидеть|хочу посмотрет|сфоткай)/.test(t)) return true;
+  return false;
+}
+
 // Pull a [photo: ...] tag out of a reply. Returns { clean, prompt } — clean has all
 // such tags removed; prompt is the first tag's description (or '' if none).
 export function extractPhotoTag(text) {
