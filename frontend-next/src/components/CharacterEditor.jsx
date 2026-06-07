@@ -406,6 +406,21 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
                 <select value={archetype} onChange={(e) => setArchetype(e.target.value)} className={inputCls}>
                   {ARCHETYPES.map((a) => <option key={a.key || 'none'} value={a.key}>{a.label}</option>)}
                 </select>
+                {(() => {
+                  const a = ARCHETYPES.find((x) => x.key === archetype);
+                  if (!a || !a.key) return null;
+                  return (
+                    <div className="mt-2 rounded-xl border border-em-accent/20 bg-em-accent/[0.05] p-3 text-sm">
+                      <p className="text-em-text/90">{a.tone.replace(/\{user\}/g, 'you')}</p>
+                      <div className="mt-2 flex flex-wrap gap-3 text-xs">
+                        <span className="text-rose-300">❤ Affection {a.rel.affection}</span>
+                        <span className="text-sky-300">🤝 Trust {a.rel.trust}</span>
+                        <span className="text-amber-300">⚡ Tension {a.rel.tension}</span>
+                      </div>
+                      <p className="mt-1.5 text-[11px] text-em-text-dim">New chats start here; it then evolves as you talk.</p>
+                    </div>
+                  );
+                })()}
               </Field>
               <div>
                 <div className="mb-1 text-sm font-medium text-em-text">Personality</div>

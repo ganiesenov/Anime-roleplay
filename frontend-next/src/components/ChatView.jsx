@@ -248,9 +248,21 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     showToast('🌱 New chat forked from here');
   }
 
-  // React to a message (single emoji, toggle off with '').
+  // React to a message (single emoji, toggle off with ''). A reaction is a real
+  // signal: it nudges the living relationship and the character is told about it
+  // (woven into the prompt) so it can acknowledge how you felt.
+  const REACTION_AFFECTION = { '❤️': 4, '🔥': 4, '😂': 2, '👍': 2, '😮': 0, '😢': -1 };
   function reactMessage(msg, emoji) {
+    const adding = !!emoji && msg.reaction !== emoji;
     msg.reaction = emoji || undefined;
+    if (adding && settings.relationship && chat && chat.relationship && msg.sender === 'ai') {
+      const d = REACTION_AFFECTION[emoji] || 0;
+      if (d) {
+        const r = chat.relationship;
+        r.affection = Math.max(0, Math.min(100, (r.affection || 50) + d));
+        showToast(emoji + (d > 0 ? '  +affection' : '  noted'));
+      }
+    }
     saveCharacter(char);
     rerender();
   }
@@ -977,7 +989,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     sum += mod;
     const detail = rolls.join(' + ') + (mod ? ' ' + m[3] : '');
     const breakdown = (n > 1 || mod) ? ` (${detail})` : '';
-    return `*rolls ${n}d${sides}${m[3] || ''} → **${sum}**${breakdown}*`;
+    // Plain, single-level italics — nested *…**…*** confused the markdown renderer.
+    return `*🎲 rolls ${n}d${sides}${m[3] || ''} → ${sum}${breakdown}*`;
   }
 
   // Focus the composer and drop the caret at the very end of its current value.
@@ -1309,10 +1322,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                         <div
                           onDragOver={(e) => e.preventDefault()}
                           onDrop={onDropTo(fn)}
-                          className="flex items-center gap-1.5 rounded-lg px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim transition hover:bg-em-accent/5"
+                          className={'mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5 transition first:mt-0 ' + (fn ? 'border border-em-accent/20 bg-em-accent/[0.07]' : 'bg-white/[0.03]')}
                           title="Drop a chat here to move it"
                         >
-                          <Folder className="h-3.5 w-3.5" /> {fn || 'No folder'}
+                          <Folder className={'h-4 w-4 ' + (fn ? 'text-em-accent' : 'text-em-text-dim')} />
+                          <span className={'flex-1 truncate text-sm font-semibold ' + (fn ? 'text-em-text' : 'text-em-text-dim')}>{fn || 'No folder'}</span>
+                          <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/10 px-1.5 text-[11px] text-em-text-dim">{groups[fn].length}</span>
                         </div>
                       )}
                       {groups[fn].map(renderRow)}

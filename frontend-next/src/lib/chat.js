@@ -243,7 +243,9 @@ export function buildMessagesArray(char, chat, personas, lastUserText, opts) {
     history = history.slice(0, -1);
   }
   history.forEach((m) => {
-    messages.push({ role: m.sender === 'user' ? 'user' : 'assistant', content: getMessageText(m) });
+    let content = getMessageText(m);
+    if (m.sender !== 'user' && m.reaction) content += '\n[the user reacted ' + m.reaction + ' to this]';
+    messages.push({ role: m.sender === 'user' ? 'user' : 'assistant', content });
   });
 
   if (lastUserText != null) {
@@ -499,7 +501,9 @@ export function buildGroupMessages(speaker, participants, charsById, chat, perso
     } else {
       // Label each assistant turn with its speaker so the model can follow who said what.
       const spk = (charsById && charsById[m.speakerId]) || speaker;
-      messages.push({ role: 'assistant', content: displayName(spk) + ': ' + getMessageText(m) });
+      let content = displayName(spk) + ': ' + getMessageText(m);
+      if (m.reaction) content += '\n[the user reacted ' + m.reaction + ' to this]';
+      messages.push({ role: 'assistant', content });
     }
   });
 
