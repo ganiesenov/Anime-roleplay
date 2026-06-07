@@ -6,6 +6,7 @@ import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
 import { searchShikimori, getShikimoriCharacter, cleanShikiDescription } from '../lib/shikimori.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
+import { loadThemes } from '../lib/themes.js';
 import { User, MessageSquare, BookOpen, Clapperboard, SlidersHorizontal, Download } from 'lucide-react';
 
 const EDITOR_TABS = [
@@ -63,6 +64,8 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [narratorReminder, setNarratorReminder] = useState(char?.narratorReminder || '');
   const [busy, setBusy] = useState(false);
   const [tab, setTab] = useState('basics');
+  const savedThemes = loadThemes();
+  const [themeName, setThemeName] = useState(char?.themeName || '');
 
   // AI generation
   const [concept, setConcept] = useState('');
@@ -191,6 +194,9 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       reminder,
       narratorReminder,
       scenarios: cleanScenarios.length ? cleanScenarios : (base.scenarios || []),
+      themeName: themeName || undefined,
+      themeValues: (savedThemes.find((t) => t.name === themeName) || {}).values
+        || (themeName && themeName === char?.themeName ? char?.themeValues : undefined),
       type: 'character',
       characterIds: base.characterIds || [],
     };
@@ -393,6 +399,14 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
           {/* ── MEDIA & VOICE ── */}
           {tab === 'media' && (
             <div className="space-y-4">
+              <Field label="Chat theme" hint="Apply a saved appearance theme automatically while chatting with this character. Create themes in Settings → Appearance.">
+                <select value={themeName} onChange={(e) => setThemeName(e.target.value)} className={inputCls}>
+                  <option value="">None (use global look)</option>
+                  {savedThemes.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                  {themeName && !savedThemes.some((t) => t.name === themeName) && <option value={themeName}>{themeName} (saved)</option>}
+                </select>
+              </Field>
+
               <Field label="Background image" hint="Optional scene backdrop shown behind the chat. Upload, paste a URL, or generate one with AI (uses your Photos provider).">
                 <div className="flex items-center gap-3">
                   <div className="h-14 w-24 shrink-0 overflow-hidden rounded-lg border border-white/10 bg-em-bg">

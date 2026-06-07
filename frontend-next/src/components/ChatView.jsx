@@ -21,7 +21,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images, Folder } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -126,6 +126,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showSidebar, setShowSidebar] = useState(true);  // right profile sidebar (wide screens)
   const [renamingId, setRenamingId] = useState(null);    // chat id being renamed inline
   const [renameDraft, setRenameDraft] = useState('');    // inline rename input value
+  const [foldingId, setFoldingId] = useState(null);      // chat id whose folder is being set
+  const [folderDraft, setFolderDraft] = useState('');    // inline folder input value
+  const [searchAll, setSearchAll] = useState(false);     // search scope: this chat vs all
   const [toast, setToast] = useState(null);              // transient bottom toast
   const toastTimer = useRef(null);
   const [lightbox, setLightbox] = useState(null);        // full-size image overlay (src)
@@ -154,10 +157,19 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // Reflect edits made via the editor (parent passes a refreshed character).
   useEffect(() => { setChar(character); }, [character]);
 
+  // Per-character starting theme: if the character has an assigned look, apply it
+  // while this chat is open and restore the global look on leave/switch.
+  useEffect(() => {
+    if (!char.themeValues) return undefined;
+    applyDesignSettings({ ...settings, ...char.themeValues });
+    return () => applyDesignSettings(settings);
+  }, [char.id, char.themeValues, settings]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Per-character accent: tint the whole UI with a vibrant colour pulled from the
   // avatar while this chat is open; restore the user's global accent on leave/switch.
+  // Skipped when the character has its own assigned theme (that wins).
   useEffect(() => {
-    if (!settings.charAccent || !char.avatar) return undefined;
+    if (!settings.charAccent || !char.avatar || char.themeValues) return undefined;
     let cancelled = false;
     accentFromImage(avatarUrl(char.avatar)).then((p) => {
       if (cancelled || !p) return;
@@ -284,6 +296,26 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Pin a chat session to the top of the list.
   function togglePinChat(id) { const c = chats[id]; if (!c) return; c.pinned = !c.pinned; saveCharacter(char); rerender(); }
+
+  // Inline "move to folder" for a chat.
+  function beginFolder(c) { setFoldingId(c.id); setFolderDraft(c.folder || ''); }
+  function commitFolder() {
+    const c = chats[foldingId];
+    if (c) { c.folder = folderDraft.trim() || undefined; saveCharacter(char); }
+    setFoldingId(null);
+    rerender();
+  }
+
+  // Jump to a message in any chat (switch first if needed), then flash it.
+  function jumpAcross(sessionId, msgId) {
+    setShowSearch(false);
+    if (sessionId && sessionId !== chatId) {
+      switchChat(sessionId);
+      setTimeout(() => jumpToMessage(msgId), 160);
+    } else {
+      jumpToMessage(msgId);
+    }
+  }
 
   // Inline rename inside the Chats modal (no native window.prompt).
   function beginRename(c) { setRenamingId(c.id); setRenameDraft(c.name || ''); }
@@ -1203,36 +1235,50 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               </div>
               <div className="min-h-0 flex-1 overflow-y-auto p-2">
                 {sessions.length === 0 && <p className="px-2 py-3 text-center text-sm text-em-text-dim">No chats yet.</p>}
-                {sessions.map((s) => {
-                  const active = s.id === chatId;
-                  const count = (s.history || []).length;
-                  if (renamingId === s.id) {
+                {(() => {
+                  const groups = {};
+                  sessions.forEach((s) => { const f = (s.folder || '').trim(); (groups[f] = groups[f] || []).push(s); });
+                  const names = Object.keys(groups).sort((a, b) => (a === '' ? -1 : b === '' ? 1 : a.localeCompare(b)));
+                  const renderRow = (s) => {
+                    const active = s.id === chatId;
+                    const count = (s.history || []).length;
+                    if (renamingId === s.id) {
+                      return (
+                        <div key={s.id} className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-2">
+                          <input autoFocus value={renameDraft} onChange={(e) => setRenameDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') setRenamingId(null); }} onBlur={commitRename} placeholder="Chat name" className="min-w-0 flex-1 rounded-lg border border-em-accent/40 bg-em-bg/60 px-2 py-1 text-sm text-em-text focus:outline-none" />
+                          <button onMouseDown={(e) => { e.preventDefault(); commitRename(); }} title="Save" className="grid h-7 w-7 place-items-center rounded text-em-accent hover:bg-em-accent/10"><CheckIcon /></button>
+                        </div>
+                      );
+                    }
+                    if (foldingId === s.id) {
+                      return (
+                        <div key={s.id} className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-2">
+                          <Folder className="h-4 w-4 shrink-0 text-em-text-dim" />
+                          <input autoFocus value={folderDraft} onChange={(e) => setFolderDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commitFolder(); else if (e.key === 'Escape') setFoldingId(null); }} onBlur={commitFolder} placeholder="Folder name (blank = none)" className="min-w-0 flex-1 rounded-lg border border-em-accent/40 bg-em-bg/60 px-2 py-1 text-sm text-em-text focus:outline-none" />
+                          <button onMouseDown={(e) => { e.preventDefault(); commitFolder(); }} title="Save" className="grid h-7 w-7 place-items-center rounded text-em-accent hover:bg-em-accent/10"><CheckIcon /></button>
+                        </div>
+                      );
+                    }
                     return (
-                      <div key={s.id} className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-2">
-                        <input
-                          autoFocus
-                          value={renameDraft}
-                          onChange={(e) => setRenameDraft(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') setRenamingId(null); }}
-                          onBlur={commitRename}
-                          className="min-w-0 flex-1 rounded-lg border border-em-accent/40 bg-em-bg/60 px-2 py-1 text-sm text-em-text focus:outline-none"
-                        />
-                        <button onMouseDown={(e) => { e.preventDefault(); commitRename(); }} title="Save" className="grid h-7 w-7 place-items-center rounded text-em-accent hover:bg-em-accent/10"><CheckIcon /></button>
+                      <div key={s.id} className={'group flex items-center gap-1 rounded-xl px-3 py-2 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
+                        <button onClick={() => switchChat(s.id)} className="min-w-0 flex-1 text-left">
+                          <div className={'flex items-center gap-1 truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.pinned && <span className="text-em-accent"><PinIcon /></span>}<span className="truncate">{s.name || 'Chat'}</span></div>
+                          <div className="text-[11px] text-em-text-dim">{count} message{count === 1 ? '' : 's'}</div>
+                        </button>
+                        <button onClick={() => togglePinChat(s.id)} title={s.pinned ? 'Unpin chat' : 'Pin chat to top'} className={'grid h-7 w-7 place-items-center rounded transition ' + (s.pinned ? 'text-em-accent' : 'text-em-text-dim opacity-0 hover:text-em-text group-hover:opacity-100')}><PinIcon /></button>
+                        <button onClick={() => beginFolder(s)} title="Move to folder" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><Folder className="h-4 w-4" /></button>
+                        <button onClick={() => beginRename(s)} title="Rename chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
+                        <button onClick={() => deleteChatSession(s.id)} title="Delete chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100"><TrashIcon /></button>
                       </div>
                     );
-                  }
-                  return (
-                    <div key={s.id} className={'group flex items-center gap-1 rounded-xl px-3 py-2 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
-                      <button onClick={() => switchChat(s.id)} className="min-w-0 flex-1 text-left">
-                        <div className={'flex items-center gap-1 truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.pinned && <span className="text-em-accent"><PinIcon /></span>}<span className="truncate">{s.name || 'Chat'}</span></div>
-                        <div className="text-[11px] text-em-text-dim">{count} message{count === 1 ? '' : 's'}</div>
-                      </button>
-                      <button onClick={() => togglePinChat(s.id)} title={s.pinned ? 'Unpin chat' : 'Pin chat to top'} className={'grid h-7 w-7 place-items-center rounded transition ' + (s.pinned ? 'text-em-accent' : 'text-em-text-dim opacity-0 hover:text-em-text group-hover:opacity-100')}><PinIcon /></button>
-                      <button onClick={() => beginRename(s)} title="Rename chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
-                      <button onClick={() => deleteChatSession(s.id)} title="Delete chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100"><TrashIcon /></button>
-                    </div>
-                  );
-                })}
+                  };
+                  return names.map((fn) => (
+                    <Fragment key={'grp-' + fn}>
+                      {fn && <div className="flex items-center gap-1.5 px-3 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim"><Folder className="h-3.5 w-3.5" /> {fn}</div>}
+                      {groups[fn].map(renderRow)}
+                    </Fragment>
+                  ));
+                })()}
               </div>
             </div>
           </div>
@@ -1674,26 +1720,34 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           <div className="flex max-h-[75vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl glass-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
             <div className="flex items-center gap-2 border-b border-white/10 px-4 py-3">
               <SearchIcon className="h-4 w-4 shrink-0 text-em-text-dim" />
-              <input autoFocus value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder="Search this conversation…" className="w-full bg-transparent text-em-text placeholder:text-em-text-dim/60 focus:outline-none" />
+              <input autoFocus value={searchQ} onChange={(e) => setSearchQ(e.target.value)} placeholder={searchAll ? 'Search all chats…' : 'Search this conversation…'} className="w-full bg-transparent text-em-text placeholder:text-em-text-dim/60 focus:outline-none" />
+              <div className="flex shrink-0 overflow-hidden rounded-lg border border-white/10 text-[11px]">
+                <button onClick={() => setSearchAll(false)} className={'px-2 py-1 transition ' + (!searchAll ? 'bg-em-accent/20 text-em-accent' : 'text-em-text-dim hover:text-em-text')}>This chat</button>
+                <button onClick={() => setSearchAll(true)} className={'px-2 py-1 transition ' + (searchAll ? 'bg-em-accent/20 text-em-accent' : 'text-em-text-dim hover:text-em-text')}>All chats</button>
+              </div>
               <button onClick={() => setShowSearch(false)} className="text-em-text-dim transition hover:text-em-text">✕</button>
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto p-1.5">
               {(() => {
                 const s = searchQ.trim().toLowerCase();
                 if (!s) return <p className="px-3 py-6 text-center text-sm text-em-text-dim">Type to search messages.</p>;
-                const matches = history.filter((m) => stripPhotoTag(getMessageText(m)).toLowerCase().includes(s));
-                if (!matches.length) return <p className="px-3 py-6 text-center text-sm text-em-text-dim">No matches.</p>;
-                return matches.map((m) => {
+                const snip = (txt) => { const at = txt.toLowerCase().indexOf(s); return (at > 40 ? '…' : '') + txt.slice(Math.max(0, at - 40), at + 80) + (txt.length > at + 80 ? '…' : ''); };
+                const scopes = searchAll ? sessions : [chat];
+                const rows = [];
+                scopes.forEach((sess) => (sess.history || []).forEach((m) => {
                   const txt = stripPhotoTag(getMessageText(m));
-                  const at = txt.toLowerCase().indexOf(s);
-                  const snippet = (at > 40 ? '…' : '') + txt.slice(Math.max(0, at - 40), at + 80) + (txt.length > at + 80 ? '…' : '');
-                  return (
-                    <button key={m.id} onClick={() => { setShowSearch(false); jumpToMessage(m.id); }} className="block w-full rounded-xl px-3 py-2 text-left transition hover:bg-white/5">
-                      <div className="text-[11px] font-medium text-em-accent">{m.sender === 'user' ? 'You' : displayName(speakerOf(m))}</div>
-                      <div className="line-clamp-2 text-sm text-em-text/90">{snippet}</div>
-                    </button>
-                  );
-                });
+                  if (txt.toLowerCase().includes(s)) rows.push({ sess, m, txt });
+                }));
+                if (!rows.length) return <p className="px-3 py-6 text-center text-sm text-em-text-dim">No matches.</p>;
+                return rows.slice(0, 100).map(({ sess, m, txt }) => (
+                  <button key={sess.id + ':' + m.id} onClick={() => jumpAcross(sess.id, m.id)} className="block w-full rounded-xl px-3 py-2 text-left transition hover:bg-white/5">
+                    <div className="flex items-center gap-1.5 text-[11px] font-medium text-em-accent">
+                      {m.sender === 'user' ? 'You' : displayName(charsById[m.speakerId] || char)}
+                      {searchAll && <span className="text-em-text-dim/70">· {sess.name || 'Chat'}</span>}
+                    </div>
+                    <div className="line-clamp-2 text-sm text-em-text/90">{snip(txt)}</div>
+                  </button>
+                ));
               })()}
             </div>
           </div>
