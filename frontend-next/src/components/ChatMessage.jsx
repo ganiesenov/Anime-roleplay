@@ -56,11 +56,20 @@ function fmtTime(ts) {
   try { return new Date(ts).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }); } catch (e) { return ''; }
 }
 
-export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage }) {
+const REWRITE_OPTS = [
+  { label: 'Shorter', tweak: 'make it noticeably shorter and tighter' },
+  { label: 'Longer', tweak: 'make it longer and more detailed' },
+  { label: 'More descriptive', tweak: 'add richer sensory detail and atmosphere' },
+  { label: 'More dramatic', tweak: 'raise the emotional intensity and drama' },
+  { label: 'Different take', tweak: 'take a clearly different direction than before' },
+];
+
+export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onRegenerateTweak, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage }) {
   const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
+  const [showRewrite, setShowRewrite] = useState(false);
   const isUser = msg.sender === 'user';
   const text = stripPhotoTag(getMessageText(msg));   // hide any [photo: …] tag from view
   const image = isUser ? '' : getMessageImage(msg);
@@ -168,7 +177,23 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
               <button onClick={() => onSwipe(1)} className="rounded p-1 transition hover:bg-white/5 hover:text-em-text">›</button>
             </span>
           )}
-          {!isUser && <CtrlBtn onClick={onRegenerate} disabled={streaming} title="Regenerate"><RegenIcon /></CtrlBtn>}
+          {!isUser && (
+            <div className="relative">
+              <CtrlBtn onClick={() => (onRegenerateTweak ? setShowRewrite((v) => !v) : onRegenerate())} disabled={streaming} active={showRewrite} title="Regenerate / rewrite"><RegenIcon /></CtrlBtn>
+              {showRewrite && (
+                <>
+                  <div className="fixed inset-0 z-30" onClick={() => setShowRewrite(false)} />
+                  <div className="pop-in absolute left-0 top-full z-40 mt-1 w-44 rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl" style={{ transformOrigin: 'top left' }}>
+                    <button onClick={() => { setShowRewrite(false); onRegenerate(); }} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-sm text-em-text transition hover:bg-white/5"><RegenIcon /> Try again</button>
+                    <div className="my-1 border-t border-white/10" />
+                    {REWRITE_OPTS.map((o) => (
+                      <button key={o.label} onClick={() => { setShowRewrite(false); onRegenerateTweak(o.tweak); }} className="block w-full rounded-lg px-2.5 py-1.5 text-left text-sm text-em-text transition hover:bg-white/5">{o.label}</button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
           {!isUser && <CtrlBtn onClick={onContinue} disabled={streaming} title="Continue this reply"><ContinueIcon /></CtrlBtn>}
           {!isUser && ttsSupported() && <CtrlBtn onClick={onSpeak} active={speaking} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? <StopIcon /> : <SpeakIcon />}</CtrlBtn>}
           <CtrlBtn onClick={beginEdit} disabled={streaming} title="Edit message"><PencilIcon /></CtrlBtn>

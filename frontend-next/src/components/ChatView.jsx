@@ -747,6 +747,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setInput('');
     setUndo(null);
     stick();
+    // Auto-title a still-default chat from its first user message.
+    const isFirstUser = !chat.history.some((m) => m.sender === 'user');
+    if (isFirstUser && /^Chat\s/.test(chat.name || '')) {
+      chat.name = text.slice(0, 40).trim() + (text.length > 40 ? '…' : '');
+    }
     chat.history.push({ id: genId(), sender: 'user', main: text });
     rerender();
 
@@ -864,7 +869,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     focusInputEnd();
   }
 
-  async function regenerate(msg) {
+  async function regenerate(msg, tweak) {
     if (streaming) return;
     msg.variations.push({ main: '', think: null });
     msg.activeVariant = msg.variations.length - 1;
@@ -874,7 +879,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const idx = chat.history.indexOf(msg);
     const prior = chat.history.slice(0, idx);
     const lastUser = [...prior].reverse().find((m) => m.sender === 'user');
-    const lastUserText = lastUser ? getMessageText(lastUser) : 'Continue the roleplay.';
+    let lastUserText = lastUser ? getMessageText(lastUser) : 'Continue the roleplay.';
+    if (tweak) lastUserText += '\n[Rewrite your previous reply — same moment, but: ' + tweak + ']';
     const saved = chat.history;
     chat.history = prior;
     rerender();
@@ -1445,7 +1451,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {/* Chat body + profile sidebar */}
       <div className="flex min-h-0 flex-1 overflow-hidden">
       <div className="relative flex min-w-0 flex-1 flex-col">
-      {/* Messages */}
+      {/* Messages (wrapped so the jump button anchors above the composer) */}
+      <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)', maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full flex-1 flex-col overflow-y-auto px-4 py-6">
         {history.map((m, i) => {
           const ts = tsFromMsgId(m.id);
@@ -1466,6 +1473,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                 streaming={streaming}
                 showThink={settings.showThink}
                 onRegenerate={() => regenerate(m)}
+                onRegenerateTweak={(t) => regenerate(m, t)}
                 onContinue={() => continueMessage(m)}
                 onSwipe={(d) => swipe(m, d)}
                 onEditSave={(text) => saveMessageEdit(m, text)}
@@ -1485,16 +1493,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {history.length === 0 && <div className="py-20 text-center text-em-text-dim">Say hello to start the scene…</div>}
       </div>
 
-      {/* Jump to latest (only when scrolled up) */}
+      {/* Jump to latest (only when scrolled up) — anchored to the bottom of the
+          messages area so it floats just above the composer, not over it. */}
       {!atBottom && history.length > 0 && (
         <button
           onClick={scrollToBottom}
           title="Jump to latest"
-          className="pop-in absolute bottom-4 left-1/2 z-20 grid h-10 w-10 -translate-x-1/2 place-items-center rounded-full border border-em-accent/40 bg-em-panel/90 text-em-accent shadow-2xl backdrop-blur transition hover:-translate-x-1/2 hover:bg-em-panel active:scale-90"
+          className="pop-in absolute bottom-3 left-1/2 z-20 grid h-10 w-10 -translate-x-1/2 place-items-center rounded-full border border-em-accent/40 bg-em-panel/95 text-em-accent shadow-2xl backdrop-blur transition hover:bg-em-panel active:scale-90"
         >
           <ArrowDown className="h-5 w-5" />
         </button>
       )}
+      </div>
 
       {/* Now-playing corner: a real dance clip if the character has one, else a calm framed avatar. */}
       {musicPlaying && showDancer && (char.danceUrl || char.avatar) && (
