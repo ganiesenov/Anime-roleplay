@@ -13,7 +13,7 @@ const THEME_PRESETS = [
   { key: 'violet', label: 'Amethyst', accent: 'violet', mainTextColor: '#efeafe', dialogueColor: '#c4b5fd', userBubbleColor: '#a78bfa', aiBubbleColor: '#e9d5ff' },
 ];
 
-const APPEARANCE_KEYS = ['accent', 'charAccent', 'avatarSize', 'fontSize', 'messageSpacing', 'chatWidth', 'mainTextColor', 'dialogueColor', 'userBubbleColor', 'userBubbleOpacity', 'aiBubbleColor', 'aiBubbleOpacity', 'blur'];
+const APPEARANCE_KEYS = ['accent', 'charAccent', 'avatarSize', 'fontSize', 'messageSpacing', 'chatWidth', 'avatarShape', 'bubbleLayout', 'mainTextColor', 'dialogueColor', 'userBubbleColor', 'userBubbleOpacity', 'aiBubbleColor', 'aiBubbleOpacity', 'blur'];
 
 function Section({ title, children }) {
   return (
@@ -386,6 +386,20 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                 </Section>
 
                 <Section title="Layout & text">
+                  <Row label="Message layout" hint="Bubbles, a flat log, or compact.">
+                    <select value={s.bubbleLayout || 'bubbles'} onChange={(e) => set('bubbleLayout', e.target.value)} className={inputCls + ' min-w-40'}>
+                      <option value="bubbles">Bubbles</option>
+                      <option value="flat">Flat (log)</option>
+                      <option value="compact">Compact</option>
+                    </select>
+                  </Row>
+                  <Row label="Avatar shape">
+                    <select value={s.avatarShape || 'circle'} onChange={(e) => set('avatarShape', e.target.value)} className={inputCls + ' min-w-40'}>
+                      <option value="circle">Circle</option>
+                      <option value="rounded">Rounded</option>
+                      <option value="square">Square</option>
+                    </select>
+                  </Row>
                   <Row label={`Chat width: ${s.chatWidth || 896}px`} hint="How wide the message column is.">
                     <input type="range" min="640" max="1280" step="16" value={s.chatWidth || 896} onChange={(e) => set('chatWidth', parseInt(e.target.value, 10))} className="w-44 accent-em-accent" />
                   </Row>

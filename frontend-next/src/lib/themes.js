@@ -6,6 +6,7 @@ const KEY = 'aria-next-themes';
 // The settings keys a theme captures (must match SettingsModal's APPEARANCE_KEYS).
 export const THEME_KEYS = [
   'accent', 'charAccent', 'avatarSize', 'fontSize', 'messageSpacing', 'chatWidth',
+  'avatarShape', 'bubbleLayout',
   'mainTextColor', 'dialogueColor', 'userBubbleColor', 'userBubbleOpacity',
   'aiBubbleColor', 'aiBubbleOpacity', 'blur',
 ];

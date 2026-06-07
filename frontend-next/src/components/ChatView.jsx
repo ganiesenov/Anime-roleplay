@@ -21,7 +21,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -129,6 +129,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [toast, setToast] = useState(null);              // transient bottom toast
   const toastTimer = useRef(null);
   const [lightbox, setLightbox] = useState(null);        // full-size image overlay (src)
+  const [showGallery, setShowGallery] = useState(false); // all chat images on one screen
   const [showDirector, setShowDirector] = useState(false); // director quick-actions menu
   const [showSearch, setShowSearch] = useState(false);   // in-chat message search
   const [searchQ, setSearchQ] = useState('');            // search query
@@ -1538,6 +1539,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {/* Messages (wrapped so the jump button anchors above the composer) */}
       <div className="relative flex min-h-0 flex-1 flex-col">
       <div ref={scrollRef} onScroll={onScroll} style={{ gap: 'var(--message-spacing)', maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full flex-1 flex-col overflow-y-auto px-4 py-6">
+        {chat && chat.promptFloor > 0 && (
+          <div className="flex items-center justify-center py-1">
+            <span className="rounded-full border border-em-accent/25 bg-em-accent/5 px-3 py-0.5 text-[11px] text-em-text-dim">📚 {chat.promptFloor} earlier message{chat.promptFloor === 1 ? '' : 's'} folded into memory — still shown, kept out of active context</span>
+          </div>
+        )}
         {history.map((m, i) => {
           const ts = tsFromMsgId(m.id);
           const prevTs = i > 0 ? tsFromMsgId(history[i - 1].id) : 0;
@@ -1621,6 +1627,35 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           </div>
         </div>
       )}
+
+      {/* Image gallery — every generated photo in this chat */}
+      {showGallery && (() => {
+        const imgs = [];
+        (history || []).forEach((m) => (m.variations || []).forEach((v) => { if (v.image) imgs.push(v.image); }));
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setShowGallery(false)}>
+            <div className="flex max-h-[85vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl glass-panel shadow-2xl" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <h2 className="flex items-center gap-2 text-lg font-bold"><Images className="h-5 w-5" /> Gallery <span className="text-em-text-dim">({imgs.length})</span></h2>
+                <button onClick={() => setShowGallery(false)} className="grid h-8 w-8 place-items-center rounded-lg text-em-text-dim transition hover:bg-white/5 hover:text-em-text">✕</button>
+              </div>
+              <div className="min-h-0 flex-1 overflow-y-auto p-4">
+                {imgs.length === 0 ? (
+                  <p className="py-10 text-center text-sm text-em-text-dim">No photos in this chat yet.</p>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 md:grid-cols-4">
+                    {imgs.map((src, i) => (
+                      <button key={i} onClick={() => { setShowGallery(false); setLightbox(src); }} className="aspect-square overflow-hidden rounded-xl border border-white/10 transition hover:border-em-accent/50">
+                        <img src={src} alt="" className="h-full w-full object-cover transition hover:scale-105" />
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Image lightbox — view a generated photo full-size */}
       {lightbox && (
@@ -1830,6 +1865,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             <button onClick={startCall} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><Phone className="h-4 w-4" /> Call</button>
             {onEdit && <button onClick={() => onEdit(char)} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PencilIcon /> Edit</button>}
             <button onClick={newChatClicked} className="flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><PlusIcon /> New chat</button>
+            <button onClick={() => setShowGallery(true)} className="col-span-2 flex items-center justify-center gap-1.5 rounded-xl border border-white/10 bg-white/[0.02] px-2 py-2 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><Images className="h-4 w-4" /> Gallery</button>
           </div>
 
           {/* Context fill — rough estimate of how much of the model's window the chat uses */}

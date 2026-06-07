@@ -41,6 +41,8 @@ export const DEFAULT_SETTINGS = {
   fontSize: 15,              // chat message font size (px)
   messageSpacing: 20,        // vertical gap between messages (px)
   chatWidth: 896,            // max width of the message column (px) — 896 ≈ max-w-4xl
+  avatarShape: 'circle',     // message avatar shape: circle | rounded | square
+  bubbleLayout: 'bubbles',   // message layout: bubbles | flat | compact
   mainTextColor: '#e9f5ef',  // narration / main text
   dialogueColor: '#ffd952',  // "quoted speech"
   userBubbleColor: '#2ee6a0',

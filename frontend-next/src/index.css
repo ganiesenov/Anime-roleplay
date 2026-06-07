@@ -72,6 +72,21 @@ body {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05), 0 8px 22px -14px rgba(0, 0, 0, 0.55);
 }
 
+/* Avatar shape (default circle via the rounded-full class; these override it). */
+[data-avatar-shape="rounded"] .msg-avatar { border-radius: 0.85rem; }
+[data-avatar-shape="square"]  .msg-avatar { border-radius: 0.2rem; }
+
+/* Message layout presets. "flat" = continuous log (no bubble); "compact" = tighter. */
+[data-bubble-layout="flat"] .chat-bubble {
+  background: transparent !important;
+  border-color: transparent !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  padding-left: 0.25rem; padding-right: 0.25rem;
+}
+[data-bubble-layout="compact"] .chat-bubble { padding: 0.4rem 0.75rem; }
+[data-bubble-layout="compact"] .msg-avatar { transform: scale(0.8); }
+
 /* Native <select> popups render on a white background by default, which makes the
    light theme text nearly invisible — force readable dark options. */
 select option, select optgroup {

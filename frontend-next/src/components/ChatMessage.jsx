@@ -103,7 +103,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
     >
       {!isUser && (
         <div
-          className="shrink-0 overflow-hidden rounded-full bg-em-panel"
+          className="msg-avatar shrink-0 overflow-hidden rounded-full bg-em-panel"
           style={{ width: 'var(--ai-avatar-size)', height: 'var(--ai-avatar-size)' }}
         >
           {avChar && avChar.avatar
@@ -121,7 +121,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
       )}
       <div
         className={
-          'w-fit max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
+          'chat-bubble w-fit max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
           (isUser
             ? 'msg-bubble-user border border-em-accent/20'
             : 'msg-bubble-ai border border-white/10 border-l-2 border-l-em-accent/50')

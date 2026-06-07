@@ -49,4 +49,8 @@ export function applyDesignSettings(s) {
   root.setProperty('--user-bubble-color', hexToRgba(s.userBubbleColor || '#2ee6a0', s.userBubbleOpacity != null ? s.userBubbleOpacity : 0.15));
   root.setProperty('--ai-bubble-color', hexToRgba(s.aiBubbleColor || '#ffffff', s.aiBubbleOpacity != null ? s.aiBubbleOpacity : 0.04));
   root.setProperty('--message-blur', num(s.blur, 0) + 'px');
+
+  // Avatar shape + message layout are driven by data attributes (styled in index.css).
+  document.documentElement.dataset.avatarShape = s.avatarShape || 'circle';
+  document.documentElement.dataset.bubbleLayout = s.bubbleLayout || 'bubbles';
 }
