@@ -391,6 +391,34 @@ export async function suggestReplies(char, chat, personas, opts) {
   return parseReplyOptions(raw);
 }
 
+// "Impersonate" — write the USER's next message for them, in first person and in
+// character as their persona, fitting the scene. Returns a single turn to drop
+// into the composer for editing. Content-neutral; mirrors the scene's tone.
+export async function impersonateReply(char, chat, personas, opts) {
+  opts = opts || {};
+  const cName = displayName(char);
+  const uName = personaName(chat, personas);
+  let personaDesc = '';
+  if (chat.activePersonaId && personas[chat.activePersonaId]) {
+    personaDesc = String(personas[chat.activePersonaId].description || '').slice(0, 300);
+  }
+  const transcript = (chat.history || [])
+    .filter((m) => !m.isStreaming)
+    .slice(-8)
+    .map((m) => (m.sender === 'user' ? uName : cName) + ': ' + getMessageText(m))
+    .join('\n');
+  const sys = 'You write the NEXT message from the user "' + uName + '" to ' + cName + ' in an ongoing roleplay. '
+    + 'Write in FIRST PERSON as ' + uName + (personaDesc ? ' (' + personaDesc + ')' : '') + '. '
+    + 'Output ONLY ' + uName + "'s message — one short, natural turn that fits the scene and moves it forward. "
+    + 'You may include brief *actions* in asterisks. Do NOT write ' + cName + "'s lines, do not narrate as a third party, and do not wrap the whole thing in quotes.";
+  const user = 'Scene so far:\n' + transcript + '\n\nWrite ' + uName + "'s next message now.";
+  const raw = await collectCompletion(
+    [{ role: 'system', content: sys }, { role: 'user', content: user }],
+    { model: opts.model, endpoint: opts.endpoint, apiKey: opts.apiKey, temperature: 0.85, signal: opts.signal },
+  );
+  return String(raw || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim().replace(/^["']|["']$/g, '');
+}
+
 export { splitThink };
 
 // ── Group / multi-character ───────────────────────────────────────────────

@@ -8,7 +8,7 @@ import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
-  extractPhotoTag, extractImagePrompt, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl, isPhotoRequest,
+  extractPhotoTag, extractImagePrompt, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl, isPhotoRequest, impersonateReply,
 } from '../lib/chat.js';
 import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
@@ -21,7 +21,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -133,6 +133,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showSearch, setShowSearch] = useState(false);   // in-chat message search
   const [searchQ, setSearchQ] = useState('');            // search query
   const [summarizing, setSummarizing] = useState(false); // manual "summarize now" in progress
+  const [impersonating, setImpersonating] = useState(false); // "write my reply" in progress
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -413,6 +414,19 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     stick();
     rerender();
     await runStream(msg, instruction, { seed: original, messages });
+  }
+
+  // "Write my reply" — let the AI draft the user's next turn in their persona
+  // voice and drop it into the composer to edit/send.
+  async function impersonate() {
+    if (impersonating || streaming || !chat) return;
+    setImpersonating(true);
+    try {
+      const text = await impersonateReply(char, chat, personas, resolveModel(settings, settings.suggestionModelId || settings.model));
+      if (text) { setInput(text); focusInputEnd(); }
+      else showToast('Could not write a reply');
+    } catch (e) { showToast('Could not write a reply'); }
+    finally { setImpersonating(false); }
   }
 
   // ── Suggested replies ─────────────────────────────────────────────────────
@@ -1707,6 +1721,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               <button onClick={insertAction} title="Insert action (*…*)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent"><span className="italic">A</span></button>
               <button onClick={() => sendText(rollDice('d20'))} disabled={streaming} title="Roll a d20" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">🎲</button>
               <button onClick={continueScene} disabled={streaming || history.length === 0} title="Continue the scene (no new message)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40"><ContinueIcon /></button>
+              <button onClick={impersonate} disabled={streaming || impersonating || history.length === 0} title="Write my reply for me (impersonate)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">{impersonating ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> : <PenLine className="h-4 w-4" />}</button>
               {/* Director — storytelling nudges */}
               <div className="relative">
                 <button onClick={() => setShowDirector((v) => !v)} disabled={streaming} title="Director — steer the story" className={'grid h-9 w-9 place-items-center rounded-xl border transition disabled:opacity-40 ' + (showDirector ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}><Clapperboard className="h-4 w-4" /></button>

@@ -1,8 +1,9 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { fetchAvailableModels, DEFAULT_SETTINGS } from '../lib/settings.js';
 import { ACCENTS, hexToRgba } from '../lib/design.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
-import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph, RotateCcw } from 'lucide-react';
+import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph, RotateCcw, Trash2, Upload, Download } from 'lucide-react';
+import { loadThemes, saveThemes, themeValuesFrom, exportThemes, importThemes } from '../lib/themes.js';
 
 // One-click looks — each sets the accent + prose colours together.
 const THEME_PRESETS = [
@@ -88,7 +89,24 @@ export default function SettingsModal({ settings, onSave, onClose }) {
   const [tab, setTab] = useState('model');
   const [models, setModels] = useState([]);
   const [voices, setVoices] = useState([]);
+  const [themes, setThemes] = useState(loadThemes);
+  const [themeName, setThemeName] = useState('');
+  const themeFileRef = useRef(null);
   const set = (k, v) => setS((prev) => ({ ...prev, [k]: v }));
+
+  function applyThemeValues(v) { Object.keys(v || {}).forEach((k) => set(k, v[k])); }
+  function saveCurrentTheme() {
+    const name = themeName.trim();
+    if (!name) return;
+    const next = [...themes.filter((t) => t.name !== name), { id: 'theme-' + Date.now(), name, values: themeValuesFrom(s) }];
+    setThemes(next); saveThemes(next); setThemeName('');
+  }
+  function deleteTheme(id) { const next = themes.filter((t) => t.id !== id); setThemes(next); saveThemes(next); }
+  async function onImportThemes(e) {
+    const f = e.target.files && e.target.files[0]; e.target.value = '';
+    if (!f) return;
+    try { setThemes(await importThemes(f)); } catch (err) { window.alert('Import failed: not a themes file.'); }
+  }
 
   useEffect(() => { fetchAvailableModels().then(setModels); }, []);
   useEffect(() => {
@@ -307,6 +325,28 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                   </div>
                   <BubblePreview s={s} />
                 </div>
+
+                <Section title="My themes">
+                  <input ref={themeFileRef} type="file" accept=".json" className="hidden" onChange={onImportThemes} />
+                  {themes.length > 0 && (
+                    <div className="flex flex-wrap gap-2 py-2">
+                      {themes.map((t) => (
+                        <div key={t.id} className="group flex items-center gap-1 rounded-xl border border-white/10 bg-white/[0.03] py-1 pl-3 pr-1 text-sm">
+                          <button onClick={() => applyThemeValues(t.values)} className="text-em-text transition hover:text-em-accent">{t.name}</button>
+                          <button onClick={() => deleteTheme(t.id)} title="Delete theme" className="grid h-6 w-6 place-items-center rounded text-em-text-dim transition hover:text-red-400"><Trash2 className="h-3.5 w-3.5" /></button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2 py-2">
+                    <input value={themeName} onChange={(e) => setThemeName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') saveCurrentTheme(); }} placeholder="Save current look as…" className={inputCls + ' flex-1'} />
+                    <button onClick={saveCurrentTheme} disabled={!themeName.trim()} className="shrink-0 rounded-xl bg-em-accent px-3 py-2 text-sm font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-40">Save</button>
+                  </div>
+                  <div className="flex gap-2 py-1">
+                    <button onClick={exportThemes} disabled={!themes.length} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text disabled:opacity-40"><Download className="h-3.5 w-3.5" /> Export</button>
+                    <button onClick={() => themeFileRef.current && themeFileRef.current.click()} className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"><Upload className="h-3.5 w-3.5" /> Import</button>
+                  </div>
+                </Section>
 
                 <Section title="Theme presets">
                   <div className="flex flex-wrap gap-2 py-2">
