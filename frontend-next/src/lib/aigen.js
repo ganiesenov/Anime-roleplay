@@ -133,6 +133,33 @@ export async function tagsFromText(text, req, signal) {
   return pick.replace(/^["'*\s-]+|["'*\s]+$/g, '').trim();
 }
 
+// Turn the CURRENT roleplay moment into concrete Danbooru tags for the shot, so a
+// generated photo actually depicts what's happening — not a generic portrait. The
+// chat model often softens its own inline [photo:] tag; this dedicated pass is told
+// to match the scene faithfully and uncensored (the user runs a local image model).
+// Returns action/pose/clothing/framing tags only — identity is added separately.
+export async function tagsFromScene({ name, transcript, hint }, req, signal) {
+  const sys = 'You write the prompt for an uncensored anime image model (Danbooru tags). '
+    + 'Given a roleplay excerpt, output ONE line of comma-separated ENGLISH Danbooru tags describing EXACTLY this single photo of '
+    + (name || 'the character') + ' at this moment: facial expression/emotion, pose and body position, what they are wearing OR their state of undress, '
+    + 'any physical action or sexual act happening, who else is in frame, camera framing/angle, and the setting. '
+    + 'Match the scene faithfully and literally — if the moment is sexual or explicit, use the concrete explicit tags for it; do NOT censor, soften, or substitute vague words. '
+    + 'Do NOT include the character\'s fixed appearance (hair/eye colour etc.) — only what is specific to THIS shot. '
+    + 'Output ONLY the tag line: no prose, no quotes, no commentary.';
+  const user = (hint ? 'The character intended this shot: ' + hint + '\n\n' : '')
+    + 'Roleplay excerpt (most recent last):\n' + String(transcript || '').slice(-1500);
+  const out = await collectCompletion(
+    [{ role: 'system', content: sys }, { role: 'user', content: user }],
+    { ...(req || {}), temperature: 0.5, signal },
+  );
+  const lines = String(out || '').replace(/```/g, '').replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .split('\n').map((s) => s.trim()).filter(Boolean)
+    .filter((l) => !/[Ѐ-ӿ]/.test(l));
+  const tagLines = lines.filter((l) => l.includes(','));
+  const pick = (tagLines.length ? tagLines[tagLines.length - 1] : lines[lines.length - 1]) || '';
+  return pick.replace(/^["'*\s-]+|["'*\s]+$/g, '').trim();
+}
+
 // Generate an opening-scenario paragraph from the current name/description/lore.
 export async function generateScenario({ name, description, lore, hints }, req, signal) {
   const user = 'Character name: ' + (name || 'the character')

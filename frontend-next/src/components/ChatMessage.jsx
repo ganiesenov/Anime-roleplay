@@ -102,7 +102,7 @@ export default function MessageBubble({ msg, char, streaming, showThink: showThi
       )}
       <div
         className={
-          'max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
+          'w-fit max-w-[85%] rounded-2xl px-4 py-3 leading-relaxed shadow text-em-text ' +
           (isUser
             ? 'msg-bubble-user border border-em-accent/20'
             : 'msg-bubble-ai border border-white/10 border-l-2 border-l-em-accent/50')

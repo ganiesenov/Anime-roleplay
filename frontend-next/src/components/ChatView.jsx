@@ -10,7 +10,7 @@ import {
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
   extractPhotoTag, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl,
 } from '../lib/chat.js';
-import { generateAppearance, tagsFromText } from '../lib/aigen.js';
+import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES } from '../lib/relationship.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
@@ -430,7 +430,14 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         if (settings.tts) {
           tts.autoSpeak(aiMsg, voiceFor(aiMsg));
         }
-        if (photoPrompt) generatePhoto(v, charsById[aiMsg.speakerId] || char, photoPrompt);
+        if (photoPrompt) {
+          const speakerC = charsById[aiMsg.speakerId] || char;
+          const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'User';
+          const transcript = chat.history.filter((m) => !m.isStreaming).slice(-6)
+            .map((m) => (m.sender === 'user' ? uName : displayName(speakerOf(m))) + ': ' + stripPhotoTag(getMessageText(m)))
+            .join('\n');
+          generatePhoto(v, speakerC, photoPrompt, false, transcript);
+        }
       } else if (v && v.imageLoading) {
         v.imageLoading = false;
       }
@@ -439,10 +446,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Generate the selfie for a message variant: derive Danbooru appearance once
   // (the LLM knows famous characters), cache it on the character, then set the image.
-  async function generatePhoto(v, pchar, prompt, raw) {
+  async function generatePhoto(v, pchar, prompt, raw, scene) {
     try {
-      // raw → send the prompt verbatim; otherwise enrich with the character's appearance.
-      if (!raw && (!pchar.appearance || !pchar.appearance.trim())) {
+      // raw → send the prompt verbatim (no identity/scene/quality added).
+      if (raw) { v.image = buildPhotoUrl(pchar, prompt, settings, { raw: true }); v.imagePrompt = prompt; return; }
+      // Ensure we have stable appearance tags for likeness (derive once, cache).
+      if (!pchar.appearance || !pchar.appearance.trim()) {
         try {
           const appr = await generateAppearance(
             { name: displayName(pchar), description: pchar.description, tags: pchar.tags },
@@ -451,8 +460,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           if (appr) { pchar.appearance = appr; await saveCharacter(pchar === char ? char : pchar); }
         } catch (e) { /* fall back to name+tags */ }
       }
-      v.image = buildPhotoUrl(pchar, prompt, settings, { raw });
-      v.imagePrompt = prompt;   // surface the exact tag used (transparency / debug)
+      // Scene-aware: rebuild the shot's tags from what's actually happening, so the
+      // photo matches the moment instead of a generic portrait. The chat model's own
+      // [photo:] tag (prompt) is passed as a hint; identity is added by buildPhotoUrl.
+      let shot = prompt;
+      if (scene) {
+        try {
+          const t = await tagsFromScene({ name: displayName(pchar), transcript: scene, hint: prompt }, resolveModel(settings, settings.model));
+          if (t) shot = t;
+        } catch (e) { /* keep the model's own tag */ }
+      }
+      v.image = buildPhotoUrl(pchar, shot, settings, {});
+      v.imagePrompt = shot;   // surface the exact tag used (transparency / debug)
     } finally {
       v.imageLoading = false;
       await saveCharacter(char);
