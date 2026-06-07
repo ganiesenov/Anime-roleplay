@@ -138,6 +138,8 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [searchQ, setSearchQ] = useState('');            // search query
   const [summarizing, setSummarizing] = useState(false); // manual "summarize now" in progress
   const [impersonating, setImpersonating] = useState(false); // "write my reply" in progress
+  const [confirm, setConfirm] = useState(null);          // { message, label, onYes } in-app confirm
+  function askConfirm(message, onYes, label = 'Delete') { setConfirm({ message, onYes, label }); }
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -297,14 +299,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // Pin a chat session to the top of the list.
   function togglePinChat(id) { const c = chats[id]; if (!c) return; c.pinned = !c.pinned; saveCharacter(char); rerender(); }
 
-  // Inline "move to folder" for a chat.
-  function beginFolder(c) { setFoldingId(c.id); setFolderDraft(c.folder || ''); }
-  function commitFolder() {
-    const c = chats[foldingId];
-    if (c) { c.folder = folderDraft.trim() || undefined; saveCharacter(char); }
+  // "Move to folder" — pick an existing folder, type a new one, or remove.
+  function beginFolder(c) { setFoldingId(c.id); setFolderDraft(''); }
+  function moveToFolder(id, name) {
+    const c = chats[id];
+    if (c) { c.folder = (name || '').trim() || undefined; saveCharacter(char); }
     setFoldingId(null);
     rerender();
   }
+  // Distinct existing folder names across this character's chats.
+  const folderNames = Array.from(new Set(Object.values(chats).map((c) => (c.folder || '').trim()).filter(Boolean))).sort();
 
   // Jump to a message in any chat (switch first if needed), then flash it.
   function jumpAcross(sessionId, msgId) {
@@ -382,7 +386,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   function deleteChatSession(id) {
     if (!chats[id]) return;
-    if (!window.confirm('Delete this chat? This cannot be undone.')) return;
+    askConfirm('Delete this chat? This cannot be undone.', () => doDeleteChatSession(id));
+  }
+  function doDeleteChatSession(id) {
+    if (!chats[id]) return;
     delete chats[id];
     if (id === chatId) {
       const ids = Object.keys(chats).sort((a, b) => chatTs(b) - chatTs(a));
@@ -415,11 +422,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (streaming || !chat) return;
     const idx = chat.history.indexOf(msg);
     if (idx === -1) return;
-    if (!window.confirm('Delete this message and all following messages?')) return;
-    const removed = chat.history.splice(idx);
-    setUndo({ fromIndex: idx, messages: removed });
-    saveCharacter(char);
-    rerender();
+    askConfirm('Delete this message and all following messages?', () => {
+      const removed = chat.history.splice(idx);
+      setUndo({ fromIndex: idx, messages: removed });
+      saveCharacter(char);
+      rerender();
+    });
   }
 
   function undoDelete() {
@@ -1252,10 +1260,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                     }
                     if (foldingId === s.id) {
                       return (
-                        <div key={s.id} className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-2">
-                          <Folder className="h-4 w-4 shrink-0 text-em-text-dim" />
-                          <input autoFocus value={folderDraft} onChange={(e) => setFolderDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') commitFolder(); else if (e.key === 'Escape') setFoldingId(null); }} onBlur={commitFolder} placeholder="Folder name (blank = none)" className="min-w-0 flex-1 rounded-lg border border-em-accent/40 bg-em-bg/60 px-2 py-1 text-sm text-em-text focus:outline-none" />
-                          <button onMouseDown={(e) => { e.preventDefault(); commitFolder(); }} title="Save" className="grid h-7 w-7 place-items-center rounded text-em-accent hover:bg-em-accent/10"><CheckIcon /></button>
+                        <div key={s.id} className="rounded-xl bg-white/5 px-3 py-2.5">
+                          <div className="mb-1.5 flex items-center justify-between">
+                            <span className="text-[11px] text-em-text-dim">Move <span className="text-em-text">{s.name || 'chat'}</span> to…</span>
+                            <button onClick={() => setFoldingId(null)} className="text-em-text-dim transition hover:text-em-text">✕</button>
+                          </div>
+                          <div className="mb-2 flex flex-wrap gap-1.5">
+                            {folderNames.map((f) => (
+                              <button key={f} onClick={() => moveToFolder(s.id, f)} className={'rounded-full border px-2.5 py-1 text-xs transition ' + (s.folder === f ? 'border-em-accent/60 bg-em-accent/15 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-text')}>{f}</button>
+                            ))}
+                            {s.folder && <button onClick={() => moveToFolder(s.id, '')} className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-em-text-dim transition hover:border-red-400/40 hover:text-red-400">✕ No folder</button>}
+                          </div>
+                          <input autoFocus value={folderDraft} onChange={(e) => setFolderDraft(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') moveToFolder(s.id, folderDraft); else if (e.key === 'Escape') setFoldingId(null); }} placeholder="＋ New folder…" className="w-full rounded-lg border border-white/10 bg-em-bg/60 px-2.5 py-1.5 text-sm text-em-text placeholder:text-em-text-dim/60 focus:border-em-accent/50 focus:outline-none" />
                         </div>
                       );
                     }
@@ -1749,6 +1765,19 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                   </button>
                 ));
               })()}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* In-app confirm (replaces window.confirm) */}
+      {confirm && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm" onClick={() => setConfirm(null)}>
+          <div className="w-full max-w-sm rounded-2xl glass-panel p-5 shadow-2xl" onClick={(e) => e.stopPropagation()}>
+            <p className="mb-4 text-sm text-em-text">{confirm.message}</p>
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setConfirm(null)} className="rounded-xl border border-white/10 px-4 py-2 text-sm text-em-text-dim transition hover:text-em-text">Cancel</button>
+              <button autoFocus onClick={() => { const fn = confirm.onYes; setConfirm(null); fn && fn(); }} className="rounded-xl bg-red-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-red-600">{confirm.label}</button>
             </div>
           </div>
         </div>

@@ -214,7 +214,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
               {showReact && (
                 <>
                   <div className="fixed inset-0 z-30" onClick={() => setShowReact(false)} />
-                  <div className="pop-in absolute bottom-full left-0 z-40 mb-1 flex gap-0.5 rounded-full border border-white/10 bg-em-panel p-1 shadow-2xl" style={{ transformOrigin: 'bottom left' }}>
+                  <div className={'pop-in absolute bottom-full z-40 mb-1 flex gap-0.5 rounded-full border border-white/10 bg-em-panel p-1 shadow-2xl ' + (isUser ? 'right-0' : 'left-0')} style={{ transformOrigin: isUser ? 'bottom right' : 'bottom left' }}>
                     {REACTIONS.map((r) => (
                       <button key={r} onClick={() => { setShowReact(false); onReact(msg.reaction === r ? '' : r); }} className={'grid h-8 w-8 place-items-center rounded-full text-lg transition hover:bg-white/10 ' + (msg.reaction === r ? 'bg-em-accent/20' : '')}>{r}</button>
                     ))}

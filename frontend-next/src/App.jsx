@@ -213,6 +213,14 @@ export default function App() {
           </a>
           <nav className="flex items-center gap-2 text-sm">
             <input ref={fileRef} type="file" accept=".json,.png" className="hidden" onChange={onImportFile} />
+            {/* Compact search appears in the bar once the hero search scrolls away */}
+            {showTop && (
+              <div className="hidden items-center gap-2 rounded-lg border border-white/10 bg-white/[0.04] px-3 py-1.5 focus-within:border-em-accent/50 sm:flex">
+                <SearchIcon className="h-4 w-4 text-em-text-dim" />
+                <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search…" className="w-36 bg-transparent text-em-text placeholder:text-em-text-dim/70 focus:outline-none" />
+                <button onClick={() => setShowPalette(true)} title="Quick switch (⌘K)" className="text-[10px] text-em-text-dim">⌘K</button>
+              </div>
+            )}
             <button onClick={() => setEditing({})} className="flex items-center gap-1.5 rounded-lg bg-em-accent px-3.5 py-1.5 font-semibold text-em-bg shadow-lg shadow-em-accent/20 transition hover:bg-emerald-300">
               <PlusIcon className="h-4 w-4" /> Create
             </button>
