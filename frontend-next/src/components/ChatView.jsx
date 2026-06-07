@@ -26,7 +26,7 @@ import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
   MemoryIcon, MusicIcon, SparkleIcon, WallpaperIcon, CastIcon, PersonaIcon, MoodIcon,
-  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon,
+  BackIcon, HeartIcon, GearIcon, ChatsIcon, PlusIcon, PlayIcon, PauseIcon, PinIcon, CheckIcon,
 } from './icons.jsx';
 import useMusic from '../hooks/useMusic.js';
 import useTts from '../hooks/useTts.js';
@@ -104,6 +104,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [showAddCast, setShowAddCast] = useState(false); // visual add-character picker
   const [castQuery, setCastQuery] = useState('');        // cast picker search
   const [showSidebar, setShowSidebar] = useState(true);  // right profile sidebar (wide screens)
+  const [renamingId, setRenamingId] = useState(null);    // chat id being renamed inline
+  const [renameDraft, setRenameDraft] = useState('');    // inline rename input value
+  const [toast, setToast] = useState(null);              // transient bottom toast
+  const toastTimer = useRef(null);
   const [, force] = useState(0);          // re-render trigger for in-place mutations
   const rerender = () => force((n) => n + 1);
   const controllerRef = useRef(null);
@@ -192,6 +196,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     sug.clear();
     tts.stop();
     saveCharacter(char);
+    showToast('🌱 New chat forked from here');
   }
 
   // Pin / unpin a message — pinned messages are kept in the prompt context.
@@ -243,14 +248,20 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setShowChats(false);
   }
 
-  function renameChat(id) {
-    const c = chats[id];
-    if (!c) return;
-    const name = window.prompt('Rename chat:', c.name || '');
-    if (name == null) return;
-    c.name = name.trim() || c.name;
-    saveCharacter(char);
+  // Inline rename inside the Chats modal (no native window.prompt).
+  function beginRename(c) { setRenamingId(c.id); setRenameDraft(c.name || ''); }
+  function commitRename() {
+    const c = chats[renamingId];
+    if (c) { c.name = renameDraft.trim() || c.name; saveCharacter(char); }
+    setRenamingId(null);
     rerender();
+  }
+
+  // Transient toast (e.g. after forking a chat) so actions are legible.
+  function showToast(msg) {
+    setToast(msg);
+    if (toastTimer.current) clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2600);
   }
 
   function deleteChatSession(id) {
@@ -673,6 +684,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [chatId, chat, streaming, settings.presence]);
 
+  // Stream one group member's turn, reacting to the conversation so far.
+  async function groupTurn(speaker, userText) {
+    const aiMsg = {
+      id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
+      activeVariant: 0, variations: [{ main: '', think: null }], isStreaming: true, streamingVariant: 0,
+    };
+    chat.history.push(aiMsg);
+    stick();
+    rerender();
+    await runStream(aiMsg, userText, { messages: groupMessagesFor(speaker, userText) });
+  }
+
   // Actually push a user turn + stream the reply. `send` wraps this with slash-command parsing.
   async function sendText(raw) {
     const text = String(raw || '').trim();
@@ -680,8 +703,22 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setInput('');
     setUndo(null);
     stick();
-    const speaker = resolveSpeaker();
     chat.history.push({ id: genId(), sender: 'user', main: text });
+    rerender();
+
+    // Group + Auto speaker → let several cast members reply in turn so they
+    // actually interact with each other (and the user), not just one answer.
+    if (isGroup() && !chat.activeSpeakerId) {
+      const rounds = Math.min(activeParticipants().length, 3);
+      for (let i = 0; i < rounds; i++) {
+        const speaker = resolveSpeaker();
+        const turnText = i === 0 ? text : '(Continue the scene — respond in character as ' + displayName(speaker) + ', reacting to what was just said.)';
+        await groupTurn(speaker, turnText);
+      }
+      return;
+    }
+
+    const speaker = resolveSpeaker();
     const aiMsg = {
       id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id,
       activeVariant: 0, variations: [{ main: '', think: null }], isStreaming: true, streamingVariant: 0,
@@ -1033,13 +1070,28 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                 {sessions.map((s) => {
                   const active = s.id === chatId;
                   const count = (s.history || []).length;
+                  if (renamingId === s.id) {
+                    return (
+                      <div key={s.id} className="flex items-center gap-1 rounded-xl bg-white/5 px-3 py-2">
+                        <input
+                          autoFocus
+                          value={renameDraft}
+                          onChange={(e) => setRenameDraft(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitRename(); else if (e.key === 'Escape') setRenamingId(null); }}
+                          onBlur={commitRename}
+                          className="min-w-0 flex-1 rounded-lg border border-em-accent/40 bg-em-bg/60 px-2 py-1 text-sm text-em-text focus:outline-none"
+                        />
+                        <button onMouseDown={(e) => { e.preventDefault(); commitRename(); }} title="Save" className="grid h-7 w-7 place-items-center rounded text-em-accent hover:bg-em-accent/10"><CheckIcon /></button>
+                      </div>
+                    );
+                  }
                   return (
                     <div key={s.id} className={'group flex items-center gap-1 rounded-xl px-3 py-2 ' + (active ? 'bg-em-accent/15' : 'hover:bg-white/5')}>
                       <button onClick={() => switchChat(s.id)} className="min-w-0 flex-1 text-left">
                         <div className={'truncate text-sm ' + (active ? 'font-semibold text-em-accent' : 'text-em-text')}>{s.name || 'Chat'}</div>
                         <div className="text-[11px] text-em-text-dim">{count} message{count === 1 ? '' : 's'}</div>
                       </button>
-                      <button onClick={() => renameChat(s.id)} title="Rename chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
+                      <button onClick={() => beginRename(s)} title="Rename chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-em-text group-hover:opacity-100"><PencilIcon /></button>
                       <button onClick={() => deleteChatSession(s.id)} title="Delete chat" className="grid h-7 w-7 place-items-center rounded text-em-text-dim opacity-0 transition hover:text-red-400 group-hover:opacity-100"><TrashIcon /></button>
                     </div>
                   );
@@ -1402,6 +1454,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             <span className="eq"><i /><i /><i /><i /></span>
             <span className="max-w-[7rem] truncate text-xs font-medium text-em-text">{displayName(char)}</span>
           </div>
+        </div>
+      )}
+
+      {/* Transient toast (fork, etc.) */}
+      {toast && (
+        <div className="pointer-events-none fixed inset-x-0 bottom-28 z-40 flex justify-center">
+          <div className="pop-in rounded-full border border-em-accent/40 bg-em-panel px-4 py-2 text-sm font-medium text-em-text shadow-2xl">{toast}</div>
         </div>
       )}
 

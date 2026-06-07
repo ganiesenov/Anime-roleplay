@@ -404,12 +404,16 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   const names = participants.map((c) => displayName(c)).join(', ');
   const sections = [];
 
+  const others = participants.filter((c) => displayName(c) !== sName).map((c) => displayName(c)).join(', ');
   sections.push(
     '--- GROUP SCENE ---\n'
     + 'This is a group roleplay. Characters present: ' + names + '.\n'
     + 'The user is ' + uName + '.\n'
     + 'You are ' + sName + '. Respond ONLY as ' + sName + ' — never write dialogue or '
-    + 'actions for the user or for the other characters.',
+    + 'actions for the user or for the other characters.\n'
+    + 'This is a LIVE conversation between everyone present, not just you and the user. '
+    + (others ? 'Actively interact with the other character(s) (' + others + '): address them BY NAME, react to what they just said, agree, tease, argue, ask them questions. ' : '')
+    + 'Do not only answer the user — talk WITH the rest of the cast so the scene feels alive. Keep your turn to one natural beat so others can respond.',
   );
 
   const cast = participants.map((c) => {
