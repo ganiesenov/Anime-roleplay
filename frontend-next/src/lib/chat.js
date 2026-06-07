@@ -58,14 +58,13 @@ const STYLE_DIRECTIVE = {
 };
 
 const PHOTO_DIRECTIVE = '--- SENDING PHOTOS ---\n'
-  + 'You can send the user a photo of yourself when it genuinely fits the moment — flirting, showing off, '
-  + 'reacting, or when asked. To do so, add ONE tag on its own line at the very END of your reply: '
-  + '[photo: comma-separated Danbooru-style tags describing THIS shot — your expression/emotion, pose, framing, '
-  + 'what you are wearing OR your state of undress, and the setting]. Match the scene: if the moment is intimate or '
-  + 'sexual you may be fully explicit (concrete tags like nude, topless, lingerie, etc.) — do not censor or soften it. '
-  + 'Use concrete tags, not prose. ALWAYS write the tags in ENGLISH Danbooru tags, even when the conversation is in '
-  + 'another language (the image model only understands English). When the user asks for a photo, ALWAYS include the tag. '
-  + 'Use it sparingly otherwise, only when it feels natural. Do not mention the tag in your spoken text.';
+  + 'When the user asks for a picture/photo/selfie, OR when the scene changes significantly, ALWAYS add ONE line at the very END of your reply, on its own line, exactly in this form:\n'
+  + '[IMAGE PROMPT: a detailed description of exactly this shot]\n'
+  + 'Describe it concretely: who is in frame and their appearance, facial expression/emotion, pose and body position, what they are wearing OR their state of undress, any physical action happening, who else is present, camera framing/angle, lighting, and the setting. '
+  + 'Match the current moment faithfully and literally — if the moment is intimate or sexual, be FULLY explicit and concrete; do NOT censor, soften, or use vague words. '
+  + 'ALWAYS write this line in ENGLISH even when the conversation is in another language (the image model only understands English). '
+  + 'Example: [IMAGE PROMPT: red-haired woman with blue eyes kneeling, looking up submissively, hands on his thighs, red cape open, exposed breasts, bedroom with red curtains, cinematic lighting]. '
+  + 'Do NOT mention this line in your spoken text and do NOT wrap it in quotes.';
 
 // Does a plain user message ask the character for a photo/pic? If so we generate
 // one regardless of whether the model bothered to emit a [photo:] tag — so the user
@@ -82,8 +81,20 @@ export function isPhotoRequest(text) {
   return false;
 }
 
-// Pull a [photo: ...] tag out of a reply. Returns { clean, prompt } — clean has all
-// such tags removed; prompt is the first tag's description (or '' if none).
+// Pull an [IMAGE PROMPT: ...] line out of a reply — a full, ready-to-use image
+// prompt the model wrote. Returns { clean, prompt }; this is sent VERBATIM to the
+// image model (ComfyUI etc.), replacing the old tag-building entirely.
+export function extractImagePrompt(text) {
+  const s = String(text || '');
+  const re = /\[\s*image\s*prompt\s*:\s*([^\]]+)\]/i;
+  const m = re.exec(s);
+  const prompt = m ? m[1].trim() : '';
+  const clean = s.replace(/\[\s*image\s*prompt\s*:\s*[^\]]*\]?/gi, '').replace(/\n{3,}/g, '\n\n').trim();
+  return { clean, prompt };
+}
+
+// Pull a legacy [photo: ...] tag out of a reply. Returns { clean, prompt } — clean
+// has all such tags removed; prompt is the first tag's description (or '' if none).
 export function extractPhotoTag(text) {
   const s = String(text || '');
   const re = /\[\s*photo\s*:\s*([^\]]+)\]/gi;
@@ -94,9 +105,12 @@ export function extractPhotoTag(text) {
   return { clean, prompt };
 }
 
-// Remove a (possibly half-streamed) photo tag for display, so it never flashes.
+// Remove a (possibly half-streamed) photo / image-prompt tag for display, so it
+// never flashes in the bubble.
 export function stripPhotoTag(text) {
-  return String(text || '').replace(/\[\s*photo\s*:[^\]]*\]?/gi, '');
+  return String(text || '')
+    .replace(/\[\s*image\s*prompt\s*:[^\]]*\]?/gi, '')
+    .replace(/\[\s*photo\s*:[^\]]*\]?/gi, '');
 }
 
 function appearanceForPhoto(char) {
