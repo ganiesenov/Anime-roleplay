@@ -368,6 +368,9 @@ def _comfy_wan_i2v_workflow(image_name, prompt, width, height, length, fps, seed
     Uses ComfyUI's built-in WAN nodes."""
     return {
         "50": {"class_type": "UNETLoader", "inputs": {"unet_name": "wan2.1_i2v_480p_14B_fp8_e4m3fn.safetensors", "weight_dtype": "fp8_e4m3fn"}},
+        # lightx2v step-distill LoRA → 4-step generation (≈5× faster than the base 20+ steps).
+        "49": {"class_type": "LoraLoaderModelOnly", "inputs": {
+            "model": ["50", 0], "lora_name": "lightx2v_I2V_14B_480p_rank64.safetensors", "strength_model": 1.0}},
         "51": {"class_type": "CLIPLoader", "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan"}},
         "52": {"class_type": "VAELoader", "inputs": {"vae_name": "wan_2.1_vae.safetensors"}},
         "53": {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": "clip_vision_h.safetensors"}},
@@ -380,8 +383,8 @@ def _comfy_wan_i2v_workflow(image_name, prompt, width, height, length, fps, seed
             "width": width, "height": height, "length": length, "batch_size": 1,
             "clip_vision_output": ["55", 0], "start_image": ["54", 0]}},
         "59": {"class_type": "KSampler", "inputs": {
-            "seed": seed, "steps": steps, "cfg": 6.0, "sampler_name": "uni_pc", "scheduler": "simple",
-            "denoise": 1.0, "model": ["50", 0], "positive": ["58", 0], "negative": ["58", 1], "latent_image": ["58", 2]}},
+            "seed": seed, "steps": steps, "cfg": 1.0, "sampler_name": "euler", "scheduler": "simple",
+            "denoise": 1.0, "model": ["49", 0], "positive": ["58", 0], "negative": ["58", 1], "latent_image": ["58", 2]}},
         "60": {"class_type": "VAEDecode", "inputs": {"samples": ["59", 0], "vae": ["52", 0]}},
         "61": {"class_type": "SaveAnimatedWEBP", "inputs": {
             "images": ["60", 0], "filename_prefix": "aria_vid", "fps": float(fps), "lossless": False, "quality": 85, "method": "default"}},
@@ -641,7 +644,7 @@ async def img2vid(
     width: int = Query(768, ge=256, le=1280),
     height: int = Query(768, ge=256, le=1280),
     steps: int = Query(20, ge=1, le=40),
-    frames: int = Query(14, ge=6, le=25),
+    frames: int = Query(14, ge=6, le=129),
     motion: int = Query(127, ge=1, le=255),
     fps: int = Query(8, ge=1, le=24),
     seed: int = Query(-1),
@@ -669,8 +672,13 @@ async def img2vid(
                 img_bytes = await _comfy_faceswap(base, img_bytes, _read_face(face.strip()), gender=faceGender)
             if engine == "wan":
                 # WAN 2.1 i2v — native motion, far better than SVD on stylised/anime stills.
-                wlen = max(17, min(81, ((frames * 3) // 4) * 4 + 1)) if frames else 49
-                data = await _comfy_img2vid_wan(base, img_bytes, prompt, 512, 512, wlen, max(8, fps), seed, 20)
+                # WAN length must be 4n+1; map the SVD-style `frames` (default 14) up to a
+                # nicer clip, clamped to a sane range.
+                # Keep the clip short: WAN 14B cost scales with frame count, and too many
+                # frames also thrashes VRAM. 25 frames ≈ 1.5s at 16fps, ~4 steps via lightx2v.
+                want = frames if frames and frames > 25 else 25
+                wlen = max(17, min(49, (want // 4) * 4 + 1))
+                data = await _comfy_img2vid_wan(base, img_bytes, prompt, 512, 512, wlen, max(8, fps), seed, 4)
             else:
                 data = await _comfy_img2vid_from_image(base, img_bytes, svd.strip(), width, height, steps, seed, frames, motion, fps)
         else:
