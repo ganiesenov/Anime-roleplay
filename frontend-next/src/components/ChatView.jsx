@@ -10,7 +10,7 @@ import {
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
   extractPhotoTag, extractImagePrompt, stripPhotoTag, buildPhotoUrl, buildVideoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl, isPhotoRequest, impersonateReply,
 } from '../lib/chat.js';
-import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
+import { generateAppearance, tagsFromText, tagsFromScene, sceneWithUser } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES, trustEffect, tensionEffect } from '../lib/relationship.js';
 import { getEnergy, spendEnergy, earnEnergy, ENERGY_MAX, EARN_PER_REPLY, COST as ENERGY_COST } from '../lib/energy.js';
@@ -431,6 +431,33 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     return true;
   }
 
+  // The persona the user is roleplaying as right now (their identity + face).
+  function personaSelf() {
+    return (chat && chat.activePersonaId && personas[chat.activePersonaId]) || null;
+  }
+
+  // Realistic quality suffix for "scene with me" shots (face-swap onto a real photo).
+  const REALISTIC_Q = ', photorealistic, realistic photo, natural skin texture, real lighting, sharp focus, highly detailed, 8k';
+
+  // Build a realistic two-person image prompt that puts the user into the scene with
+  // the character (used when face-swap is on). `scene` = chat transcript, `request` =
+  // the user's explicit ask (either may be empty).
+  async function sceneWithMePrompt(pchar, scene, request) {
+    const p = personaSelf();
+    let desc = '';
+    try {
+      desc = await sceneWithUser({
+        charName: displayName(pchar),
+        userName: (p && p.name) || 'the user',
+        userGender: p && p.gender,
+        userDesc: p && p.description,
+        transcript: scene,
+        request,
+      }, resolveModel(settings, settings.model));
+    } catch (e) { /* fall back to the raw request */ }
+    return (desc || request || 'an intimate moment together') + REALISTIC_Q;
+  }
+
   // Energy economy (opt-in): try to pay for a media generation. Returns true if it
   // went through (or the economy is off), false if too low — with a nudge toast.
   function chargeEnergy(kind) {
@@ -734,9 +761,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // (the LLM knows famous characters), cache it on the character, then set the image.
   async function generatePhoto(v, pchar, prompt, raw, scene) {
     if (!chargeEnergy('photo')) { v.imageLoading = false; rerender(); return; }
-    // Optionally paste the user's real face into the shot (local ReActor).
-    const withFace = (u) => (settings.faceSwap && faceId) ? faceSwapPhotoUrl(u, faceId, settings) : u;
+    // "Scene with me": face-swap on + a persona face → realistic two-person shot with the
+    // user in it, their real face pasted onto their (gender-matched) body.
+    const persona = personaSelf();
+    const withMe = !!(settings.faceSwap && faceId && persona && persona.faceRef);
+    const withFace = (u) => withMe ? faceSwapPhotoUrl(u, faceId, settings, persona.gender) : u;
     try {
+      if (withMe) {
+        const shot = await sceneWithMePrompt(pchar, scene, raw ? prompt : (prompt || ''));
+        v.image = withFace(buildPhotoUrl(pchar, shot, settings, { raw: true }));
+        v.imagePrompt = shot;
+        return;
+      }
       // raw → send the prompt verbatim (no identity/scene/quality added).
       if (raw) { v.image = withFace(buildPhotoUrl(pchar, prompt, settings, { raw: true })); v.imagePrompt = prompt; return; }
       // Ensure we have stable appearance tags for likeness (derive once, cache).
@@ -773,8 +809,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // ComfyUI + Stable Video Diffusion (buildVideoUrl) instead of a flat image.
   async function generateVideo(v, pchar, prompt, scene) {
     if (!chargeEnergy('video')) { v.imageLoading = false; v.loadingKind = null; rerender(); return; }
+    const persona = personaSelf();
+    const withMe = !!(settings.faceSwap && faceId && persona && persona.faceRef);
     try {
-      if (!pchar.appearance || !pchar.appearance.trim()) {
+      if (!withMe && (!pchar.appearance || !pchar.appearance.trim())) {
         try {
           const appr = await generateAppearance(
             { name: displayName(pchar), description: pchar.description, tags: pchar.tags },
@@ -784,16 +822,20 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         } catch (e) { /* fall back to name+tags */ }
       }
       let shot = prompt;
-      if (scene) {
+      if (withMe) {
+        shot = await sceneWithMePrompt(pchar, scene, prompt || '');   // realistic two-person scene
+      } else if (scene) {
         try {
           const t = await tagsFromScene({ name: displayName(pchar), transcript: scene, hint: prompt }, resolveModel(settings, settings.model));
           if (t) shot = t;
         } catch (e) { /* keep the hint */ }
       }
-      // Local SVD animates an actual still → render the scene-accurate selfie first, then
-      // hand it to ComfyUI to animate (keeps the exact look; no SDXL checkpoint needed).
+      // Local SVD animates an actual still → render it first, then hand it to ComfyUI.
+      // With "scene with me", the still is a realistic two-person shot and the user's face
+      // is swapped onto their (gender-matched) body before animating.
+      const stillUrl = buildPhotoUrl(pchar, shot, settings, withMe ? { raw: true } : {});
       const opts = settings.videoProvider !== 'hosted'
-        ? { image: buildPhotoUrl(pchar, shot, settings, {}), face: (settings.faceSwap && faceId) ? faceId : undefined }
+        ? { image: stillUrl, face: withMe ? faceId : undefined, faceGender: withMe ? persona.gender : undefined }
         : {};
       v.image = buildVideoUrl(pchar, shot, settings, opts);
       v.imagePrompt = shot;

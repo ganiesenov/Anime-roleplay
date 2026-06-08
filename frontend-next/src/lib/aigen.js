@@ -160,6 +160,31 @@ export async function tagsFromScene({ name, transcript, hint }, req, signal) {
   return pick.replace(/^["'*\s-]+|["'*\s]+$/g, '').trim();
 }
 
+// Build a REALISTIC, two-person image prompt that puts the USER physically into the
+// scene with the character — used when face-swap is on (the user's real face is later
+// pasted onto their body). Returns one natural-language English prompt (photographic,
+// uncensored), describing BOTH people, the action, clothing/undress, setting, framing.
+export async function sceneWithUser({ charName, userName, userGender, userDesc, transcript, request }, req, signal) {
+  const g = userGender === 'female' ? 'woman' : userGender === 'male' ? 'man' : 'person';
+  const sys = 'You write a single prompt for an uncensored PHOTOREALISTIC image model. '
+    + 'Describe ONE real-looking photograph that shows TWO people together: '
+    + '(1) ' + (userName || 'the user') + ', a real ' + g + (userDesc ? ' (' + String(userDesc).slice(0, 200) + ')' : '') + ', and '
+    + '(2) ' + (charName || 'the character') + ', rendered as a real human. '
+    + 'Capture exactly the requested moment: both people\'s positions and poses, what they are doing together, their clothing or state of undress, who is touching whom, the setting, camera framing/angle and lighting. '
+    + 'Make it look like a genuine photo (photorealistic, natural skin, real lighting) — NOT anime or illustration. '
+    + 'If the moment is sexual or explicit, describe it with concrete explicit language; do NOT censor or soften. '
+    + 'Keep ' + (userName || 'the user') + '\'s face clearly visible. '
+    + 'Output ONLY the prompt: one paragraph, English, no quotes, no commentary.';
+  const ctx = (request ? 'Requested scene: ' + request + '\n\n' : '')
+    + (transcript ? 'Roleplay excerpt (most recent last):\n' + String(transcript).slice(-1500) : '');
+  const out = await collectCompletion(
+    [{ role: 'system', content: sys }, { role: 'user', content: ctx || 'An intimate moment together.' }],
+    { ...(req || {}), temperature: 0.6, signal },
+  );
+  return String(out || '').replace(/```/g, '').replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/^["'*\s-]+|["'*\s]+$/g, '').trim();
+}
+
 // Generate an opening-scenario paragraph from the current name/description/lore.
 export async function generateScenario({ name, description, lore, hints }, req, signal) {
   const user = 'Character name: ' + (name || 'the character')

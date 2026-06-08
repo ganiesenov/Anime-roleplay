@@ -210,6 +210,7 @@ export function buildVideoUrl(char, prompt, settings, opts) {
   if (opts.image) u += '&image=' + encodeURIComponent(deproxyImage(opts.image));
   // Swap the user's face into the still before animating (local ReActor).
   if (opts.face) u += '&face=' + encodeURIComponent(opts.face);
+  if (opts.faceGender === 'male' || opts.faceGender === 'female') u += '&faceGender=' + opts.faceGender;
   if (settings.comfyModel && settings.comfyModel.trim()) u += '&model=' + encodeURIComponent(settings.comfyModel.trim());
   if (settings.svdModel && settings.svdModel.trim()) u += '&svd=' + encodeURIComponent(settings.svdModel.trim());
   return u;

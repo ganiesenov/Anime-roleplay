@@ -27,9 +27,12 @@ export async function registerFace(faceRef) {
 }
 
 // Wrap a generated photo URL so the user's face is swapped onto it via ReActor.
-export function faceSwapPhotoUrl(photoUrl, faceId, settings) {
+// `gender` ('male'|'female'|'no') targets only that gender's face in a multi-person scene.
+export function faceSwapPhotoUrl(photoUrl, faceId, settings, gender) {
   const base = ((settings && settings.comfyUrl) || 'http://127.0.0.1:8188').trim();
-  return '/api/faceswap?image=' + encodeURIComponent(photoUrl)
+  let u = '/api/faceswap?image=' + encodeURIComponent(photoUrl)
     + '&face=' + encodeURIComponent(faceId)
     + '&url=' + encodeURIComponent(base);
+  if (gender === 'male' || gender === 'female') u += '&gender=' + gender;
+  return u;
 }

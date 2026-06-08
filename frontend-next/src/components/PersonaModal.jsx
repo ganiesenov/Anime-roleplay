@@ -14,6 +14,7 @@ export default function PersonaModal({ persona, onSave, onClose, onDelete }) {
   const [avatar, setAvatar] = useState(persona?.avatar || '');
   const [description, setDescription] = useState(persona?.description || '');
   const [faceRef, setFaceRef] = useState(persona?.faceRef || '');
+  const [gender, setGender] = useState(persona?.gender || 'no');
 
   async function pickAvatar(e) {
     const file = e.target.files && e.target.files[0];
@@ -35,6 +36,7 @@ export default function PersonaModal({ persona, onSave, onClose, onDelete }) {
       avatar,
       description: description.trim(),
       faceRef,
+      gender,
     });
   }
 
@@ -97,6 +99,14 @@ export default function PersonaModal({ persona, onSave, onClose, onDelete }) {
                 <input type="file" accept="image/*" className="hidden" onChange={pickFace} />
               </label>
               {faceRef && <button onClick={() => setFaceRef('')} className="text-[11px] text-em-text-dim transition hover:text-red-400">Remove</button>}
+              <span className="ml-auto flex items-center gap-1 text-[11px] text-em-text-dim">
+                I'm a
+                <select value={gender} onChange={(e) => setGender(e.target.value)} className="rounded-md border border-white/10 bg-white/[0.04] px-1.5 py-0.5 text-em-text focus:border-em-accent/50 focus:outline-none">
+                  <option value="no">person</option>
+                  <option value="male">man</option>
+                  <option value="female">woman</option>
+                </select>
+              </span>
             </div>
           </div>
         </div>
