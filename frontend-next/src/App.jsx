@@ -251,7 +251,8 @@ export default function App() {
                 <button onClick={() => setShowPalette(true)} title="Quick switch (⌘K)" className="text-[10px] text-em-text-dim">⌘K</button>
               </div>
             )}
-            <button onClick={() => setShowWizard(true)} className="flex items-center gap-1.5 rounded-lg bg-em-accent px-3.5 py-1.5 font-semibold text-em-bg shadow-lg shadow-em-accent/20 transition hover:bg-emerald-300">
+            <button onClick={() => setShowWizard(true)} title="Guided character wizard" className="hidden items-center gap-1.5 rounded-lg border border-white/10 px-3 py-1.5 font-medium text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent sm:flex">✨ Wizard</button>
+            <button onClick={() => setEditing({})} className="flex items-center gap-1.5 rounded-lg bg-em-accent px-3.5 py-1.5 font-semibold text-em-bg shadow-lg shadow-em-accent/20 transition hover:bg-emerald-300">
               <PlusIcon className="h-4 w-4" /> Create
             </button>
             {/* Overflow menu — Import / Export / How it works live here to keep the bar clean */}
@@ -348,11 +349,12 @@ export default function App() {
           {/* Primary call-to-action + library stats */}
           <div className="mt-7 flex flex-col items-center gap-3">
             <button
-              onClick={() => setShowWizard(true)}
+              onClick={() => setEditing({})}
               className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-em-accent to-emerald-300 px-6 py-2.5 font-semibold text-em-bg shadow-lg shadow-em-accent/25 transition hover:-translate-y-0.5 hover:shadow-em-accent/40 active:scale-95"
             >
               <PlusIcon className="h-4 w-4" /> Create your own character
             </button>
+            <button onClick={() => setShowWizard(true)} className="text-sm text-em-text-dim transition hover:text-em-accent">✨ or build one with the guided wizard</button>
             {chars && chars.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-em-text-dim">
                 <span><b className="text-em-text">{chars.length}</b> characters</span>
