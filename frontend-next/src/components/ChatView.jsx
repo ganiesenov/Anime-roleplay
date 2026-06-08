@@ -318,6 +318,22 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     } finally { setWpBusy(false); }
   }
 
+  // "Set the scene" — paint a backdrop from the CURRENT moment (scenery only) and
+  // use it as the chat background, for a visual-novel feel that follows the story.
+  async function setSceneBackdrop() {
+    if (!chat || wpBusy) return;
+    setShowDirector(false);
+    showToast('🖼 Painting the scene…');
+    let desc = '';
+    try {
+      const transcript = (chat.history || []).filter((m) => !m.isStreaming).slice(-6).map((m) => getMessageText(m)).join('\n');
+      const sys = 'From this roleplay excerpt, output ONLY a short comma-separated ENGLISH image prompt describing the PHYSICAL SETTING (location, time of day, weather, atmosphere) — scenery only, NO people, NO names. Example: "moonlit castle balcony, ivy, starry night sky, warm candle glow".';
+      const raw = await collectCompletion([{ role: 'system', content: sys }, { role: 'user', content: transcript }], resolveModel(settings, settings.model));
+      desc = String(raw || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim().split('\n')[0];
+    } catch (e) { /* fall back to character-based wallpaper */ }
+    await generateChatWallpaper(desc);
+  }
+
   // ── Chat session list (switch / rename / delete) ──────────────────────────
   function switchChat(id) {
     if (!chats[id] || id === chatId) { setShowChats(false); return; }
@@ -2153,6 +2169,14 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                     <div className="fixed inset-0 z-30" onClick={() => setShowDirector(false)} />
                     <div className="pop-in absolute bottom-full left-0 z-40 mb-2 w-56 rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl" style={{ transformOrigin: 'bottom left' }}>
                       <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">🎬 Director</div>
+                      <button
+                        onClick={setSceneBackdrop}
+                        disabled={wpBusy}
+                        title="Generate a background image from the current scene"
+                        className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-em-text transition hover:bg-white/5 disabled:opacity-50"
+                      >
+                        <span className="w-5 text-center">{wpBusy ? '⏳' : '🖼'}</span>Set the scene
+                      </button>
                       {DIRECTOR_ACTIONS.map((d) => (
                         <button
                           key={d.label}
