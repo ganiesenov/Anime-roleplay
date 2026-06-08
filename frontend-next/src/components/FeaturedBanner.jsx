@@ -62,10 +62,10 @@ export default function FeaturedBanner({ chars, onOpen }) {
       </div>
 
       {pool.length > 1 && (
-        <>
-          <button onClick={() => go(-1)} aria-label="Previous" className="absolute left-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-em-bg/60 text-em-text opacity-0 backdrop-blur transition hover:bg-em-bg/90 group-hover:opacity-100"><ChevronLeft className="h-5 w-5" /></button>
-          <button onClick={() => go(1)} aria-label="Next" className="absolute right-3 top-1/2 grid h-9 w-9 -translate-y-1/2 place-items-center rounded-full border border-white/15 bg-em-bg/60 text-em-text opacity-0 backdrop-blur transition hover:bg-em-bg/90 group-hover:opacity-100"><ChevronRight className="h-5 w-5" /></button>
-        </>
+        <div className="absolute right-3 top-3 flex gap-1.5 opacity-0 transition group-hover:opacity-100">
+          <button onClick={() => go(-1)} aria-label="Previous" className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-em-bg/60 text-em-text backdrop-blur transition hover:bg-em-bg/90"><ChevronLeft className="h-5 w-5" /></button>
+          <button onClick={() => go(1)} aria-label="Next" className="grid h-9 w-9 place-items-center rounded-full border border-white/15 bg-em-bg/60 text-em-text backdrop-blur transition hover:bg-em-bg/90"><ChevronRight className="h-5 w-5" /></button>
+        </div>
       )}
       {pool.length > 1 && (
         <div className="absolute bottom-4 right-6 flex gap-1.5">

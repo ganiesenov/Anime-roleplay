@@ -695,7 +695,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       setCallTranscript(txt);
       if (e.results[e.results.length - 1].isFinal) { try { rec.stop(); } catch (er) { /* */ } }
     };
-    rec.onerror = () => { /* onend handles the next step */ };
+    rec.onerror = (ev) => {
+      const err = ev && ev.error;
+      // no-speech/aborted are normal (silence / restart) — surface the real failures.
+      if (err && err !== 'no-speech' && err !== 'aborted') {
+        setCallError(
+          err === 'network' ? 'Speech recognition needs internet — Chrome streams audio to Google’s servers.'
+          : err === 'not-allowed' || err === 'service-not-allowed' ? 'Microphone blocked — allow mic access for this site.'
+          : err === 'audio-capture' ? 'No microphone found.'
+          : 'Speech error: ' + err,
+        );
+      }
+    };
     rec.onend = () => {
       if (!inCallRef.current) return;
       const t = callTranscriptRef.current.trim();
@@ -959,9 +970,21 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     chat.history.push({ id: genId(), sender: 'user', main: text, ...(extra || {}) });
     rerender();
 
-    // "@Name …" → that cast member answers directly (hand the turn to them).
+    // "@Name …" → that character answers directly. If they're not in the scene yet,
+    // summon them (add to the cast) so a 1-on-1 can pull someone in on the fly.
     const mention = mentionedSpeaker(text);
-    if (mention) { await groupTurn(mention, text); return; }
+    if (mention) {
+      const ids = Array.isArray(chat.participants) ? chat.participants.slice() : [];
+      if (mention.id !== char.id && !ids.includes(mention.id)) {
+        if (!ids.includes(char.id)) ids.unshift(char.id);
+        ids.push(mention.id);
+        chat.participants = ids;
+        await saveCharacter(char);
+        rerender();
+      }
+      await groupTurn(mention, text);
+      return;
+    }
 
     // Group + Auto speaker → let several cast members reply in turn so they
     // actually interact with each other (and the user), not just one answer.
@@ -1176,17 +1199,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     return parts[(idx + 1) % parts.length] || parts[0];
   }
 
-  // In a group, "@Name …" directs the turn to that cast member (overrides rotation).
+  // "@Name …" directs the turn to that character. Matches a current cast member,
+  // or any character in the library (which is then summoned into the scene).
   function mentionedSpeaker(text) {
-    if (!isGroup()) return null;
-    const m = /(?:^|\s)@([\p{L}][\p{L}\d_-]*)/u.exec(String(text || ''));
+    const m = /(?:^|\s)@([\p{L}][\p{L}\d_-]{1,})/u.exec(String(text || ''));
     if (!m) return null;
     const tag = m[1].toLowerCase();
-    const parts = activeParticipants();
-    return parts.find((c) => {
+    const match = (c) => {
+      if (!c) return false;
       const n = displayName(c).toLowerCase();
-      return n === tag || n.split(/\s+/)[0] === tag || n.startsWith(tag);
-    }) || null;
+      return n === tag || n.split(/\s+/)[0] === tag || n.replace(/\s+/g, '').startsWith(tag);
+    };
+    return activeParticipants().find(match) || Object.values(charsById).find(match) || null;
   }
   function speakerOf(msg) {
     if (msg && msg.speakerId && charsById[msg.speakerId]) return charsById[msg.speakerId];
