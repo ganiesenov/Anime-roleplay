@@ -13,6 +13,7 @@ import {
 import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES, trustEffect, tensionEffect } from '../lib/relationship.js';
+import { getEnergy, spendEnergy, earnEnergy, ENERGY_MAX, EARN_PER_REPLY, COST as ENERGY_COST } from '../lib/energy.js';
 import { buildFactsUpdateMessages, parseFacts } from '../lib/memory.js';
 import { archetypeRelationship } from '../lib/personality.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
@@ -175,6 +176,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [folderDraft, setFolderDraft] = useState('');    // inline folder input value
   const [searchAll, setSearchAll] = useState(false);     // search scope: this chat vs all
   const [toast, setToast] = useState(null);              // transient bottom toast
+  const [energy, setEnergy] = useState(() => getEnergy()); // gamified energy balance (opt-in)
   const toastTimer = useRef(null);
   const [lightbox, setLightbox] = useState(null);        // full-size image overlay (src)
   const [showGallery, setShowGallery] = useState(false); // all chat images on one screen
@@ -411,6 +413,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
     toastTimer.current = setTimeout(() => setToast(null), 2600);
+  }
+
+  // Energy economy (opt-in): try to pay for a media generation. Returns true if it
+  // went through (or the economy is off), false if too low — with a nudge toast.
+  function chargeEnergy(kind) {
+    if (!settings.energyEconomy) return true;
+    const cost = ENERGY_COST[kind] || 0;
+    if (spendEnergy(cost)) { setEnergy(getEnergy()); return true; }
+    showToast(`Not enough energy — a ${kind} costs ${cost}⚡. It refills over time and as you chat.`);
+    return false;
   }
 
   // Manually distill the conversation into chat.memories right now (one click).
@@ -679,6 +691,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         maybeAutoSummarize();
         maybeUpdateRelationship();
         maybeUpdateFacts();
+        if (settings.energyEconomy) setEnergy(earnEnergy(EARN_PER_REPLY));
         sug.generate(char, chat, personas);
         if (settings.tts) {
           tts.autoSpeak(aiMsg, ttsOptsFor(speakerOf(aiMsg)));
@@ -704,6 +717,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // Generate the selfie for a message variant: derive Danbooru appearance once
   // (the LLM knows famous characters), cache it on the character, then set the image.
   async function generatePhoto(v, pchar, prompt, raw, scene) {
+    if (!chargeEnergy('photo')) { v.imageLoading = false; rerender(); return; }
     try {
       // raw → send the prompt verbatim (no identity/scene/quality added).
       if (raw) { v.image = buildPhotoUrl(pchar, prompt, settings, { raw: true }); v.imagePrompt = prompt; return; }
@@ -740,6 +754,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // a selfie (derive/cached appearance + scene tags), then render the still through
   // ComfyUI + Stable Video Diffusion (buildVideoUrl) instead of a flat image.
   async function generateVideo(v, pchar, prompt, scene) {
+    if (!chargeEnergy('video')) { v.imageLoading = false; v.loadingKind = null; rerender(); return; }
     try {
       if (!pchar.appearance || !pchar.appearance.trim()) {
         try {
@@ -1520,6 +1535,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             </span>
           );
         })()}
+        {settings.energyEconomy && (
+          <span
+            title={`Energy ${energy}/${ENERGY_MAX} — spent on photos/videos, earned by chatting, refills over time`}
+            className="hidden items-center gap-1.5 rounded-full border border-amber-300/30 bg-amber-300/10 px-2.5 py-1 text-xs font-medium text-amber-200 sm:flex"
+          >
+            <span className="leading-none">⚡</span>
+            <span className="relative h-1.5 w-10 overflow-hidden rounded-full bg-amber-300/15">
+              <span className="absolute inset-y-0 left-0 rounded-full bg-amber-300/70" style={{ width: Math.round((energy / ENERGY_MAX) * 100) + '%' }} />
+            </span>
+            <span className="tabular-nums">{energy}</span>
+          </span>
+        )}
         {settings.relationship && chat && chat.relationship && (
           <button
             onClick={() => setShowInner(true)}

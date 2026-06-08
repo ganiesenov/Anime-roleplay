@@ -234,6 +234,9 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                 <Row label="Off-screen life" hint="Character lives their own day while you're away; it colours how they greet you back.">
                   <Toggle checked={s.offscreenLife} onChange={(v) => set('offscreenLife', v)} />
                 </Row>
+                <Row label="Energy economy" hint="Gamified ⚡ balance: generating photos/videos costs energy, earned by chatting and refilled over time.">
+                  <Toggle checked={s.energyEconomy} onChange={(v) => set('energyEconomy', v)} />
+                </Row>
               </div>
             )}
 

@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS = {
   autonomy: true,            // anti-sycophancy: character has its own will/boundaries
   presence: true,            // living time/presence + proactive "texts first" on return
   offscreenLife: true,       // character "lives" between sessions; colours the return greeting
+  energyEconomy: false,      // gamified energy: photos/videos cost energy, earned by chatting, refills over time
   aiPhotos: false,           // character can send AI-generated selfies via a [photo: …] tag
   autoSelfie: false,         // character may send a selfie on its OWN initiative (not only when asked)
   imageProvider: 'pollinations', // 'pollinations' (hosted, token) | 'comfy' (local ComfyUI) | 'a1111' (local SD WebUI)
