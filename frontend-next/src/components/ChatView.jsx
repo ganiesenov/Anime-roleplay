@@ -83,6 +83,15 @@ const DIRECTOR_ACTIONS = [
   { icon: '🎬', label: 'Wrap up scene', text: 'bring the current scene to a natural, satisfying close' },
 ];
 
+// Intimacy Director actions unlocked by the relationship — they only appear once
+// affection crosses the matching stage threshold (gamified "earn it" content).
+const INTIMATE_ACTIONS = [
+  { icon: '🤗', label: 'Get closer', min: 65, stage: 'Close', text: 'close the physical distance between you — a touch, a step nearer — acting on the warmth between you' },
+  { icon: '💞', label: 'Flirt openly', min: 65, stage: 'Close', text: 'flirt openly and warmly, making how you feel unmistakable' },
+  { icon: '💋', label: 'Make a move', min: 80, stage: 'Devoted', text: 'make a clear, confident romantic move that fits this exact moment' },
+  { icon: '🔥', label: 'Heat it up', min: 92, stage: 'Inseparable', text: 'let the moment turn intimate and passionate, true to the scene and how close you two are' },
+];
+
 // Slash commands surfaced in the composer (type "/" to filter). arg='' = runs immediately.
 const SLASH_COMMANDS = [
   { cmd: 'me',       arg: '<action>', icon: '🎬', desc: 'Send an action in italics' },
@@ -2142,6 +2151,31 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                           <span className="w-5 text-center">{d.icon}</span>{d.label}
                         </button>
                       ))}
+                      {/* Intimacy actions — unlocked by relationship stage */}
+                      {(() => {
+                        const aff = (settings.relationship && chat && chat.relationship) ? chat.relationship.affection : 100;
+                        return (
+                          <>
+                            <div className="mt-1 border-t border-white/10 px-2 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">💗 Closeness</div>
+                            {INTIMATE_ACTIONS.map((d) => {
+                              const locked = aff < d.min;
+                              return (
+                                <button
+                                  key={d.label}
+                                  disabled={locked}
+                                  onClick={() => { if (locked) return; setShowDirector(false); sendText('(Director note — act on this, do not quote it: ' + d.text + '.)'); }}
+                                  title={locked ? `Unlocks at the ${d.stage} stage (${d.min} affection)` : d.label}
+                                  className={'flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm transition ' + (locked ? 'cursor-not-allowed text-em-text-dim/50' : 'text-em-text hover:bg-white/5')}
+                                >
+                                  <span className="w-5 text-center">{locked ? '🔒' : d.icon}</span>
+                                  <span className="flex-1">{d.label}</span>
+                                  {locked && <span className="text-[10px] text-em-text-dim/60">{d.stage}</span>}
+                                </button>
+                              );
+                            })}
+                          </>
+                        );
+                      })()}
                     </div>
                   </>
                 )}
