@@ -451,6 +451,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         userName: (p && p.name) || 'the user',
         userGender: p && p.gender,
         userDesc: p && p.description,
+        charDesc: (pchar.appearance || pchar.tags || pchar.description || '').slice(0, 220),
         transcript: scene,
         request,
       }, resolveModel(settings, settings.model));

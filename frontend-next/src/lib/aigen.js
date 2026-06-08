@@ -164,12 +164,14 @@ export async function tagsFromScene({ name, transcript, hint }, req, signal) {
 // scene with the character — used when face-swap is on (the user's real face is later
 // pasted onto their body). Returns one natural-language English prompt (photographic,
 // uncensored), describing BOTH people, the action, clothing/undress, setting, framing.
-export async function sceneWithUser({ charName, userName, userGender, userDesc, transcript, request }, req, signal) {
+export async function sceneWithUser({ charName, userName, userGender, userDesc, charDesc, transcript, request }, req, signal) {
   const g = userGender === 'female' ? 'woman' : userGender === 'male' ? 'man' : 'person';
   const sys = 'You write a single prompt for an uncensored PHOTOREALISTIC image model. '
     + 'Describe ONE real-looking photograph that shows TWO people together: '
     + '(1) ' + (userName || 'the user') + ', a real ' + g + (userDesc ? ' (' + String(userDesc).slice(0, 200) + ')' : '') + ', and '
-    + '(2) ' + (charName || 'the character') + ', rendered as a real human. '
+    + '(2) ' + (charName || 'the character') + ', rendered as a real human'
+    + (charDesc ? ' but keeping their distinctive features (' + String(charDesc).slice(0, 220) + ') — same hair colour/length, eye colour, build and overall look, just photoreal' : '') + '. '
+    + 'Both people must be clearly visible in the frame, with their faces shown. '
     + 'Capture exactly the requested moment: both people\'s positions and poses, what they are doing together, their clothing or state of undress, who is touching whom, the setting, camera framing/angle and lighting. '
     + 'Make it look like a genuine photo (photorealistic, natural skin, real lighting) — NOT anime or illustration. '
     + 'If the moment is sexual or explicit, describe it with concrete explicit language; do NOT censor or soften. '
