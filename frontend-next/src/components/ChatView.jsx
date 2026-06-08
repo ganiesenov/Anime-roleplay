@@ -727,6 +727,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     if (next) { try { recognitionRef.current && recognitionRef.current.stop(); } catch (e) { /* */ } setCallStatus('idle'); }
     else if (inCallRef.current && callStatus !== 'speaking') startListening();
   }
+  // Barge-in: cut the character off mid-sentence and start listening immediately.
+  // Tap-based rather than always-on VAD so the mic never echoes the TTS audio.
+  function interruptSpeaking() {
+    if (!inCallRef.current || callStatus !== 'speaking') return;
+    cancelSpeech();
+    if (!callMutedRef.current) startListening();
+  }
 
   // When a reply finishes streaming during a call, speak it, then resume listening.
   useEffect(() => {
@@ -737,6 +744,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         setCallStatus('speaking');
         const ok = speak(text, {
           voiceURI: char.voiceURI || settings.ttsVoiceURI,
+          dialogueOnly: settings.ttsDialogueOnly,
           onend: () => { if (inCallRef.current && !callMutedRef.current) startListening(); },
         });
         if (!ok && inCallRef.current && !callMutedRef.current) startListening();
@@ -2144,18 +2152,21 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       {/* Voice call overlay */}
       {inCall && (
         <div className="fixed inset-0 z-50 flex flex-col items-center justify-center gap-6 bg-em-bg/95 backdrop-blur-xl">
-          <div className={'relative h-40 w-40 overflow-hidden rounded-full border-2 ' + (callStatus === 'speaking' ? 'beat-ring border-em-accent' : 'border-white/15')}>
-            {char.avatar
-              ? <img src={avatarUrl(char.avatar)} alt="" className={'h-full w-full object-cover ' + (callStatus === 'listening' ? 'avatar-dancing' : '')} />
-              : <div className="flex h-full w-full items-center justify-center text-5xl">👤</div>}
-          </div>
+          <button
+            onClick={interruptSpeaking}
+            disabled={callStatus !== 'speaking'}
+            title={callStatus === 'speaking' ? 'Tap to interrupt' : ''}
+            className={'relative h-40 w-40 overflow-hidden rounded-full border-2 ' + (callStatus === 'speaking' ? 'beat-ring border-em-accent cursor-pointer' : 'border-white/15 cursor-default')}
+          >
+            <Avatar src={char.avatar} name={char.name} size={156} className={callStatus === 'listening' ? 'avatar-dancing' : ''} />
+          </button>
           <div className="text-2xl font-bold">{displayName(char)}</div>
           <div className="flex items-center gap-2 text-sm text-em-text-dim">
             {callError
               ? <span className="text-red-400">{callError}</span>
               : <>
                   <span className="eq"><i /><i /><i /><i /></span>
-                  {callStatus === 'listening' ? 'Listening…' : callStatus === 'thinking' ? 'Thinking…' : callStatus === 'speaking' ? 'Speaking…' : 'On call'}
+                  {callStatus === 'listening' ? 'Listening…' : callStatus === 'thinking' ? 'Thinking…' : callStatus === 'speaking' ? 'Speaking… (tap avatar to interrupt)' : 'On call'}
                 </>}
           </div>
           {callTranscript && <div className="max-w-md px-6 text-center text-em-text">{callTranscript}</div>}
