@@ -21,6 +21,10 @@ export const DEFAULT_SETTINGS = {
   sdUrl: 'http://127.0.0.1:7860', // local Automatic1111 base URL
   comfyUrl: 'http://127.0.0.1:8188', // local ComfyUI base URL
   comfyModel: '',            // ComfyUI checkpoint name (blank = first available)
+  svdModel: '',              // Stable Video Diffusion checkpoint for /video selfies (blank = auto-detect an 'svd' model)
+  videoFrames: 14,           // video-selfie length in frames (SVD 14 / SVD-XT 25)
+  videoFps: 8,               // video-selfie playback fps
+  videoMotion: 127,          // SVD motion_bucket_id (higher = more motion)
   photoSize: 768,            // generated selfie resolution (square): 512 | 768 | 1024
   tts: false,                // speak AI replies via SpeechSynthesis
   ttsVoiceURI: '',           // chosen voice (empty = browser default)

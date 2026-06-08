@@ -262,6 +262,9 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                     <Row label="Checkpoint (optional)" hint="Model filename, e.g. dreamshaper_8.safetensors. Blank = first installed.">
                       <input value={s.comfyModel || ''} onChange={(e) => set('comfyModel', e.target.value)} placeholder="(first available)" className={inputCls + ' min-w-52'} />
                     </Row>
+                    <Row label="Video selfie model (SVD)" hint="For /video clips: a Stable Video Diffusion checkpoint (e.g. svd_xt.safetensors) in ComfyUI/models/checkpoints. Blank = auto-detect.">
+                      <input value={s.svdModel || ''} onChange={(e) => set('svdModel', e.target.value)} placeholder="(auto-detect svd)" className={inputCls + ' min-w-52'} />
+                    </Row>
                   </>
                 )}
                 {s.aiPhotos && s.imageProvider === 'a1111' && (

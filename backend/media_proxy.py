@@ -202,6 +202,88 @@ def _comfy_workflow(model, prompt, negative, width, height, steps, seed):
     }
 
 
+def _comfy_video_workflow(model, svd, prompt, negative, width, height, steps, seed, frames, motion, fps):
+    """One-shot image-to-video: render a still with the SDXL `model`, then animate it
+    with Stable Video Diffusion (`svd` checkpoint) → an animated WebP. Node wiring is
+    matched to ComfyUI's built-in SVD nodes (ImageOnlyCheckpointLoader +
+    SVD_img2vid_Conditioning + VideoLinearCFGGuidance)."""
+    return {
+        # --- still image (SDXL) ---
+        "10": {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": model}},
+        "11": {"class_type": "EmptyLatentImage", "inputs": {"width": width, "height": height, "batch_size": 1}},
+        "12": {"class_type": "CLIPTextEncode", "inputs": {"text": prompt, "clip": ["10", 1]}},
+        "13": {"class_type": "CLIPTextEncode", "inputs": {"text": negative, "clip": ["10", 1]}},
+        "14": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": steps, "cfg": 6.5, "sampler_name": "euler", "scheduler": "normal",
+            "denoise": 1.0, "model": ["10", 0], "positive": ["12", 0], "negative": ["13", 0], "latent_image": ["11", 0]}},
+        "15": {"class_type": "VAEDecode", "inputs": {"samples": ["14", 0], "vae": ["10", 2]}},
+        # --- animate it (SVD) ---
+        "20": {"class_type": "ImageOnlyCheckpointLoader", "inputs": {"ckpt_name": svd}},
+        "21": {"class_type": "SVD_img2vid_Conditioning", "inputs": {
+            "clip_vision": ["20", 1], "init_image": ["15", 0], "vae": ["20", 2],
+            "width": width, "height": height, "video_frames": frames,
+            "motion_bucket_id": motion, "fps": fps, "augmentation_level": 0.0}},
+        "22": {"class_type": "VideoLinearCFGGuidance", "inputs": {"model": ["20", 0], "min_cfg": 1.0}},
+        "23": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": steps, "cfg": 2.5, "sampler_name": "euler", "scheduler": "karras",
+            "denoise": 1.0, "model": ["22", 0], "positive": ["21", 0], "negative": ["21", 1], "latent_image": ["21", 2]}},
+        "24": {"class_type": "VAEDecode", "inputs": {"samples": ["23", 0], "vae": ["20", 2]}},
+        "25": {"class_type": "SaveAnimatedWEBP", "inputs": {
+            "images": ["24", 0], "filename_prefix": "aria_vid", "fps": float(fps), "lossless": False, "quality": 85, "method": "default"}},
+    }
+
+
+async def _comfy_run(base, graph):
+    """Queue a ComfyUI graph, poll history, return the first output media bytes."""
+    async with httpx.AsyncClient(timeout=600.0) as client:
+        r = await client.post(f"{base}/prompt", json={"prompt": graph, "client_id": uuid.uuid4().hex})
+        if r.status_code != 200:
+            raise HTTPException(r.status_code, f"ComfyUI rejected the workflow: {r.text[:300]}")
+        pid = (r.json() or {}).get("prompt_id")
+        if not pid:
+            raise HTTPException(502, "ComfyUI did not queue the job")
+        outputs = None
+        for _ in range(300):
+            h = (await client.get(f"{base}/history/{pid}")).json()
+            if pid in h and h[pid].get("outputs"):
+                outputs = h[pid]["outputs"]
+                break
+            await asyncio.sleep(2)
+        if not outputs:
+            raise HTTPException(504, "ComfyUI timed out")
+        img = None
+        for node in outputs.values():
+            if node.get("images"):
+                img = node["images"][0]
+                break
+        if not img:
+            raise HTTPException(502, "ComfyUI returned no media")
+        view = await client.get(f"{base}/view", params={
+            "filename": img["filename"], "subfolder": img.get("subfolder", ""), "type": img.get("type", "output")})
+        if view.status_code != 200:
+            raise HTTPException(502, "Could not fetch media from ComfyUI")
+        return view.content, view.headers.get("content-type", "image/webp")
+
+
+async def _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model, svd, frames, motion, fps):
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        if not model:
+            info = (await client.get(f"{base}/object_info/CheckpointLoaderSimple")).json()
+            ckpts = info["CheckpointLoaderSimple"]["input"]["required"]["ckpt_name"][0]
+            if not ckpts:
+                raise HTTPException(502, "ComfyUI has no checkpoints installed")
+            model = ckpts[0]
+        if not svd:
+            info = (await client.get(f"{base}/object_info/ImageOnlyCheckpointLoader")).json()
+            names = info["ImageOnlyCheckpointLoader"]["input"]["required"]["ckpt_name"][0]
+            svd = next((n for n in names if "svd" in n.lower()), "")
+            if not svd:
+                raise HTTPException(502, "No Stable Video Diffusion checkpoint found — download svd_xt.safetensors into ComfyUI/models/checkpoints")
+    graph = _comfy_video_workflow(model, svd, prompt, negative, width, height, steps, seed, frames, motion, fps)
+    data, _ctype = await _comfy_run(base, graph)
+    return data
+
+
 async def _comfy_txt2img(base, prompt, negative, width, height, steps, seed, model):
     async with httpx.AsyncClient(timeout=300.0) as client:
         # Resolve a checkpoint if the caller didn't name one (use the first available).
@@ -281,3 +363,37 @@ async def txt2img(
         raise HTTPException(502, f"Could not reach the image backend at {base} — is it running? ({e})") from e
 
     return Response(content=data, media_type="image/png", headers={"Cache-Control": _CACHE_CONTROL})
+
+
+@router.get("/api/img2vid")
+async def img2vid(
+    prompt: str = Query(..., description="Positive prompt for the still frame"),
+    url: str = Query("", description="ComfyUI base URL (local)"),
+    model: str = Query("", description="SDXL checkpoint for the still (optional)"),
+    svd: str = Query("", description="SVD checkpoint (optional; auto-detects an 'svd' model)"),
+    negative: str = Query(_NEG_DEFAULT),
+    width: int = Query(768, ge=256, le=1280),
+    height: int = Query(768, ge=256, le=1280),
+    steps: int = Query(20, ge=1, le=40),
+    frames: int = Query(14, ge=6, le=25),
+    motion: int = Query(127, ge=1, le=255),
+    fps: int = Query(8, ge=1, le=24),
+    seed: int = Query(-1),
+):
+    """Generate a short animated WebP "video selfie" via local ComfyUI + Stable Video
+    Diffusion: render a still from `prompt`, then animate it. Requires an SVD checkpoint
+    (e.g. svd_xt.safetensors) in ComfyUI/models/checkpoints. Returns animated WebP bytes
+    (plays in a plain <img>)."""
+    base = (url or "http://127.0.0.1:8188").rstrip("/")
+    parsed = urlparse(base)
+    if parsed.scheme not in ("http", "https"):
+        raise HTTPException(400, "Only http/https URLs are allowed")
+    if seed < 0:
+        seed = uuid.uuid4().int % (2 ** 32)
+    try:
+        data = await _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model.strip(), svd.strip(), frames, motion, fps)
+    except HTTPException:
+        raise
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Could not reach ComfyUI at {base} — is it running? ({e})") from e
+    return Response(content=data, media_type="image/webp", headers={"Cache-Control": _CACHE_CONTROL})

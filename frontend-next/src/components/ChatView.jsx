@@ -8,7 +8,7 @@ import { PARTICLE_EFFECTS } from '../lib/particles.js';
 import {
   genId, displayName, getMessageText, getMessageThink, expandPlaceholders,
   buildMessagesArray, buildGroupMessages, streamCompletion, splitThink, summarizeChat, collectCompletion,
-  extractPhotoTag, extractImagePrompt, stripPhotoTag, buildPhotoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl, isPhotoRequest, impersonateReply,
+  extractPhotoTag, extractImagePrompt, stripPhotoTag, buildPhotoUrl, buildVideoUrl, getMessageImage, getMessageImageLoading, buildWallpaperUrl, isPhotoRequest, impersonateReply,
 } from '../lib/chat.js';
 import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
@@ -93,6 +93,7 @@ const SLASH_COMMANDS = [
   { cmd: 'new',      arg: '',         icon: '✚',  desc: 'Start a new chat' },
   { cmd: 'photo',    arg: '<tags>',   icon: '🖼', desc: 'Generate a photo from your own tags' },
   { cmd: 'photoraw', arg: '<prompt>', icon: '🖼', desc: 'Generate from your exact prompt (verbatim, no extras)' },
+  { cmd: 'video',    arg: '<tags>',   icon: '🎞', desc: 'Animate a short video selfie (ComfyUI + SVD)' },
 ];
 
 export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings, onChangeModel }) {
@@ -1017,6 +1018,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       case 'new':      newChatClicked(); return true;
       case 'photo':    if (rest) manualPhoto(rest, false); return true;
       case 'photoraw': if (rest) manualPhoto(rest, true); return true;
+      case 'video':    if (rest) manualVideo(rest); return true;
       default:         return false;
     }
   }
@@ -1037,6 +1039,28 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       catch (e) { /* fall back to raw input */ }
     }
     generatePhoto(v, speaker, prompt, raw);
+  }
+
+  // Manual video selfie: animate a generated still into a short clip via ComfyUI + SVD.
+  // The animated WebP renders in the same image bubble. Needs an SVD checkpoint installed.
+  async function manualVideo(tags) {
+    if (!chat) return;
+    const speaker = resolveSpeaker();
+    stick();
+    const v = { main: '', think: null, imageLoading: true };
+    const msg = { id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id, activeVariant: 0, variations: [v] };
+    chat.history.push(msg);
+    rerender();
+    let prompt = tags;
+    if ([...tags].some((ch) => ch.charCodeAt(0) > 127)) {
+      try { prompt = (await tagsFromText(tags, resolveModel(settings, settings.model))) || tags; }
+      catch (e) { /* fall back to raw input */ }
+    }
+    v.image = buildVideoUrl(speaker, prompt, settings);
+    v.imagePrompt = prompt;
+    v.imageLoading = false;
+    await saveCharacter(char);
+    rerender();
   }
 
   // Parse a dice spec like "2d6", "d20", "3d8+1" and return both a clean text line

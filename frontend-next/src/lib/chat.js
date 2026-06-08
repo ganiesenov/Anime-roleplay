@@ -170,6 +170,24 @@ export function buildPhotoUrl(char, prompt, settings, opts) {
   return imageUrlFor(full, settings);
 }
 
+// Build a short animated "video selfie" URL via local ComfyUI + Stable Video
+// Diffusion (backend /api/img2vid). Comfy-only; needs an SVD checkpoint installed.
+// Returns an animated WebP URL that plays in a plain <img>.
+export function buildVideoUrl(char, prompt, settings) {
+  settings = settings || {};
+  const base = (settings.comfyUrl || 'http://127.0.0.1:8188').trim();
+  const QUALITY = 'masterpiece, best quality, very aesthetic, absurdres';
+  const full = [appearanceForPhoto(char), prompt, QUALITY].filter(Boolean).join(', ');
+  const sz = [512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768;
+  const seed = Math.floor(Math.random() * 1e6);
+  let u = '/api/img2vid?prompt=' + encodeURIComponent(full) + '&url=' + encodeURIComponent(base)
+    + '&width=' + sz + '&height=' + sz + '&seed=' + seed
+    + '&frames=' + (settings.videoFrames || 14) + '&fps=' + (settings.videoFps || 8) + '&motion=' + (settings.videoMotion || 127);
+  if (settings.comfyModel && settings.comfyModel.trim()) u += '&model=' + encodeURIComponent(settings.comfyModel.trim());
+  if (settings.svdModel && settings.svdModel.trim()) u += '&svd=' + encodeURIComponent(settings.svdModel.trim());
+  return u;
+}
+
 // Build a wide wallpaper image URL for a chat background (scenery, no forced subject).
 export function buildWallpaperUrl(description, settings) {
   const full = [description, 'scenery, cinematic lighting, highly detailed, masterpiece, best quality, absurdres']
