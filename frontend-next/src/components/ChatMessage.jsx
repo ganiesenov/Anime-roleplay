@@ -34,6 +34,9 @@ function PhotoMessage({ src, onOpen, kind }) {
       </div>
     );
   }
+  // Hosted text-to-video returns an MP4 — needs a real <video>; local ComfyUI returns
+  // an animated WebP that plays fine in a plain <img>.
+  const isMp4 = isVid && /provider=hosted/.test(String(src || ''));
   return (
     <div className="mb-2 max-w-[18rem] overflow-hidden rounded-xl border border-white/10">
       {state === 'loading' && (
@@ -43,14 +46,24 @@ function PhotoMessage({ src, onOpen, kind }) {
           </span>
         </div>
       )}
-      <img
-        src={src}
-        alt={isVid ? 'clip' : 'photo'}
-        onLoad={() => setState('ok')}
-        onError={() => setState('error')}
-        onClick={() => state === 'ok' && onOpen && onOpen(src)}
-        className={'w-72 max-w-full cursor-zoom-in object-cover transition hover:brightness-110 ' + (state === 'ok' ? 'block' : 'hidden')}
-      />
+      {isMp4 ? (
+        <video
+          src={src}
+          autoPlay loop muted playsInline controls
+          onLoadedData={() => setState('ok')}
+          onError={() => setState('error')}
+          className={'w-72 max-w-full ' + (state === 'ok' ? 'block' : 'hidden')}
+        />
+      ) : (
+        <img
+          src={src}
+          alt={isVid ? 'clip' : 'photo'}
+          onLoad={() => setState('ok')}
+          onError={() => setState('error')}
+          onClick={() => state === 'ok' && onOpen && onOpen(src)}
+          className={'w-72 max-w-full cursor-zoom-in object-cover transition hover:brightness-110 ' + (state === 'ok' ? 'block' : 'hidden')}
+        />
+      )}
     </div>
   );
 }

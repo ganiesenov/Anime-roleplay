@@ -267,9 +267,6 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                     <Row label="Checkpoint (optional)" hint="Model filename, e.g. dreamshaper_8.safetensors. Blank = first installed.">
                       <input value={s.comfyModel || ''} onChange={(e) => set('comfyModel', e.target.value)} placeholder="(first available)" className={inputCls + ' min-w-52'} />
                     </Row>
-                    <Row label="Video selfie model (SVD)" hint="For /video clips: a Stable Video Diffusion checkpoint (e.g. svd_xt.safetensors) in ComfyUI/models/checkpoints. Blank = auto-detect.">
-                      <input value={s.svdModel || ''} onChange={(e) => set('svdModel', e.target.value)} placeholder="(auto-detect svd)" className={inputCls + ' min-w-52'} />
-                    </Row>
                   </>
                 )}
                 {s.aiPhotos && s.imageProvider === 'a1111' && (
@@ -290,6 +287,29 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                       <option value={1024}>1024 × 1024 (best)</option>
                     </select>
                   </Row>
+                )}
+                {s.aiPhotos && (
+                  <Row label="Video provider" hint="For the 🎞 'animate this moment' clips: local ComfyUI + Stable Video Diffusion, or a hosted Replicate-compatible text-to-video API (no local GPU).">
+                    <select value={s.videoProvider || 'comfy'} onChange={(e) => set('videoProvider', e.target.value)} className={inputCls + ' min-w-52'}>
+                      <option value="comfy">Local ComfyUI + SVD</option>
+                      <option value="hosted">Hosted (Replicate-compatible)</option>
+                    </select>
+                  </Row>
+                )}
+                {s.aiPhotos && (s.videoProvider || 'comfy') === 'comfy' && (
+                  <Row label="Video model (SVD)" hint="A Stable Video Diffusion checkpoint (e.g. svd_xt.safetensors) in ComfyUI/models/checkpoints. Blank = auto-detect. Needs ComfyUI running.">
+                    <input value={s.svdModel || ''} onChange={(e) => set('svdModel', e.target.value)} placeholder="(auto-detect svd)" className={inputCls + ' min-w-52'} />
+                  </Row>
+                )}
+                {s.aiPhotos && s.videoProvider === 'hosted' && (
+                  <>
+                    <Row label="Video API token" hint="Your Replicate (or compatible) API token. Stored in this browser; sent to the local backend only to run the job.">
+                      <input type="password" value={s.videoToken || ''} onChange={(e) => set('videoToken', e.target.value)} placeholder="r8_…" className={inputCls + ' min-w-52'} />
+                    </Row>
+                    <Row label="Video model" hint="A text-to-video model: an owner/name slug (e.g. wavespeedai/wan-2.1-t2v-480p) or a version hash. Choose one that allows the content you want.">
+                      <input value={s.videoModel || ''} onChange={(e) => set('videoModel', e.target.value)} placeholder="owner/name" className={inputCls + ' min-w-52'} />
+                    </Row>
+                  </>
                 )}
                 {(
                   <>

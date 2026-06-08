@@ -365,9 +365,85 @@ async def txt2img(
     return Response(content=data, media_type="image/png", headers={"Cache-Control": _CACHE_CONTROL})
 
 
+def _first_url(out) -> str:
+    """Pull the first http(s) URL out of a Replicate prediction output (string, list,
+    or dict of those)."""
+    if isinstance(out, str):
+        return out if out.startswith("http") else ""
+    if isinstance(out, list):
+        for item in out:
+            u = _first_url(item)
+            if u:
+                return u
+    if isinstance(out, dict):
+        for item in out.values():
+            u = _first_url(item)
+            if u:
+                return u
+    return ""
+
+
+async def _hosted_t2v(prompt: str, token: str, model: str, frames: int, fps: int, seed: int) -> tuple[bytes, str]:
+    """Generate a clip via a hosted Replicate-compatible API and return (bytes, mime).
+
+    `model` is either an "owner/name" slug (uses the official-models endpoint) or a
+    bare version hash. The user supplies their own API token. We submit, poll until the
+    prediction succeeds, then download the resulting video. Replicate hosts both SFW and
+    uncensored text-to-video models, so the user picks what they want."""
+    if not token:
+        raise HTTPException(400, "A hosted-video API token is required (set it in Settings → Photos).")
+    model = (model or "").strip()
+    if not model:
+        raise HTTPException(400, "A hosted-video model is required (e.g. owner/name on Replicate).")
+    headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
+    inp = {"prompt": prompt, "num_frames": frames, "fps": fps, "seed": seed}
+    if "/" in model and not _looks_like_hash(model):
+        create_url = f"https://api.replicate.com/v1/models/{model}/predictions"
+        body = {"input": inp}
+    else:
+        create_url = "https://api.replicate.com/v1/predictions"
+        body = {"version": model, "input": inp}
+    async with httpx.AsyncClient(timeout=600.0) as client:
+        # `Prefer: wait` lets Replicate hold the request open until the run finishes.
+        resp = await client.post(create_url, json=body, headers={**headers, "Prefer": "wait"})
+        if resp.status_code >= 400:
+            raise HTTPException(502, f"Hosted video provider error {resp.status_code}: {resp.text[:300]}")
+        pred = resp.json()
+        status = pred.get("status")
+        get_url = (pred.get("urls") or {}).get("get")
+        # Fall back to polling if the provider didn't block to completion.
+        for _ in range(120):
+            if status in ("succeeded", "failed", "canceled"):
+                break
+            await asyncio.sleep(2.0)
+            if not get_url:
+                break
+            pr = await client.get(get_url, headers=headers)
+            pred = pr.json()
+            status = pred.get("status")
+        if status != "succeeded":
+            raise HTTPException(502, f"Hosted video generation {status or 'did not complete'}: {str(pred.get('error'))[:200]}")
+        media_url = _first_url(pred.get("output"))
+        if not media_url:
+            raise HTTPException(502, "Hosted provider returned no video URL.")
+        dl = await client.get(media_url)
+        if dl.status_code >= 400:
+            raise HTTPException(502, f"Could not download the generated video ({dl.status_code}).")
+        mime = dl.headers.get("content-type", "video/mp4").split(";")[0].strip() or "video/mp4"
+        return dl.content, mime
+
+
+def _looks_like_hash(s: str) -> bool:
+    s = s.strip()
+    return len(s) >= 32 and all(c in "0123456789abcdef" for c in s.lower())
+
+
 @router.get("/api/img2vid")
 async def img2vid(
     prompt: str = Query(..., description="Positive prompt for the still frame"),
+    provider: str = Query("comfy", description="'comfy' (local SVD) | 'hosted' (Replicate-compatible)"),
+    token: str = Query("", description="API token for the hosted provider"),
+    hostedModel: str = Query("", description="Hosted video model: owner/name slug or version hash"),
     url: str = Query("", description="ComfyUI base URL (local)"),
     model: str = Query("", description="SDXL checkpoint for the still (optional)"),
     svd: str = Query("", description="SVD checkpoint (optional; auto-detects an 'svd' model)"),
@@ -380,16 +456,20 @@ async def img2vid(
     fps: int = Query(8, ge=1, le=24),
     seed: int = Query(-1),
 ):
-    """Generate a short animated WebP "video selfie" via local ComfyUI + Stable Video
-    Diffusion: render a still from `prompt`, then animate it. Requires an SVD checkpoint
-    (e.g. svd_xt.safetensors) in ComfyUI/models/checkpoints. Returns animated WebP bytes
-    (plays in a plain <img>)."""
+    """Generate a short clip. Two providers:
+    • 'comfy'  — local ComfyUI + Stable Video Diffusion (render a still, then animate it);
+      needs an SVD checkpoint. Returns animated WebP (plays in a plain <img>).
+    • 'hosted' — a Replicate-compatible text-to-video API with the user's own token/model;
+      no local GPU needed. Returns MP4 (rendered in a <video>)."""
+    if seed < 0:
+        seed = uuid.uuid4().int % (2 ** 32)
+    if provider == "hosted":
+        data, mime = await _hosted_t2v(prompt, token.strip(), hostedModel.strip(), frames, fps, seed)
+        return Response(content=data, media_type=mime, headers={"Cache-Control": _CACHE_CONTROL})
     base = (url or "http://127.0.0.1:8188").rstrip("/")
     parsed = urlparse(base)
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(400, "Only http/https URLs are allowed")
-    if seed < 0:
-        seed = uuid.uuid4().int % (2 ** 32)
     try:
         data = await _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model.strip(), svd.strip(), frames, motion, fps)
     except HTTPException:

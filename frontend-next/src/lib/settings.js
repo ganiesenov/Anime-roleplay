@@ -23,6 +23,9 @@ export const DEFAULT_SETTINGS = {
   comfyUrl: 'http://127.0.0.1:8188', // local ComfyUI base URL
   comfyModel: '',            // ComfyUI checkpoint name (blank = first available)
   svdModel: '',              // Stable Video Diffusion checkpoint for /video selfies (blank = auto-detect an 'svd' model)
+  videoProvider: 'comfy',    // 'comfy' (local SVD) | 'hosted' (Replicate-compatible text-to-video, no local GPU)
+  videoToken: '',            // API token for the hosted video provider
+  videoModel: '',            // hosted video model: owner/name slug or version hash (e.g. Replicate)
   videoFrames: 14,           // video-selfie length in frames (SVD 14 / SVD-XT 25)
   videoFps: 8,               // video-selfie playback fps
   videoMotion: 127,          // SVD motion_bucket_id (higher = more motion)

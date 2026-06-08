@@ -415,6 +415,21 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     toastTimer.current = setTimeout(() => setToast(null), 2600);
   }
 
+  // Whether a video clip can be generated right now (used to gate the buttons).
+  const videoReady = settings.aiPhotos && (settings.videoProvider === 'hosted'
+    ? !!(settings.videoToken && settings.videoModel)
+    : settings.imageProvider === 'comfy');
+
+  // Guard a video action; shows a helpful toast and returns false if not configured.
+  function videoGuard() {
+    if (settings.videoProvider === 'hosted') {
+      if (!settings.videoToken || !settings.videoModel) { showToast('Set the hosted video token & model in Settings → Photos'); return false; }
+      return true;
+    }
+    if (settings.imageProvider !== 'comfy') { showToast('Video needs ComfyUI, or switch to a hosted provider (Settings → Photos)'); return false; }
+    return true;
+  }
+
   // Energy economy (opt-in): try to pay for a media generation. Returns true if it
   // went through (or the economy is off), false if too low — with a nudge toast.
   function chargeEnergy(kind) {
@@ -1186,7 +1201,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   async function animateMessage(m) {
     if (!chat) return;
     if (!settings.aiPhotos) { showToast('Enable AI photos in Settings first'); return; }
-    if (settings.imageProvider !== 'comfy') { showToast('Video needs the ComfyUI provider (Settings → Photos)'); return; }
+    if (!videoGuard()) return;
     const v = m.variations ? m.variations[m.activeVariant || 0] : m;
     if (!v) return;
     const pchar = charsById[m.speakerId] || char;
@@ -1237,7 +1252,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // The animated WebP renders in the same image bubble. Needs an SVD checkpoint installed.
   async function manualVideo(tags) {
     if (!chat) return;
-    if (settings.imageProvider !== 'comfy') { showToast('Video needs the ComfyUI provider (Settings → Photos)'); return; }
+    if (!videoGuard()) return;
     const speaker = resolveSpeaker();
     stick();
     const v = { main: '', think: null, imageLoading: true, loadingKind: 'video' };
@@ -2034,7 +2049,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                 onOpenImage={setLightbox}
                 onReact={(emoji) => reactMessage(m, emoji)}
                 onIllustrate={settings.aiPhotos ? () => illustrateMessage(m) : null}
-                onAnimate={settings.aiPhotos && settings.imageProvider === 'comfy' ? () => animateMessage(m) : null}
+                onAnimate={videoReady ? () => animateMessage(m) : null}
               />
             </Fragment>
           );

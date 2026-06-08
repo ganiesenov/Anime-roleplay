@@ -175,14 +175,27 @@ export function buildPhotoUrl(char, prompt, settings, opts) {
 // Returns an animated WebP URL that plays in a plain <img>.
 export function buildVideoUrl(char, prompt, settings) {
   settings = settings || {};
-  const base = (settings.comfyUrl || 'http://127.0.0.1:8188').trim();
   const QUALITY = 'masterpiece, best quality, very aesthetic, absurdres';
   const full = [appearanceForPhoto(char), prompt, QUALITY].filter(Boolean).join(', ');
-  const sz = [512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768;
   const seed = Math.floor(Math.random() * 1e6);
+  const frames = settings.videoFrames || 14;
+  const fps = settings.videoFps || 8;
+
+  // Hosted (Replicate-compatible) text-to-video — no local GPU; returns MP4.
+  if (settings.videoProvider === 'hosted') {
+    let u = '/api/img2vid?provider=hosted&prompt=' + encodeURIComponent(full)
+      + '&seed=' + seed + '&frames=' + frames + '&fps=' + fps;
+    if (settings.videoToken && settings.videoToken.trim()) u += '&token=' + encodeURIComponent(settings.videoToken.trim());
+    if (settings.videoModel && settings.videoModel.trim()) u += '&hostedModel=' + encodeURIComponent(settings.videoModel.trim());
+    return u;
+  }
+
+  // Local ComfyUI + Stable Video Diffusion — returns animated WebP.
+  const base = (settings.comfyUrl || 'http://127.0.0.1:8188').trim();
+  const sz = [512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768;
   let u = '/api/img2vid?prompt=' + encodeURIComponent(full) + '&url=' + encodeURIComponent(base)
     + '&width=' + sz + '&height=' + sz + '&seed=' + seed
-    + '&frames=' + (settings.videoFrames || 14) + '&fps=' + (settings.videoFps || 8) + '&motion=' + (settings.videoMotion || 127);
+    + '&frames=' + frames + '&fps=' + fps + '&motion=' + (settings.videoMotion || 127);
   if (settings.comfyModel && settings.comfyModel.trim()) u += '&model=' + encodeURIComponent(settings.comfyModel.trim());
   if (settings.svdModel && settings.svdModel.trim()) u += '&svd=' + encodeURIComponent(settings.svdModel.trim());
   return u;
