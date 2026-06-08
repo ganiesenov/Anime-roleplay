@@ -1370,7 +1370,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               <span className="eq shrink-0" title="Music playing" aria-label="music playing"><i /><i /><i /><i /></span>
             )}
           </div>
-          {chat && chat.memories && <div className="flex items-center gap-1 text-[11px] text-em-accent"><MemoryIcon /> memory active</div>}
+          {isGroup() ? (
+            <div className="mt-0.5 flex items-center gap-1">
+              {activeParticipants().slice(0, 6).map((p) => (
+                <span key={p.id} title={displayName(p)} className="-ml-1 first:ml-0 rounded-full ring-2 ring-em-bg">
+                  <Avatar src={p.avatar} name={p.name} size={18} />
+                </span>
+              ))}
+              <span className="ml-1 text-[11px] text-em-text-dim">{activeParticipants().length} in scene</span>
+            </div>
+          ) : (
+            chat && chat.memories && <div className="flex items-center gap-1 text-[11px] text-em-accent"><MemoryIcon /> memory active</div>
+          )}
         </div>
         {settings.presence && (() => {
           const p = presenceFor(char.id);
