@@ -357,6 +357,44 @@ async def _comfy_img2vid_from_image(base, image_bytes, svd, width, height, steps
     return data
 
 
+_WAN_NEG = ("色调艳丽，过曝，静态，细节模糊不清，字幕，风格，作品，画作，画面，静止，整体发灰，最差质量，"
+            "低质量，JPEG压缩残留，丑陋的，残缺的，多余的手指，画得不好的手部，画得不好的脸部，畸形的，"
+            "毁容的，形态畸形的肢体，手指融合，静止不动的画面，杂乱的背景，三条腿，背景人很多，倒着走")
+
+
+def _comfy_wan_i2v_workflow(image_name, prompt, width, height, length, fps, seed, steps):
+    """WAN 2.1 image-to-video: animate the still `image_name`, guided by `prompt`, into a
+    real moving clip (native motion, far better than SVD on stylised/anime stills).
+    Uses ComfyUI's built-in WAN nodes."""
+    return {
+        "50": {"class_type": "UNETLoader", "inputs": {"unet_name": "wan2.1_i2v_480p_14B_fp8_e4m3fn.safetensors", "weight_dtype": "fp8_e4m3fn"}},
+        "51": {"class_type": "CLIPLoader", "inputs": {"clip_name": "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "type": "wan"}},
+        "52": {"class_type": "VAELoader", "inputs": {"vae_name": "wan_2.1_vae.safetensors"}},
+        "53": {"class_type": "CLIPVisionLoader", "inputs": {"clip_name": "clip_vision_h.safetensors"}},
+        "54": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "55": {"class_type": "CLIPVisionEncode", "inputs": {"clip_vision": ["53", 0], "image": ["54", 0], "crop": "center"}},
+        "56": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["51", 0], "text": prompt or "the scene comes to life, natural motion"}},
+        "57": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["51", 0], "text": _WAN_NEG}},
+        "58": {"class_type": "WanImageToVideo", "inputs": {
+            "positive": ["56", 0], "negative": ["57", 0], "vae": ["52", 0],
+            "width": width, "height": height, "length": length, "batch_size": 1,
+            "clip_vision_output": ["55", 0], "start_image": ["54", 0]}},
+        "59": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": steps, "cfg": 6.0, "sampler_name": "uni_pc", "scheduler": "simple",
+            "denoise": 1.0, "model": ["50", 0], "positive": ["58", 0], "negative": ["58", 1], "latent_image": ["58", 2]}},
+        "60": {"class_type": "VAEDecode", "inputs": {"samples": ["59", 0], "vae": ["52", 0]}},
+        "61": {"class_type": "SaveAnimatedWEBP", "inputs": {
+            "images": ["60", 0], "filename_prefix": "aria_vid", "fps": float(fps), "lossless": False, "quality": 85, "method": "default"}},
+    }
+
+
+async def _comfy_img2vid_wan(base, image_bytes, prompt, width, height, length, fps, seed, steps):
+    name = await _comfy_upload_image(base, image_bytes)
+    graph = _comfy_wan_i2v_workflow(name, prompt, width, height, length, fps, seed, steps)
+    data, _ctype = await _comfy_run(base, graph)
+    return data
+
+
 def _reactor_workflow(scene_name, face_name, restore, gender="no"):
     """ReActor face-swap graph: paste the `source` face onto the person in `scene`.
     Matched to the ReActorFaceSwap node's real input schema (introspected)."""
@@ -590,6 +628,7 @@ async def img2vid(
     request: Request,
     prompt: str = Query(..., description="Positive prompt for the still frame"),
     provider: str = Query("comfy", description="'comfy' (local SVD) | 'hosted' (Replicate-compatible)"),
+    engine: str = Query("svd", description="Local comfy engine: 'svd' (Stable Video Diffusion) | 'wan' (WAN 2.1 i2v, better motion)"),
     image: str = Query("", description="Still to animate (URL/data:) — local SVD animates it directly"),
     face: str = Query("", description="Registered face id — swap the user's face onto the still before animating"),
     faceGender: str = Query("no", description="Only swap onto this gender's face: no | male | female"),
@@ -628,7 +667,12 @@ async def img2vid(
             if face.strip():
                 # Put the user's real face into the scene first, then animate it.
                 img_bytes = await _comfy_faceswap(base, img_bytes, _read_face(face.strip()), gender=faceGender)
-            data = await _comfy_img2vid_from_image(base, img_bytes, svd.strip(), width, height, steps, seed, frames, motion, fps)
+            if engine == "wan":
+                # WAN 2.1 i2v — native motion, far better than SVD on stylised/anime stills.
+                wlen = max(17, min(81, ((frames * 3) // 4) * 4 + 1)) if frames else 49
+                data = await _comfy_img2vid_wan(base, img_bytes, prompt, 512, 512, wlen, max(8, fps), seed, 20)
+            else:
+                data = await _comfy_img2vid_from_image(base, img_bytes, svd.strip(), width, height, steps, seed, frames, motion, fps)
         else:
             data = await _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model.strip(), svd.strip(), frames, motion, fps)
     except HTTPException:

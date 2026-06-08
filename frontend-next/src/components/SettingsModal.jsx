@@ -311,6 +311,19 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                   </Row>
                 )}
                 {s.aiPhotos && (s.videoProvider || 'comfy') === 'comfy' && (
+                  <Row label="Video engine" hint="SVD = Stable Video Diffusion (animates a still; weak on anime). WAN = WAN 2.1 i2v (real motion, great for anime/realistic; needs the WAN models in ComfyUI).">
+                    <select value={s.videoEngine || 'svd'} onChange={(e) => set('videoEngine', e.target.value)} className={inputCls + ' min-w-52'}>
+                      <option value="svd">SVD (Stable Video Diffusion)</option>
+                      <option value="wan">WAN 2.1 i2v (better motion)</option>
+                    </select>
+                  </Row>
+                )}
+                {s.aiPhotos && (s.videoProvider || 'comfy') === 'comfy' && (
+                  <Row label="Video ComfyUI URL" hint="Optional: a separate ComfyUI for video (the one that has SVD/WAN). Blank = use the photo ComfyUI URL above. Useful if photos and video run on different ComfyUI instances.">
+                    <input value={s.videoComfyUrl || ''} onChange={(e) => set('videoComfyUrl', e.target.value)} placeholder="(same as photo ComfyUI)" className={inputCls + ' min-w-52'} />
+                  </Row>
+                )}
+                {s.aiPhotos && (s.videoProvider || 'comfy') === 'comfy' && (s.videoEngine || 'svd') === 'svd' && (
                   <Row label="Video model (SVD)" hint="A Stable Video Diffusion checkpoint (e.g. svd_xt.safetensors) in ComfyUI/models/checkpoints. Blank = auto-detect. Needs ComfyUI running.">
                     <input value={s.svdModel || ''} onChange={(e) => set('svdModel', e.target.value)} placeholder="(auto-detect svd)" className={inputCls + ' min-w-52'} />
                   </Row>

@@ -200,10 +200,12 @@ export function buildVideoUrl(char, prompt, settings, opts) {
     return u;
   }
 
-  // Local ComfyUI + Stable Video Diffusion — returns animated WebP.
-  const base = (settings.comfyUrl || 'http://127.0.0.1:8188').trim();
+  // Local ComfyUI — SVD or WAN i2v. Video may run on a separate ComfyUI (videoComfyUrl).
+  const base = ((settings.videoComfyUrl || settings.comfyUrl) || 'http://127.0.0.1:8188').trim();
   const sz = [512, 768, 1024].includes(settings.photoSize) ? settings.photoSize : 768;
+  const engine = settings.videoEngine === 'wan' ? 'wan' : 'svd';
   let u = '/api/img2vid?prompt=' + encodeURIComponent(full) + '&url=' + encodeURIComponent(base)
+    + '&engine=' + engine
     + '&width=' + sz + '&height=' + sz + '&seed=' + seed
     + '&frames=' + frames + '&fps=' + fps + '&motion=' + (settings.videoMotion || 127);
   // Animate an already-rendered still (best likeness; no SDXL checkpoint needed).

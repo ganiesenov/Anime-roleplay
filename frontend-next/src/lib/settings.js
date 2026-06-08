@@ -24,6 +24,8 @@ export const DEFAULT_SETTINGS = {
   comfyModel: '',            // ComfyUI checkpoint name (blank = first available)
   svdModel: '',              // Stable Video Diffusion checkpoint for /video selfies (blank = auto-detect an 'svd' model)
   videoProvider: 'comfy',    // 'comfy' (local SVD) | 'hosted' (Replicate-compatible text-to-video, no local GPU)
+  videoEngine: 'svd',        // local comfy engine: 'svd' (Stable Video Diffusion) | 'wan' (WAN 2.1 i2v — better motion)
+  videoComfyUrl: '',         // optional separate ComfyUI for video (e.g. the one with SVD/WAN); blank = use comfyUrl
   videoToken: '',            // API token for the hosted video provider
   videoModel: 'wan-video/wan-2.5-t2v-fast', // hosted video model: owner/name slug or version hash (NSFW needs an uncensored community model)
   videoFrames: 14,           // video-selfie length in frames (SVD 14 / SVD-XT 25)
