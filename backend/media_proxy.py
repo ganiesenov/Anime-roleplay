@@ -396,7 +396,11 @@ async def _hosted_t2v(prompt: str, token: str, model: str, frames: int, fps: int
     if not model:
         raise HTTPException(400, "A hosted-video model is required (e.g. owner/name on Replicate).")
     headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-    inp = {"prompt": prompt, "num_frames": frames, "fps": fps, "seed": seed}
+    # Keep the input MINIMAL: text-to-video models all accept `prompt`, but the names
+    # for length/fps/etc. differ wildly (num_frames / duration / length …) and a strict
+    # OpenAPI schema rejects unknown keys with a 422. Omit them and let the model use
+    # its own defaults; `frames`/`fps` only drive the local ComfyUI path.
+    inp = {"prompt": prompt}
     if "/" in model and not _looks_like_hash(model):
         create_url = f"https://api.replicate.com/v1/models/{model}/predictions"
         body = {"input": inp}

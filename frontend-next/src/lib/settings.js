@@ -25,7 +25,7 @@ export const DEFAULT_SETTINGS = {
   svdModel: '',              // Stable Video Diffusion checkpoint for /video selfies (blank = auto-detect an 'svd' model)
   videoProvider: 'comfy',    // 'comfy' (local SVD) | 'hosted' (Replicate-compatible text-to-video, no local GPU)
   videoToken: '',            // API token for the hosted video provider
-  videoModel: '',            // hosted video model: owner/name slug or version hash (e.g. Replicate)
+  videoModel: 'wan-video/wan-2.5-t2v-fast', // hosted video model: owner/name slug or version hash (NSFW needs an uncensored community model)
   videoFrames: 14,           // video-selfie length in frames (SVD 14 / SVD-XT 25)
   videoFps: 8,               // video-selfie playback fps
   videoMotion: 127,          // SVD motion_bucket_id (higher = more motion)

@@ -5,6 +5,15 @@ import { ttsSupported, getVoices, onVoicesChanged, groupVoices, fetchKokoroVoice
 import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph, RotateCcw, Trash2, Upload, Download } from 'lucide-react';
 import { loadThemes, saveThemes, themeValuesFrom, exportThemes, importThemes } from '../lib/themes.js';
 
+// Curated hosted (Replicate) text-to-video models — convenience presets. These
+// official models may filter explicit content; for NSFW, pick "Custom…" and paste
+// an uncensored community model (its owner/name slug or version hash from Replicate).
+const VIDEO_MODEL_PRESETS = [
+  { v: 'wan-video/wan-2.5-t2v-fast', label: 'Wan 2.5 T2V — Fast (recommended)' },
+  { v: 'wan-video/wan-2.5-t2v', label: 'Wan 2.5 T2V — higher quality' },
+  { v: 'luma/ray-2-540p', label: 'Luma Ray 2 (540p)' },
+];
+
 // One-click looks — each sets the accent + prose colours together.
 const THEME_PRESETS = [
   { key: 'emerald', label: 'Emerald', accent: 'emerald', mainTextColor: '#e9f5ef', dialogueColor: '#ffd952', userBubbleColor: '#2ee6a0', aiBubbleColor: '#ffffff' },
@@ -303,12 +312,24 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                 )}
                 {s.aiPhotos && s.videoProvider === 'hosted' && (
                   <>
-                    <Row label="Video API token" hint="Your Replicate (or compatible) API token. Stored in this browser; sent to the local backend only to run the job.">
+                    <Row label="Video API token" hint="Your Replicate API token (get one at replicate.com/account). Stored in this browser; sent to the local backend only to run the job.">
                       <input type="password" value={s.videoToken || ''} onChange={(e) => set('videoToken', e.target.value)} placeholder="r8_…" className={inputCls + ' min-w-52'} />
                     </Row>
-                    <Row label="Video model" hint="A text-to-video model: an owner/name slug (e.g. wavespeedai/wan-2.1-t2v-480p) or a version hash. Choose one that allows the content you want.">
-                      <input value={s.videoModel || ''} onChange={(e) => set('videoModel', e.target.value)} placeholder="owner/name" className={inputCls + ' min-w-52'} />
+                    <Row label="Video model" hint="Pick a ready model, or Custom… to paste an uncensored community model (owner/name slug or version hash) for NSFW.">
+                      <select
+                        value={VIDEO_MODEL_PRESETS.some((p) => p.v === s.videoModel) ? s.videoModel : '__custom'}
+                        onChange={(e) => set('videoModel', e.target.value === '__custom' ? '' : e.target.value)}
+                        className={inputCls + ' min-w-52'}
+                      >
+                        {VIDEO_MODEL_PRESETS.map((p) => <option key={p.v} value={p.v}>{p.label}</option>)}
+                        <option value="__custom">Custom… (uncensored / NSFW)</option>
+                      </select>
                     </Row>
+                    {!VIDEO_MODEL_PRESETS.some((p) => p.v === s.videoModel) && (
+                      <Row label="Custom model" hint="owner/name slug (e.g. some-user/uncensored-video) or a version hash. Browse models at replicate.com/collections/text-to-video.">
+                        <input value={s.videoModel || ''} onChange={(e) => set('videoModel', e.target.value)} placeholder="owner/name or version hash" className={inputCls + ' min-w-52'} />
+                      </Row>
+                    )}
                   </>
                 )}
                 {(
