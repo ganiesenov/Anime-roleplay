@@ -13,7 +13,32 @@ import { PlusIcon, DotsIcon, GearIcon, UploadIcon, DownloadIcon, HelpIcon, Searc
 import { ArrowUp, Shuffle } from 'lucide-react';
 import FeaturedBanner from './components/FeaturedBanner.jsx';
 import Scenes from './components/Scenes.jsx';
+import Avatar from './components/Avatar.jsx';
 import { buildSceneChat } from './lib/scenes.js';
+
+// "2h ago" style relative time for the Continue shelf.
+function relTime(ts) {
+  if (!ts) return '';
+  const s = Math.max(0, Math.floor((Date.now() - ts) / 1000));
+  if (s < 60) return 'just now';
+  const m = Math.floor(s / 60); if (m < 60) return m + 'm ago';
+  const h = Math.floor(m / 60); if (h < 24) return h + 'h ago';
+  const d = Math.floor(h / 24); if (d < 7) return d + 'd ago';
+  return Math.floor(d / 7) + 'w ago';
+}
+
+// A consistent, presentable section header (accent spine + title + count badge),
+// matching the redesigned folder headers. Optional "see all ›" action.
+function SectionHeader({ title, count, onSeeAll }) {
+  return (
+    <div className="mb-3 flex items-center gap-2.5">
+      <span className="h-5 w-1 rounded-full bg-em-accent" />
+      <h2 className="text-lg font-bold">{title}</h2>
+      {count != null && <span className="grid h-5 min-w-5 place-items-center rounded-full bg-white/10 px-1.5 text-[11px] font-semibold text-em-text-dim">{count}</span>}
+      {onSeeAll && <button onClick={onSeeAll} className="ml-auto text-xs font-medium text-em-text-dim transition hover:text-em-accent">see all ›</button>}
+    </div>
+  );
+}
 
 const CATEGORIES = [
   { key: null, label: 'All', keywords: [] },
@@ -314,6 +339,25 @@ export default function App() {
               </div>
             )}
           </div>
+
+          {/* Primary call-to-action + library stats */}
+          <div className="mt-7 flex flex-col items-center gap-3">
+            <button
+              onClick={() => setEditing({})}
+              className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-em-accent to-emerald-300 px-6 py-2.5 font-semibold text-em-bg shadow-lg shadow-em-accent/25 transition hover:-translate-y-0.5 hover:shadow-em-accent/40 active:scale-95"
+            >
+              <PlusIcon className="h-4 w-4" /> Create your own character
+            </button>
+            {chars && chars.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-em-text-dim">
+                <span><b className="text-em-text">{chars.length}</b> characters</span>
+                <span className="text-em-text-dim/40">·</span>
+                <span><b className="text-em-text">{favorites.length}</b> favorites</span>
+                <span className="text-em-text-dim/40">·</span>
+                <span><b className="text-em-text">{recents.length}</b> active chats</span>
+              </div>
+            )}
+          </div>
         </div>
       </section>
 
@@ -360,7 +404,7 @@ export default function App() {
       {/* Continue — jump back into recent conversations */}
       {!favOnly && !query && !category && recents.length > 0 && (
         <section className="mx-auto max-w-7xl px-5 pb-6">
-          <h2 className="mb-3 text-lg font-bold">Continue</h2>
+          <SectionHeader title="Continue" count={recents.length} />
           <div className="flex gap-3 overflow-x-auto pb-2">
             {recents.map((c) => (
               <button
@@ -368,14 +412,10 @@ export default function App() {
                 onClick={() => openCharacter(c)}
                 className="group flex w-64 shrink-0 items-center gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-2.5 text-left transition hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06]"
               >
-                <div className="h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-em-panel">
-                  {c.avatar
-                    ? <img src={/^https?:\/\//i.test(c.avatar) ? '/api/img?url=' + encodeURIComponent(c.avatar) : c.avatar} alt="" className="h-full w-full object-cover" />
-                    : <div className="flex h-full w-full items-center justify-center text-em-text-dim/40">👤</div>}
-                </div>
+                <Avatar src={c.avatar} name={c.name} size={48} rounded="rounded-xl" className="shrink-0" />
                 <div className="min-w-0">
                   <div className="truncate text-sm font-semibold text-em-text">{c.name || 'Unnamed'}</div>
-                  <div className="truncate text-[11px] text-em-text-dim">{characterStats(c).messages} messages · tap to resume</div>
+                  <div className="truncate text-[11px] text-em-text-dim">{relTime(characterStats(c).lastTs)} · {characterStats(c).messages} messages</div>
                 </div>
               </button>
             ))}
@@ -391,7 +431,7 @@ export default function App() {
       {/* Favorites shelf */}
       {!favOnly && !query && !category && favorites.length > 0 && (
         <section className="mx-auto max-w-7xl px-5 pb-6">
-          <h2 className="mb-3 text-lg font-bold">Favorites ({favorites.length})</h2>
+          <SectionHeader title="Favorites" count={favorites.length} onSeeAll={() => setFavOnly(true)} />
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {favorites.slice(0, 12).map((c) => (
               <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} onTag={setQuery} />
@@ -403,7 +443,7 @@ export default function App() {
       {/* Recently added shelf */}
       {!favOnly && !query && !category && newest.length > 0 && (
         <section className="mx-auto max-w-7xl px-5 pb-6">
-          <h2 className="mb-3 text-lg font-bold">Recently added</h2>
+          <SectionHeader title="Recently added" />
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
             {newest.map((c) => (
               <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} onTag={setQuery} />
@@ -418,9 +458,7 @@ export default function App() {
         if (list.length < 4) return null;
         return (
           <section key={cat.key} className="mx-auto max-w-7xl px-5 pb-6">
-            <button onClick={() => setCategory(cat.key)} className="mb-3 flex items-center gap-1 text-lg font-bold transition hover:text-em-accent">
-              {cat.label} <span className="text-em-text-dim">›</span>
-            </button>
+            <SectionHeader title={cat.label} count={list.length} onSeeAll={() => setCategory(cat.key)} />
             <div className="flex gap-4 overflow-x-auto pb-2">
               {list.map((c) => (
                 <div key={c.id} className="w-40 shrink-0">
@@ -440,7 +478,7 @@ export default function App() {
           <EmptyState onCreate={() => setEditing({})} />
         ) : (
           <>
-            {!favOnly && !query && !category && <h2 className="mb-3 text-lg font-bold">All characters</h2>}
+            {!favOnly && !query && !category && <SectionHeader title="All characters" count={filtered.length} />}
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6">
               {filtered.map((c) => (
                 <CharacterCard key={c.id} char={c} settings={settings} onOpen={openCharacter} onToggleFav={toggleFavorite} onTag={setQuery} />
