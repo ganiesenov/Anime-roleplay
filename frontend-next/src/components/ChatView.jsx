@@ -415,18 +415,17 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     toastTimer.current = setTimeout(() => setToast(null), 2600);
   }
 
-  // Whether a video clip can be generated right now (used to gate the buttons).
+  // Whether a video clip can be generated right now (used to gate the buttons). Local SVD
+  // animates a still we render via whatever photo provider is set, so it just needs photos on.
   const videoReady = settings.aiPhotos && (settings.videoProvider === 'hosted'
     ? !!(settings.videoToken && settings.videoModel)
-    : settings.imageProvider === 'comfy');
+    : true);
 
   // Guard a video action; shows a helpful toast and returns false if not configured.
   function videoGuard() {
     if (settings.videoProvider === 'hosted') {
       if (!settings.videoToken || !settings.videoModel) { showToast('Set the hosted video token & model in Settings → Photos'); return false; }
-      return true;
     }
-    if (settings.imageProvider !== 'comfy') { showToast('Video needs ComfyUI, or switch to a hosted provider (Settings → Photos)'); return false; }
     return true;
   }
 
@@ -787,7 +786,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           if (t) shot = t;
         } catch (e) { /* keep the hint */ }
       }
-      v.image = buildVideoUrl(pchar, shot, settings);
+      // Local SVD animates an actual still → render the scene-accurate selfie first, then
+      // hand it to ComfyUI to animate (keeps the exact look; no SDXL checkpoint needed).
+      const opts = settings.videoProvider !== 'hosted'
+        ? { image: buildPhotoUrl(pchar, shot, settings, {}) }
+        : {};
+      v.image = buildVideoUrl(pchar, shot, settings, opts);
       v.imagePrompt = shot;
     } finally {
       v.imageLoading = false;

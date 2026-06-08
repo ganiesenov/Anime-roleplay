@@ -173,8 +173,18 @@ export function buildPhotoUrl(char, prompt, settings, opts) {
 // Build a short animated "video selfie" URL via local ComfyUI + Stable Video
 // Diffusion (backend /api/img2vid). Comfy-only; needs an SVD checkpoint installed.
 // Returns an animated WebP URL that plays in a plain <img>.
-export function buildVideoUrl(char, prompt, settings) {
+// De-proxy our own image proxy so the backend can fetch the real source directly.
+function deproxyImage(url) {
+  const s = String(url || '');
+  const m = s.match(/[?&]url=([^&]+)/);
+  if (s.includes('/api/img') && m) { try { return decodeURIComponent(m[1]); } catch (e) { /* */ } }
+  return s;
+}
+
+// opts.image → a still to animate (local SVD animates it directly, keeping likeness).
+export function buildVideoUrl(char, prompt, settings, opts) {
   settings = settings || {};
+  opts = opts || {};
   const QUALITY = 'masterpiece, best quality, very aesthetic, absurdres';
   const full = [appearanceForPhoto(char), prompt, QUALITY].filter(Boolean).join(', ');
   const seed = Math.floor(Math.random() * 1e6);
@@ -196,6 +206,8 @@ export function buildVideoUrl(char, prompt, settings) {
   let u = '/api/img2vid?prompt=' + encodeURIComponent(full) + '&url=' + encodeURIComponent(base)
     + '&width=' + sz + '&height=' + sz + '&seed=' + seed
     + '&frames=' + frames + '&fps=' + fps + '&motion=' + (settings.videoMotion || 127);
+  // Animate an already-rendered still (best likeness; no SDXL checkpoint needed).
+  if (opts.image) u += '&image=' + encodeURIComponent(deproxyImage(opts.image));
   if (settings.comfyModel && settings.comfyModel.trim()) u += '&model=' + encodeURIComponent(settings.comfyModel.trim());
   if (settings.svdModel && settings.svdModel.trim()) u += '&svd=' + encodeURIComponent(settings.svdModel.trim());
   return u;

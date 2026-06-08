@@ -19,7 +19,7 @@ import uuid
 from urllib.parse import urlparse
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 router = APIRouter()
@@ -265,6 +265,92 @@ async def _comfy_run(base, graph):
         return view.content, view.headers.get("content-type", "image/webp")
 
 
+def _comfy_video_from_image_workflow(image_name, svd, width, height, steps, seed, frames, motion, fps):
+    """Animate an ALREADY-rendered still (uploaded to ComfyUI) with Stable Video
+    Diffusion — no SDXL still-gen needed. The image is loaded, scaled to the SVD frame
+    size, then driven through the same SVD nodes as the prompt-based path. Because SVD
+    just animates the pixels it's given, the result keeps the exact character/selfie and
+    inherits whatever the still showed (incl. NSFW)."""
+    return {
+        "30": {"class_type": "LoadImage", "inputs": {"image": image_name}},
+        "31": {"class_type": "ImageScale", "inputs": {
+            "image": ["30", 0], "width": width, "height": height, "upscale_method": "lanczos", "crop": "center"}},
+        "20": {"class_type": "ImageOnlyCheckpointLoader", "inputs": {"ckpt_name": svd}},
+        "21": {"class_type": "SVD_img2vid_Conditioning", "inputs": {
+            "clip_vision": ["20", 1], "init_image": ["31", 0], "vae": ["20", 2],
+            "width": width, "height": height, "video_frames": frames,
+            "motion_bucket_id": motion, "fps": fps, "augmentation_level": 0.0}},
+        "22": {"class_type": "VideoLinearCFGGuidance", "inputs": {"model": ["20", 0], "min_cfg": 1.0}},
+        "23": {"class_type": "KSampler", "inputs": {
+            "seed": seed, "steps": steps, "cfg": 2.5, "sampler_name": "euler", "scheduler": "karras",
+            "denoise": 1.0, "model": ["22", 0], "positive": ["21", 0], "negative": ["21", 1], "latent_image": ["21", 2]}},
+        "24": {"class_type": "VAEDecode", "inputs": {"samples": ["23", 0], "vae": ["20", 2]}},
+        "25": {"class_type": "SaveAnimatedWEBP", "inputs": {
+            "images": ["24", 0], "filename_prefix": "aria_vid", "fps": float(fps), "lossless": False, "quality": 85, "method": "default"}},
+    }
+
+
+async def _fetch_image_bytes(url: str, base_url: str) -> bytes:
+    """Resolve the still-image URL to raw bytes: data: URIs are decoded; our own image
+    proxy (/api/img?url=…) is de-proxied to the real source; relative /api paths are made
+    absolute against this server; everything else is fetched directly."""
+    from urllib.parse import parse_qs, urlsplit, unquote
+    url = (url or "").strip()
+    if not url:
+        raise HTTPException(400, "No still image to animate")
+    if url.startswith("data:"):
+        try:
+            return base64.b64decode(url.split(",", 1)[1])
+        except Exception as e:
+            raise HTTPException(400, "Bad data: image") from e
+    if "/api/img" in url and "url=" in url:
+        inner = (parse_qs(urlsplit(url).query).get("url") or [""])[0]
+        if inner:
+            url = unquote(inner)
+    if url.startswith("/"):
+        url = base_url.rstrip("/") + url
+    async with httpx.AsyncClient(timeout=180.0, follow_redirects=True) as client:
+        r = await client.get(url)
+        if r.status_code != 200:
+            raise HTTPException(502, f"Could not fetch the still image to animate ({r.status_code})")
+        if len(r.content) > _MAX_BYTES:
+            raise HTTPException(413, "Source image is too large to animate")
+        return r.content
+
+
+async def _comfy_upload_image(base, data: bytes) -> str:
+    """Upload raw image bytes to ComfyUI's input folder; return a LoadImage-usable name."""
+    async with httpx.AsyncClient(timeout=120.0) as client:
+        files = {"image": ("aria_src.png", data, "image/png")}
+        r = await client.post(f"{base}/upload/image", files=files, data={"overwrite": "true"})
+        if r.status_code != 200:
+            raise HTTPException(502, f"ComfyUI image upload failed: {r.text[:200]}")
+        j = r.json() or {}
+        name = j.get("name") or "aria_src.png"
+        sub = j.get("subfolder") or ""
+        return f"{sub}/{name}" if sub else name
+
+
+async def _resolve_svd(base, svd):
+    if svd:
+        return svd
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        info = (await client.get(f"{base}/object_info/ImageOnlyCheckpointLoader")).json()
+        names = info["ImageOnlyCheckpointLoader"]["input"]["required"]["ckpt_name"][0]
+    found = next((n for n in names if "svd" in n.lower()), "")
+    if not found:
+        raise HTTPException(502, "No Stable Video Diffusion checkpoint found — put svd_xt.safetensors in ComfyUI/models/checkpoints")
+    return found
+
+
+async def _comfy_img2vid_from_image(base, image_bytes, svd, width, height, steps, seed, frames, motion, fps):
+    svd = await _resolve_svd(base, svd)
+    name = await _comfy_upload_image(base, image_bytes)
+    graph = _comfy_video_from_image_workflow(name, svd, width, height, steps, seed, frames, motion, fps)
+    data, _ctype = await _comfy_run(base, graph)
+    return data
+
+
 async def _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model, svd, frames, motion, fps):
     async with httpx.AsyncClient(timeout=30.0) as client:
         if not model:
@@ -444,8 +530,10 @@ def _looks_like_hash(s: str) -> bool:
 
 @router.get("/api/img2vid")
 async def img2vid(
+    request: Request,
     prompt: str = Query(..., description="Positive prompt for the still frame"),
     provider: str = Query("comfy", description="'comfy' (local SVD) | 'hosted' (Replicate-compatible)"),
+    image: str = Query("", description="Still to animate (URL/data:) — local SVD animates it directly"),
     token: str = Query("", description="API token for the hosted provider"),
     hostedModel: str = Query("", description="Hosted video model: owner/name slug or version hash"),
     url: str = Query("", description="ComfyUI base URL (local)"),
@@ -475,7 +563,12 @@ async def img2vid(
     if parsed.scheme not in ("http", "https"):
         raise HTTPException(400, "Only http/https URLs are allowed")
     try:
-        data = await _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model.strip(), svd.strip(), frames, motion, fps)
+        if image.strip():
+            # Animate an already-rendered selfie — best likeness, no SDXL checkpoint needed.
+            img_bytes = await _fetch_image_bytes(image.strip(), str(request.base_url))
+            data = await _comfy_img2vid_from_image(base, img_bytes, svd.strip(), width, height, steps, seed, frames, motion, fps)
+        else:
+            data = await _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model.strip(), svd.strip(), frames, motion, fps)
     except HTTPException:
         raise
     except httpx.HTTPError as e:
