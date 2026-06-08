@@ -23,7 +23,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images, Folder, Dices, Drama } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images, Folder, Dices, Drama, Shirt } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -92,6 +92,33 @@ const INTIMATE_ACTIONS = [
   { icon: '🔥', label: 'Heat it up', min: 92, stage: 'Inseparable', text: 'let the moment turn intimate and passionate, true to the scene and how close you two are' },
 ];
 
+// Wardrobe & scene quick-chips (competitor-style "request an outfit / pose / location").
+// Each chip nudges the character in-character and then repaints a fresh photo of the
+// new look; `backdrop` chips also repaint the chat background. Grouped for the popover.
+const SCENE_CHIPS = [
+  { group: '👗 Outfit', items: [
+    { label: 'Casual', text: 'change into a casual everyday outfit' },
+    { label: 'Elegant dress', text: 'change into an elegant evening dress' },
+    { label: 'Lingerie', text: 'change into lingerie' },
+    { label: 'Swimsuit', text: 'change into a swimsuit' },
+    { label: 'Sleepwear', text: 'change into comfy sleepwear' },
+    { label: 'Undress', text: 'undress, keeping it tasteful to the moment' },
+  ] },
+  { group: '📸 Pose & shot', items: [
+    { label: 'Close-up', text: 'lean in close for an intimate close-up' },
+    { label: 'Full body', text: 'step back so your whole body is in frame, striking a pose' },
+    { label: 'Lying down', text: 'lie down invitingly' },
+    { label: 'Over shoulder', text: 'glance back over your shoulder' },
+  ] },
+  { group: '🌆 Location', items: [
+    { label: 'Bedroom', text: 'move the scene to a cozy, dimly-lit bedroom', backdrop: true },
+    { label: 'Beach', text: 'move the scene to a warm sunset beach', backdrop: true },
+    { label: 'Café', text: 'move the scene to a snug little café', backdrop: true },
+    { label: 'Shower', text: 'move the scene to a steamy bathroom', backdrop: true },
+    { label: 'City at night', text: 'move the scene to a neon-lit city street at night', backdrop: true },
+  ] },
+];
+
 // Slash commands surfaced in the composer (type "/" to filter). arg='' = runs immediately.
 const SLASH_COMMANDS = [
   { cmd: 'me',       arg: '<action>', icon: '🎬', desc: 'Send an action in italics' },
@@ -152,6 +179,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [lightbox, setLightbox] = useState(null);        // full-size image overlay (src)
   const [showGallery, setShowGallery] = useState(false); // all chat images on one screen
   const [showDirector, setShowDirector] = useState(false); // director quick-actions menu
+  const [showWardrobe, setShowWardrobe] = useState(false); // wardrobe & scene quick-chips menu
   const [showSearch, setShowSearch] = useState(false);   // in-chat message search
   const [searchQ, setSearchQ] = useState('');            // search query
   const [summarizing, setSummarizing] = useState(false); // manual "summarize now" in progress
@@ -1155,6 +1183,21 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       .map((x) => (x.sender === 'user' ? uName : displayName(speakerOf(x))) + ': ' + stripPhotoTag(getMessageText(x)))
       .join('\n');
     await generateVideo(v, pchar, '', transcript);
+  }
+
+  // Wardrobe & scene chip: nudge the character to change outfit/pose/location in-character,
+  // then repaint a fresh photo of the new look (and the backdrop, for location changes).
+  async function quickScene(chip) {
+    setShowWardrobe(false);
+    if (streaming || !chat) return;
+    await sendText('(Director note — act on this in-character, do not quote it: ' + chip.text + '.)');
+    if (!settings.aiPhotos) return;
+    if (chip.backdrop) { try { await setSceneBackdrop(); } catch (e) { /* backdrop is best-effort */ } }
+    const last = lastAiMessage();
+    if (last) {
+      try { await illustrateMessage(last); }
+      catch (e) { /* photo is best-effort — the scene note already landed */ }
+    }
   }
 
   // Manual image: generate a photo of the speaker from tags the user types.
@@ -2285,6 +2328,34 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                   </>
                 )}
               </div>
+              {/* Wardrobe & scene — request an outfit / pose / location, with a fresh photo */}
+              {settings.aiPhotos && (
+                <div className="relative">
+                  <button onClick={() => setShowWardrobe((v) => !v)} disabled={streaming} title="Wardrobe & scene — outfit, pose, location" className={'grid h-9 w-9 place-items-center rounded-xl border transition disabled:opacity-40 ' + (showWardrobe ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}><Shirt className="h-4 w-4" /></button>
+                  {showWardrobe && (
+                    <>
+                      <div className="fixed inset-0 z-30" onClick={() => setShowWardrobe(false)} />
+                      <div className="pop-in absolute bottom-full left-0 z-40 mb-2 w-64 rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl" style={{ transformOrigin: 'bottom left' }}>
+                        <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">👗 Wardrobe &amp; scene</div>
+                        {SCENE_CHIPS.map((sec) => (
+                          <div key={sec.group}>
+                            <div className="px-2 pb-1 pt-1.5 text-[11px] font-medium text-em-text-dim/80">{sec.group}</div>
+                            <div className="flex flex-wrap gap-1 px-1.5 pb-1">
+                              {sec.items.map((c) => (
+                                <button
+                                  key={c.label}
+                                  onClick={() => quickScene(c)}
+                                  className="rounded-full border border-white/10 px-2.5 py-1 text-xs text-em-text transition hover:border-em-accent/50 hover:bg-em-accent/10 hover:text-em-accent"
+                                >{c.label}</button>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
             <textarea
               ref={inputRef}
