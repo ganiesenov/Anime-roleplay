@@ -1,9 +1,9 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { SmilePlus, Dices, ImagePlus } from 'lucide-react';
+import { SmilePlus, Dices, ImagePlus, Film } from 'lucide-react';
 import { avatarUrl } from '../lib/media.js';
 import {
-  displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, getMessageImagePrompt, stripPhotoTag,
+  displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, getMessageImagePrompt, getMessageLoadingKind, stripPhotoTag,
 } from '../lib/chat.js';
 import { renderStreaming, renderFinal, escapeHtml } from '../lib/format.js';
 import { ttsSupported } from '../lib/tts.js';
@@ -13,13 +13,14 @@ import {
 
 // A character-sent selfie. Image generation can take a few seconds — show a
 // shimmer placeholder until it loads, and gracefully drop out if it fails.
-function PhotoMessage({ src, onOpen }) {
+function PhotoMessage({ src, onOpen, kind }) {
   const [state, setState] = useState('loading'); // loading | ok | error
+  const isVid = kind === 'video';
   if (!src) {
     return (
       <div className="mb-2 flex aspect-square w-72 max-w-full items-center justify-center rounded-xl border border-white/10 bg-white/5">
         <span className="flex items-center gap-2 text-xs text-em-text-dim">
-          <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> generating photo…
+          <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> {isVid ? 'animating clip… (this takes a while)' : 'generating photo…'}
         </span>
       </div>
     );
@@ -27,7 +28,9 @@ function PhotoMessage({ src, onOpen }) {
   if (state === 'error') {
     return (
       <div className="mb-2 flex max-w-[18rem] items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-em-text-dim">
-        🖼️ couldn’t generate photo — check the photo provider in Settings (token / Stable Diffusion running).
+        {isVid
+          ? '🎞 couldn’t render the clip — video needs the ComfyUI provider with an SVD checkpoint installed (Settings → Photos).'
+          : '🖼️ couldn’t generate photo — check the photo provider in Settings (token / Stable Diffusion running).'}
       </div>
     );
   }
@@ -36,13 +39,13 @@ function PhotoMessage({ src, onOpen }) {
       {state === 'loading' && (
         <div className="flex aspect-square w-72 max-w-full items-center justify-center bg-white/5">
           <span className="flex items-center gap-2 text-xs text-em-text-dim">
-            <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> developing photo…
+            <span className="h-3 w-3 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> {isVid ? 'rendering clip…' : 'developing photo…'}
           </span>
         </div>
       )}
       <img
         src={src}
-        alt="photo"
+        alt={isVid ? 'clip' : 'photo'}
         onLoad={() => setState('ok')}
         onError={() => setState('error')}
         onClick={() => state === 'ok' && onOpen && onOpen(src)}
@@ -111,7 +114,7 @@ const REWRITE_OPTS = [
   { label: 'Different take', tweak: 'take a clearly different direction than before' },
 ];
 
-export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onRegenerateTweak, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage, onReact, onIllustrate }) {
+export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onRegenerateTweak, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage, onReact, onIllustrate, onAnimate }) {
   const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -123,6 +126,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
   const text = stripPhotoTag(getMessageText(msg));   // hide any [photo: …] tag from view
   const image = isUser ? '' : getMessageImage(msg);
   const imageLoading = isUser ? false : getMessageImageLoading(msg);
+  const loadingKind = isUser ? null : getMessageLoadingKind(msg);
   const imagePrompt = isUser ? '' : getMessageImagePrompt(msg);
   const think = showThinkSetting ? getMessageThink(msg) : '';
   const nVariants = isUser ? 1 : (msg.variations ? msg.variations.length : 1);
@@ -205,7 +209,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
           </span>
         ) : (
           <>
-            {(image || imageLoading) && <PhotoMessage src={image} onOpen={onOpenImage} />}
+            {(image || imageLoading) && <PhotoMessage src={image} onOpen={onOpenImage} kind={loadingKind} />}
             {image && imagePrompt && (
               <details className="mb-2 max-w-[18rem] text-[10px] text-em-text-dim/70">
                 <summary className="cursor-pointer select-none">🏷 photo tags</summary>
@@ -253,6 +257,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
           )}
           {!isUser && <CtrlBtn onClick={onContinue} disabled={streaming} title="Continue this reply"><ContinueIcon /></CtrlBtn>}
           {!isUser && onIllustrate && !image && <CtrlBtn onClick={onIllustrate} disabled={streaming} title="Illustrate this moment"><ImagePlus className="h-[18px] w-[18px]" /></CtrlBtn>}
+          {!isUser && onAnimate && !image && <CtrlBtn onClick={onAnimate} disabled={streaming} title="Animate this moment (short clip)"><Film className="h-[18px] w-[18px]" /></CtrlBtn>}
           {!isUser && ttsSupported() && <CtrlBtn onClick={onSpeak} active={speaking} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? <StopIcon /> : <SpeakIcon />}</CtrlBtn>}
           <CtrlBtn onClick={beginEdit} disabled={streaming} title="Edit message"><PencilIcon /></CtrlBtn>
           <CtrlBtn onClick={doCopy} active={copied} title={copied ? 'Copied!' : 'Copy text'}>{copied ? <CheckIcon /> : <CopyIcon />}</CtrlBtn>

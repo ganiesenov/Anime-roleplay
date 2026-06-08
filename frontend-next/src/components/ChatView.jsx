@@ -708,6 +708,37 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     }
   }
 
+  // Animate a message variant into a short clip: same scene-aware likeness pipeline as
+  // a selfie (derive/cached appearance + scene tags), then render the still through
+  // ComfyUI + Stable Video Diffusion (buildVideoUrl) instead of a flat image.
+  async function generateVideo(v, pchar, prompt, scene) {
+    try {
+      if (!pchar.appearance || !pchar.appearance.trim()) {
+        try {
+          const appr = await generateAppearance(
+            { name: displayName(pchar), description: pchar.description, tags: pchar.tags },
+            resolveModel(settings, settings.model),
+          );
+          if (appr) { pchar.appearance = appr; await saveCharacter(pchar === char ? char : pchar); }
+        } catch (e) { /* fall back to name+tags */ }
+      }
+      let shot = prompt;
+      if (scene) {
+        try {
+          const t = await tagsFromScene({ name: displayName(pchar), transcript: scene, hint: prompt }, resolveModel(settings, settings.model));
+          if (t) shot = t;
+        } catch (e) { /* keep the hint */ }
+      }
+      v.image = buildVideoUrl(pchar, shot, settings);
+      v.imagePrompt = shot;
+    } finally {
+      v.imageLoading = false;
+      v.loadingKind = null;
+      await saveCharacter(char);
+      rerender();
+    }
+  }
+
   // ── Voice call (browser STT → chat → TTS, looped) ─────────────────────────
   const SpeechRec = (typeof window !== 'undefined') && (window.SpeechRecognition || window.webkitSpeechRecognition);
   const voiceSupported = !!SpeechRec && ttsSupported();
@@ -1107,6 +1138,25 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     await generatePhoto(v, pchar, '', false, transcript);
   }
 
+  // Animate a specific AI message — a scene-aware short clip of that exact moment.
+  // Reuses the selfie scene pipeline, then renders the still through SVD. Comfy-only.
+  async function animateMessage(m) {
+    if (!chat) return;
+    if (!settings.aiPhotos) { showToast('Enable AI photos in Settings first'); return; }
+    if (settings.imageProvider !== 'comfy') { showToast('Video needs the ComfyUI provider (Settings → Photos)'); return; }
+    const v = m.variations ? m.variations[m.activeVariant || 0] : m;
+    if (!v) return;
+    const pchar = charsById[m.speakerId] || char;
+    v.imageLoading = true; v.loadingKind = 'video'; rerender();
+    const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'User';
+    const idx = chat.history.indexOf(m);
+    const upTo = idx >= 0 ? chat.history.slice(Math.max(0, idx - 5), idx + 1) : chat.history.slice(-6);
+    const transcript = upTo.filter((x) => !x.isStreaming)
+      .map((x) => (x.sender === 'user' ? uName : displayName(speakerOf(x))) + ': ' + stripPhotoTag(getMessageText(x)))
+      .join('\n');
+    await generateVideo(v, pchar, '', transcript);
+  }
+
   // Manual image: generate a photo of the speaker from tags the user types.
   // Non-Latin input (e.g. Russian) is auto-translated to English Danbooru tags first.
   async function manualPhoto(tags, raw) {
@@ -1129,9 +1179,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // The animated WebP renders in the same image bubble. Needs an SVD checkpoint installed.
   async function manualVideo(tags) {
     if (!chat) return;
+    if (settings.imageProvider !== 'comfy') { showToast('Video needs the ComfyUI provider (Settings → Photos)'); return; }
     const speaker = resolveSpeaker();
     stick();
-    const v = { main: '', think: null, imageLoading: true };
+    const v = { main: '', think: null, imageLoading: true, loadingKind: 'video' };
     const msg = { id: genId(), sender: 'ai', type: 'dialog', speakerId: speaker.id, activeVariant: 0, variations: [v] };
     chat.history.push(msg);
     rerender();
@@ -1140,11 +1191,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       try { prompt = (await tagsFromText(tags, resolveModel(settings, settings.model))) || tags; }
       catch (e) { /* fall back to raw input */ }
     }
-    v.image = buildVideoUrl(speaker, prompt, settings);
-    v.imagePrompt = prompt;
-    v.imageLoading = false;
-    await saveCharacter(char);
-    rerender();
+    await generateVideo(v, speaker, prompt, null);
   }
 
   // Parse a dice spec like "2d6", "d20", "3d8+1" and return both a clean text line
@@ -1917,6 +1964,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                 onOpenImage={setLightbox}
                 onReact={(emoji) => reactMessage(m, emoji)}
                 onIllustrate={settings.aiPhotos ? () => illustrateMessage(m) : null}
+                onAnimate={settings.aiPhotos && settings.imageProvider === 'comfy' ? () => animateMessage(m) : null}
               />
             </Fragment>
           );

@@ -219,6 +219,16 @@ export function getMessageImageLoading(m) {
   return !!(v && v.imageLoading);
 }
 
+// What kind of media the active variant is generating/holding ('video' | null), so
+// the bubble can show the right "animating…" copy vs the still-photo copy.
+export function getMessageLoadingKind(m) {
+  if (!m || !m.variations) return null;
+  const v = m.variations[m.activeVariant || 0];
+  if (v && v.loadingKind) return v.loadingKind;
+  if (v && /\/api\/img2vid/.test(String(v.image || ''))) return 'video';
+  return null;
+}
+
 // Builds the system prompt for a single-character dialog (the common path).
 // World/story/multi-character narration aren't ported yet.
 export function buildSystemPrompt(char, chat, personas, opts) {
