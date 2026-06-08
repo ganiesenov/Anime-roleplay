@@ -27,6 +27,7 @@ export const DEFAULT_SETTINGS = {
   sttLang: '',               // voice-call speech-recognition language ('' = browser default)
   autoSummarize: false,
   autoSummarizeEvery: 30,
+  factMemory: true,          // maintain a durable "known facts" list (names/job/life events) always injected
 
   // ── Remote models / providers (e.g. OpenRouter). Local Ollama still routes
   // through the backend at /v1 (so RAG/summary fire); remote models POST straight

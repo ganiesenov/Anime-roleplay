@@ -481,6 +481,9 @@ export default function SettingsModal({ settings, onSave, onClose }) {
 
             {tab === 'memory' && (
               <div className={rows}>
+                <Row label="Durable facts memory" hint="Keep a permanent list of stable facts (names, job, life events) the character always remembers — shown in the 💗 inner-life panel.">
+                  <Toggle checked={s.factMemory !== false} onChange={(v) => set('factMemory', v)} />
+                </Row>
                 <Row label="Auto-summarize to memory" hint="Distill old turns into memory automatically.">
                   <Toggle checked={s.autoSummarize} onChange={(v) => set('autoSummarize', v)} />
                 </Row>

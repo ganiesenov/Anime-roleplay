@@ -13,6 +13,7 @@ import {
 import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js';
 import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES, trustEffect, tensionEffect } from '../lib/relationship.js';
+import { buildFactsUpdateMessages, parseFacts } from '../lib/memory.js';
 import { archetypeRelationship } from '../lib/personality.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
 import { buildOffscreenMessages, cleanOffscreen } from '../lib/offscreen.js';
@@ -608,6 +609,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       if (mainAcc && !errored && !controller.signal.aborted) {
         maybeAutoSummarize();
         maybeUpdateRelationship();
+        maybeUpdateFacts();
         sug.generate(char, chat, personas);
         if (settings.tts) {
           tts.autoSpeak(aiMsg, voiceFor(aiMsg), settings.ttsDialogueOnly);
@@ -810,6 +812,30 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     } catch (e) { /* best effort */ }
   }
 
+  // Maintain the durable "known facts" list from the latest exchange. Throttled to
+  // ~every 6 turns so it doesn't tie up the single local model on every reply.
+  async function maybeUpdateFacts() {
+    if (!settings.factMemory || !chat) return;
+    const turns = (chat.history || []).filter((m) => !m.isStreaming).length;
+    if (turns - (chat._lastFactsLen || 0) < 6) return;
+    chat._lastFactsLen = turns;
+    const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'User';
+    const transcript = (chat.history || [])
+      .filter((m) => !m.isStreaming)
+      .slice(-12)
+      .map((m) => (m.sender === 'user' ? uName : displayName(speakerOf(m))) + ': ' + getMessageText(m))
+      .join('\n');
+    if (!transcript.trim()) return;
+    try {
+      const raw = await collectCompletion(
+        buildFactsUpdateMessages(displayName(char), uName, chat.facts || [], transcript),
+        resolveModel(settings, settings.summaryModelId || settings.model),
+      );
+      const next = parseFacts(raw, chat.facts || []);
+      if (next && next.length) { chat.facts = next; await saveCharacter(char); rerender(); }
+    } catch (e) { chat._lastFactsLen = (chat._lastFactsLen || 0) - 6; /* retry next turn */ }
+  }
+
   // The character reaches out first after you've been away for a while — grounded
   // in what they "did" off-screen while you were gone.
   async function sendProactive(gapMs) {
@@ -914,6 +940,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     }
     chat.history.push({ id: genId(), sender: 'user', main: text, ...(extra || {}) });
     rerender();
+
+    // "@Name …" → that cast member answers directly (hand the turn to them).
+    const mention = mentionedSpeaker(text);
+    if (mention) { await groupTurn(mention, text); return; }
 
     // Group + Auto speaker → let several cast members reply in turn so they
     // actually interact with each other (and the user), not just one answer.
@@ -1105,6 +1135,18 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     return parts[(idx + 1) % parts.length] || parts[0];
   }
 
+  // In a group, "@Name …" directs the turn to that cast member (overrides rotation).
+  function mentionedSpeaker(text) {
+    if (!isGroup()) return null;
+    const m = /(?:^|\s)@([\p{L}][\p{L}\d_-]*)/u.exec(String(text || ''));
+    if (!m) return null;
+    const tag = m[1].toLowerCase();
+    const parts = activeParticipants();
+    return parts.find((c) => {
+      const n = displayName(c).toLowerCase();
+      return n === tag || n.split(/\s+/)[0] === tag || n.startsWith(tag);
+    }) || null;
+  }
   function speakerOf(msg) {
     if (msg && msg.speakerId && charsById[msg.speakerId]) return charsById[msg.speakerId];
     return char;
@@ -2220,6 +2262,15 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               </div>
             ) : (
               <p className="text-sm text-em-text-dim">No relationship state yet — keep chatting.</p>
+            )}
+
+            {chat.facts && chat.facts.length > 0 && (
+              <div className="mt-5 border-t border-white/10 pt-4">
+                <div className="mb-2 text-xs font-semibold uppercase tracking-wide text-em-text-dim">🧠 Known facts ({chat.facts.length})</div>
+                <ul className="space-y-1 text-sm">
+                  {chat.facts.map((f, i) => <li key={i} className="flex gap-2 text-em-text"><span className="text-em-accent">•</span><span>{f}</span></li>)}
+                </ul>
+              </div>
             )}
 
             {chat.diary && chat.diary.length > 0 && (

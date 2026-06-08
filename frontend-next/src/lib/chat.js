@@ -3,6 +3,7 @@
 import { splitThink } from './format.js';
 import { relationshipSection } from './relationship.js';
 import { personalitySection } from './personality.js';
+import { factsSection } from './memory.js';
 
 export function genId(first) {
   if (first) return 'msg-' + Date.now();
@@ -223,6 +224,7 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   if (chat.memories && chat.memories.trim()) {
     sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
   }
+  { const fs = factsSection(chat.facts, cName, uName); if (fs) sections.push(fs); }
   if (opts.pinned && opts.pinned.length) {
     sections.push('--- PINNED (the user marked these as important — always keep them in mind) ---\n' + opts.pinned.map((t) => '- ' + t).join('\n'));
   }
@@ -475,6 +477,7 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   if (chat.memories && chat.memories.trim()) {
     sections.push('--- CHAT MEMORIES (HIGH PRIORITY - always honor these) ---\n' + exp(chat.memories));
   }
+  { const fs = factsSection(chat.facts, sName, uName); if (fs) sections.push(fs); }
   if (opts.pinned && opts.pinned.length) {
     sections.push('--- PINNED (the user marked these as important — always keep them in mind) ---\n' + opts.pinned.map((t) => '- ' + t).join('\n'));
   }
