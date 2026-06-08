@@ -23,7 +23,7 @@ import { avatarUrl, isVideoUrl } from '../lib/media.js';
 import { accentFromImage } from '../lib/palette.js';
 import { applyDesignSettings } from '../lib/design.js';
 import { speak, cancelSpeech, ttsSupported } from '../lib/tts.js';
-import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images, Folder, Dices } from 'lucide-react';
+import { Phone, PhoneOff, Mic, MicOff, PanelRight, ArrowDown, Clapperboard, Download as DownloadGlyph, PenLine, Images, Folder, Dices, Drama } from 'lucide-react';
 import MessageBubble from './ChatMessage.jsx';
 import {
   SendIcon, StopIcon, Meter, Pill, PencilIcon, TrashIcon,
@@ -96,7 +96,7 @@ const SLASH_COMMANDS = [
   { cmd: 'video',    arg: '<tags>',   icon: '🎞', desc: 'Animate a short video selfie (ComfyUI + SVD)' },
 ];
 
-export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings, onChangeModel }) {
+export default function ChatView({ character, onBack, onEdit, settings = DEFAULT_SETTINGS, onOpenSettings, onChangeModel, onChangeSetting }) {
   const [char, setChar] = useState(character);
   const [chatId, setChatId] = useState(null);
   const [streaming, setStreaming] = useState(false);
@@ -2024,6 +2024,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         {(settings.replyOptions || settings.storyChoices) && !streaming && chat && (sug.suggesting || sug.suggestions.length > 0) && (
           sug.choiceMode ? (
             <div style={{ maxWidth: 'var(--chat-max-width)' }} className="mx-auto w-full px-4 pt-3">
+              <div className="mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-em-accent/90"><Drama className="h-3.5 w-3.5" /> What do you do?</div>
               {sug.suggesting && sug.suggestions.length === 0 ? (
                 <span className="text-sm text-em-text-dim">🎭 weighing your options…</span>
               ) : (
@@ -2039,6 +2040,13 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                       <span className="min-w-0 flex-1">{opt}</span>
                     </button>
                   ))}
+                  <button
+                    onClick={() => { sug.clear(); if (inputRef.current) inputRef.current.focus(); }}
+                    className="flex items-center gap-2.5 rounded-xl border border-dashed border-white/15 px-3 py-2.5 text-left text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text"
+                  >
+                    <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-white/10 text-[11px]">✍</span>
+                    <span className="min-w-0 flex-1">Write your own…</span>
+                  </button>
                 </div>
               )}
             </div>
@@ -2107,6 +2115,9 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               <button onClick={() => { setInput((v) => (v === '/' ? '' : '/')); focusInputEnd(); }} title="Commands (/)" className={'grid h-9 w-9 place-items-center rounded-xl border transition ' + (input === '/' ? 'border-em-accent/50 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}>⌘</button>
               <button onClick={insertAction} title="Insert action (*…*)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent"><span className="italic">A</span></button>
               <button onClick={() => { const r = rollDice('d20'); sendText(r.text, r.dice ? { dice: r.dice } : undefined); }} disabled={streaming} title="Roll a d20" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40"><Dices className="h-4 w-4" /></button>
+              {onChangeSetting && (
+                <button onClick={() => onChangeSetting('storyChoices', !settings.storyChoices)} title={settings.storyChoices ? 'Story mode: ON — branching choices after each reply' : 'Story mode (Mini-Theater): offer branching choices'} className={'grid h-9 w-9 place-items-center rounded-xl border transition ' + (settings.storyChoices ? 'border-em-accent/50 bg-em-accent/15 text-em-accent' : 'border-white/10 text-em-text-dim hover:border-em-accent/40 hover:text-em-accent')}><Drama className="h-4 w-4" /></button>
+              )}
               <button onClick={continueScene} disabled={streaming || history.length === 0} title="Continue the scene (no new message)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40"><ContinueIcon /></button>
               <button onClick={impersonate} disabled={streaming || impersonating || history.length === 0} title="Write my reply for me (impersonate)" className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent disabled:opacity-40">{impersonating ? <span className="h-4 w-4 animate-spin rounded-full border-2 border-em-accent border-t-transparent" /> : <PenLine className="h-4 w-4" />}</button>
               {/* Director — storytelling nudges */}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchAvailableModels, DEFAULT_SETTINGS } from '../lib/settings.js';
 import { ACCENTS, hexToRgba } from '../lib/design.js';
-import { ttsSupported, getVoices, onVoicesChanged, groupVoices, fetchKokoroVoices } from '../lib/tts.js';
+import { ttsSupported, getVoices, onVoicesChanged, groupVoices, fetchKokoroVoices, speak } from '../lib/tts.js';
 import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph, RotateCcw, Trash2, Upload, Download } from 'lucide-react';
 import { loadThemes, saveThemes, themeValuesFrom, exportThemes, importThemes } from '../lib/themes.js';
 
@@ -303,9 +303,12 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                     )}
                     {s.tts && (s.ttsEngine || 'kokoro') === 'kokoro' && (
                       <Row label="Default voice (Kokoro)" hint="Each character can override this with its own voice in the editor → Media & Voice.">
-                        <select value={s.kokoroVoice || 'af_heart'} onChange={(e) => set('kokoroVoice', e.target.value)} className={inputCls + ' min-w-52'}>
-                          {(kokoroVoices.length ? kokoroVoices : ['af_heart']).map((v) => <option key={v} value={v}>{v}</option>)}
-                        </select>
+                        <div className="flex items-center gap-2">
+                          <select value={s.kokoroVoice || 'af_heart'} onChange={(e) => set('kokoroVoice', e.target.value)} className={inputCls + ' min-w-44'}>
+                            {(kokoroVoices.length ? kokoroVoices : ['af_heart']).map((v) => <option key={v} value={v}>{v}</option>)}
+                          </select>
+                          <button type="button" onClick={() => speak('Hi, this is how I sound.', { engine: 'kokoro', voice: s.kokoroVoice || 'af_heart', speed: s.ttsSpeed || 1 })} title="Preview" className="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent">▶</button>
+                        </div>
                       </Row>
                     )}
                     {s.tts && (s.ttsEngine || 'kokoro') === 'kokoro' && (
