@@ -1375,9 +1375,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       <header className="relative flex items-center gap-3 border-b border-white/10 bg-em-bg/70 px-4 py-3 backdrop-blur-xl">
         <button onClick={onBack} title="Back" className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.03] px-3 py-1.5 text-sm text-em-text-dim transition duration-150 hover:-translate-y-0.5 hover:border-em-accent/40 hover:bg-white/[0.06] hover:text-em-text active:scale-95"><BackIcon /><span className="hidden sm:inline">Back</span></button>
         <div className={'h-9 w-9 overflow-hidden rounded-full bg-em-panel ' + (musicPlaying ? 'beat-ring' : '')}>
-          {char.avatar
-            ? <img src={avatarUrl(char.avatar)} alt="" className={'h-full w-full object-cover ' + (musicPlaying ? 'avatar-dancing' : '')} />
-            : <div className="flex h-full w-full items-center justify-center">👤</div>}
+          <Avatar src={char.avatar} name={char.name} size={36} className={musicPlaying ? 'avatar-dancing' : ''} />
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">

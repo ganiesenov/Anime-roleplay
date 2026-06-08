@@ -153,7 +153,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
         >
           {avChar && avChar.avatar
             ? <img src={avatarUrl(avChar.avatar)} alt="" className="h-full w-full object-cover" />
-            : <div className="flex h-full w-full items-center justify-center text-em-text-dim">👤</div>}
+            : <div className="flex h-full w-full items-center justify-center bg-gradient-to-br from-em-accent/40 to-em-accent/5 text-xs font-semibold text-white/90">{(displayName(avChar) || '?').slice(0, 1).toUpperCase()}</div>}
         </div>
       )}
       <div className={'flex min-w-0 flex-1 flex-col gap-1 ' + (isUser ? 'items-end' : 'items-start')}>
