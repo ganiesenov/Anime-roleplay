@@ -3,6 +3,7 @@ import { getAllCharacters, characterStats, seedStarterPackIfNeeded, restoreFromS
 import CharacterCard from './components/CharacterCard.jsx';
 import ChatView from './components/ChatView.jsx';
 import CharacterEditor from './components/CharacterEditor.jsx';
+import CharacterWizard from './components/CharacterWizard.jsx';
 import SettingsModal from './components/SettingsModal.jsx';
 import TutorialModal, { TUTORIAL_FLAG } from './components/TutorialModal.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
@@ -74,6 +75,7 @@ export default function App() {
   const [sort, setSort] = useState('recent');
   const [activeChar, setActiveChar] = useState(null);
   const [editing, setEditing] = useState(null); // null=closed, {} or char=open
+  const [showWizard, setShowWizard] = useState(false); // guided character builder
   const [settings, setSettings] = useState(loadSettings);
   const [showSettings, setShowSettings] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -209,6 +211,7 @@ export default function App() {
   const overlays = (
     <>
       {editing !== null && <CharacterEditor char={editing} settings={settings} onClose={() => setEditing(null)} onSaved={onEditorSaved} />}
+      {showWizard && <CharacterWizard settings={settings} onClose={() => setShowWizard(false)} onCreated={(rec) => { setShowWizard(false); refresh(); setEditing(rec); }} />}
       {showSettings && <SettingsModal settings={settings} onSave={onSaveSettings} onClose={() => setShowSettings(false)} />}
       {showTutorial && <TutorialModal onClose={closeTutorial} />}
       {showPalette && <CommandPalette chars={chars || []} onOpen={openCharacter} onClose={() => setShowPalette(false)} />}
@@ -248,7 +251,7 @@ export default function App() {
                 <button onClick={() => setShowPalette(true)} title="Quick switch (⌘K)" className="text-[10px] text-em-text-dim">⌘K</button>
               </div>
             )}
-            <button onClick={() => setEditing({})} className="flex items-center gap-1.5 rounded-lg bg-em-accent px-3.5 py-1.5 font-semibold text-em-bg shadow-lg shadow-em-accent/20 transition hover:bg-emerald-300">
+            <button onClick={() => setShowWizard(true)} className="flex items-center gap-1.5 rounded-lg bg-em-accent px-3.5 py-1.5 font-semibold text-em-bg shadow-lg shadow-em-accent/20 transition hover:bg-emerald-300">
               <PlusIcon className="h-4 w-4" /> Create
             </button>
             {/* Overflow menu — Import / Export / How it works live here to keep the bar clean */}
@@ -344,7 +347,7 @@ export default function App() {
           {/* Primary call-to-action + library stats */}
           <div className="mt-7 flex flex-col items-center gap-3">
             <button
-              onClick={() => setEditing({})}
+              onClick={() => setShowWizard(true)}
               className="group inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-em-accent to-emerald-300 px-6 py-2.5 font-semibold text-em-bg shadow-lg shadow-em-accent/25 transition hover:-translate-y-0.5 hover:shadow-em-accent/40 active:scale-95"
             >
               <PlusIcon className="h-4 w-4" /> Create your own character
