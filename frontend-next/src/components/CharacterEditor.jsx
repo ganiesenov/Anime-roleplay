@@ -5,6 +5,7 @@ import { buildWallpaperUrl, buildPhotoUrl } from '../lib/chat.js';
 import { TRAIT_DEFS, ARCHETYPES } from '../lib/personality.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
+import { characterToCode } from '../lib/io.js';
 import { searchShikimori, getShikimoriCharacter, cleanShikiDescription } from '../lib/shikimori.js';
 import { ttsSupported, getVoices, onVoicesChanged, groupVoices, fetchKokoroVoices, speak, cancelSpeech } from '../lib/tts.js';
 import { loadThemes } from '../lib/themes.js';
@@ -67,6 +68,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [reminder, setReminder] = useState(char?.reminder || '');
   const [narratorReminder, setNarratorReminder] = useState(char?.narratorReminder || '');
   const [busy, setBusy] = useState(false);
+  const [shared, setShared] = useState(false);
   const [tab, setTab] = useState('basics');
   const savedThemes = loadThemes();
   const [themeName, setThemeName] = useState(char?.themeName || '');
@@ -233,6 +235,12 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
     syncCharacterToServer(updated);
     setBusy(false);
     onSaved && onSaved(updated);
+  }
+
+  async function shareCode() {
+    const code = characterToCode(buildRecord(false));
+    try { await navigator.clipboard.writeText(code); setShared(true); setTimeout(() => setShared(false), 1800); }
+    catch (e) { window.prompt('Copy this character share code:', code); }
   }
 
   function exportCard() {
@@ -590,7 +598,8 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
         {/* Footer */}
         <div className="flex items-center justify-end gap-2 border-t border-white/10 px-5 py-4">
           {editing && <button onClick={duplicate} disabled={!name.trim() || busy} className="mr-auto rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40" title="Save a copy as a new character">⧉ Duplicate</button>}
-          <button onClick={exportCard} disabled={!name.trim()} className={(editing ? '' : 'mr-auto ') + 'inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40'} title="Export as a shareable character card (JSON)"><Download className="h-4 w-4" /> Export</button>
+          <button onClick={shareCode} disabled={!name.trim()} className={(editing ? '' : 'mr-auto ') + 'inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40'} title="Copy a shareable character code to the clipboard">🔗 {shared ? 'Copied!' : 'Share code'}</button>
+          <button onClick={exportCard} disabled={!name.trim()} className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition enabled:hover:border-em-accent/40 enabled:hover:text-em-text disabled:opacity-40" title="Export as a shareable character card (JSON)"><Download className="h-4 w-4" /> Export</button>
           <button onClick={() => onClose()} className="rounded-xl border border-white/10 px-4 py-2 text-em-text-dim transition hover:text-em-text">Cancel</button>
           <button onClick={save} disabled={!name.trim() || busy} className="rounded-xl bg-em-accent px-5 py-2 font-semibold text-em-bg transition enabled:hover:bg-emerald-300 disabled:opacity-40">
             {busy ? 'Saving…' : editing ? 'Save' : 'Create'}

@@ -9,7 +9,7 @@ import TutorialModal, { TUTORIAL_FLAG } from './components/TutorialModal.jsx';
 import CommandPalette from './components/CommandPalette.jsx';
 import { loadSettings, saveSettings } from './lib/settings.js';
 import { applyDesignSettings } from './lib/design.js';
-import { exportBackup, importFile } from './lib/io.js';
+import { exportBackup, importFile, importCode } from './lib/io.js';
 import { PlusIcon, DotsIcon, GearIcon, UploadIcon, DownloadIcon, HelpIcon, SearchIcon, HomeIcon, StarIcon } from './components/icons.jsx';
 import { ArrowUp, Shuffle } from 'lucide-react';
 import FeaturedBanner from './components/FeaturedBanner.jsx';
@@ -269,6 +269,7 @@ export default function App() {
                   <div className="absolute right-0 top-full z-40 mt-1.5 w-56 overflow-hidden rounded-xl border border-white/10 bg-em-panel p-1.5 shadow-2xl">
                     <MenuItem onClick={() => { setMenuOpen(false); setShowSettings(true); }} icon={<GearIcon className="h-4 w-4" />} label="Settings" />
                     <MenuItem onClick={() => { setMenuOpen(false); fileRef.current && fileRef.current.click(); }} icon={<UploadIcon className="h-4 w-4" />} label="Import…" hint="backup / card" />
+                    <MenuItem onClick={async () => { setMenuOpen(false); const code = window.prompt('Paste a character share code (ARIA1:…):'); if (code && code.trim()) { const r = await importCode(code.trim()); if (r) refresh(); } }} icon={<UploadIcon className="h-4 w-4" />} label="Import from code" hint="ARIA1:…" />
                     <MenuItem onClick={() => { setMenuOpen(false); exportBackup(); }} icon={<DownloadIcon className="h-4 w-4" />} label="Export backup" />
                     <div className="my-1 border-t border-white/10" />
                     <MenuItem onClick={() => { setMenuOpen(false); setShowShortcuts(true); }} icon={<HelpIcon className="h-4 w-4" />} label="Keyboard shortcuts" hint="?" />

@@ -53,6 +53,61 @@ export async function exportBackup() {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+// ── single-character sharing (file card + copyable code) ────────────────────
+// A "card" is the character minus its chat history (which is personal). Shared as
+// a v3 payload so it round-trips through the existing import path.
+function cardOf(char) {
+  const c = { ...(char || {}) };
+  delete c.chats;
+  return normalizeCharacter(c);
+}
+
+// Download one character as a .json card (the same shape Import understands).
+export function exportCharacterCard(char) {
+  if (!char) return;
+  const payload = { version: 3, characters: [cardOf(char)], personas: [] };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = (char.name || 'character').replace(/[^\w-]+/g, '_').slice(0, 50) + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+// UTF-8-safe base64 helpers for the share code.
+function toB64(str) { return btoa(unescape(encodeURIComponent(str))); }
+function fromB64(b64) { return decodeURIComponent(escape(atob(b64))); }
+
+// A short(ish) copy-paste code for a character. Heavy embedded media (data: URLs)
+// is dropped so the code stays pasteable — use the file export to keep the avatar.
+export function characterToCode(char) {
+  const c = cardOf(char);
+  if (typeof c.avatar === 'string' && c.avatar.startsWith('data:')) c.avatar = '';
+  if (typeof c.background === 'string' && c.background.startsWith('data:')) c.background = '';
+  if (typeof c.danceUrl === 'string' && c.danceUrl.startsWith('data:')) c.danceUrl = '';
+  return 'ARIA1:' + toB64(JSON.stringify(c));
+}
+
+// Decode an ARIA1 share code (or a bare/v3 JSON) and save it under a fresh id.
+export async function importCode(code) {
+  const s = String(code || '').trim().replace(/^ARIA1:/i, '');
+  if (!s) return null;
+  let card;
+  try { card = JSON.parse(fromB64(s)); }
+  catch (e) { window.alert('That doesn’t look like a valid character code.'); return null; }
+  let chr = card;
+  if (card && card.version === 3 && card.characters) {
+    const list = Array.isArray(card.characters) ? card.characters : Object.values(card.characters);
+    chr = list[0];
+  }
+  if (!chr || !chr.name) { window.alert('That code didn’t contain a character.'); return null; }
+  const norm = normalizeCharacter({ ...chr, id: 'char-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8) });
+  await saveCharacter(norm);
+  window.alert('Imported "' + norm.name + '".');
+  return { type: 'card', char: norm };
+}
+
 // ── import (auto-routed by file type/content) ───────────────────────────────
 export async function importFile(file) {
   const name = (file.name || '').toLowerCase();
