@@ -525,11 +525,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // ── Text-to-speech ────────────────────────────────────────────────────────
   // A message is read in its speaker's own voice, falling back to the global one.
-  function voiceFor(msg) {
-    const spk = speakerOf(msg);
-    return (spk && spk.voiceURI) || settings.ttsVoiceURI;
+  // Resolve TTS options for a speaker: local Kokoro voice (per-character) or the
+  // browser voice, depending on the chosen engine.
+  function ttsOptsFor(spk) {
+    const engine = settings.ttsEngine || 'kokoro';
+    const voice = engine === 'kokoro'
+      ? ((spk && spk.kokoroVoice) || settings.kokoroVoice || 'af_heart')
+      : ((spk && spk.voiceURI) || settings.ttsVoiceURI);
+    return { engine, voice, speed: settings.ttsSpeed || 1.0, dialogueOnly: settings.ttsDialogueOnly };
   }
-  function speakMessage(msg) { tts.toggle(msg, voiceFor(msg), settings.ttsDialogueOnly); }
+  function speakMessage(msg) { tts.toggle(msg, ttsOptsFor(speakerOf(msg))); }
 
   // Ensure the chat has a relationship state so the header/prompt have something to show.
   useEffect(() => {
@@ -623,7 +628,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         maybeUpdateFacts();
         sug.generate(char, chat, personas);
         if (settings.tts) {
-          tts.autoSpeak(aiMsg, voiceFor(aiMsg), settings.ttsDialogueOnly);
+          tts.autoSpeak(aiMsg, ttsOptsFor(speakerOf(aiMsg)));
         }
         if (photoPrompt || forcePhoto) {
           const speakerC = charsById[aiMsg.speakerId] || char;
@@ -764,8 +769,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       if (text) {
         setCallStatus('speaking');
         const ok = speak(text, {
-          voiceURI: char.voiceURI || settings.ttsVoiceURI,
-          dialogueOnly: settings.ttsDialogueOnly,
+          ...ttsOptsFor(speakerOf(last)),
           onend: () => { if (inCallRef.current && !callMutedRef.current) startListening(); },
         });
         if (!ok && inCallRef.current && !callMutedRef.current) startListening();

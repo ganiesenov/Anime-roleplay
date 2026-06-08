@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { fetchAvailableModels, DEFAULT_SETTINGS } from '../lib/settings.js';
 import { ACCENTS, hexToRgba } from '../lib/design.js';
-import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
+import { ttsSupported, getVoices, onVoicesChanged, groupVoices, fetchKokoroVoices } from '../lib/tts.js';
 import { Brain, Drama, Clapperboard, Palette, Plug, Puzzle, Settings as SettingsGlyph, RotateCcw, Trash2, Upload, Download } from 'lucide-react';
 import { loadThemes, saveThemes, themeValuesFrom, exportThemes, importThemes } from '../lib/themes.js';
 
@@ -89,6 +89,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
   const [tab, setTab] = useState('model');
   const [models, setModels] = useState([]);
   const [voices, setVoices] = useState([]);
+  const [kokoroVoices, setKokoroVoices] = useState([]);
   const [themes, setThemes] = useState(loadThemes);
   const [themeName, setThemeName] = useState('');
   const themeFileRef = useRef(null);
@@ -109,6 +110,7 @@ export default function SettingsModal({ settings, onSave, onClose }) {
   }
 
   useEffect(() => { fetchAvailableModels().then(setModels); }, []);
+  useEffect(() => { fetchKokoroVoices().then((r) => setKokoroVoices(r.voices || [])); }, []);
   useEffect(() => {
     if (!ttsSupported()) return undefined;
     setVoices(getVoices());
@@ -286,13 +288,33 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                     </select>
                   </Row>
                 )}
-                {ttsSupported() ? (
+                {(
                   <>
-                    <Row label="Speak replies (TTS)" hint="Read each AI reply aloud.">
+                    <Row label="Speak replies (TTS)" hint="Read each AI reply aloud (also used by the 📞 voice call).">
                       <Toggle checked={s.tts} onChange={(v) => set('tts', v)} />
                     </Row>
                     {s.tts && (
-                      <Row label="Default voice" hint="Characters can override this with their own voice in the editor.">
+                      <Row label="Voice engine" hint="Kokoro = local neural voices (natural, distinct per character). Browser = built-in SpeechSynthesis.">
+                        <select value={s.ttsEngine || 'kokoro'} onChange={(e) => set('ttsEngine', e.target.value)} className={inputCls + ' min-w-52'}>
+                          <option value="kokoro">Kokoro — local neural{kokoroVoices.length ? '' : ' (model not found)'}</option>
+                          <option value="browser">Browser (SpeechSynthesis)</option>
+                        </select>
+                      </Row>
+                    )}
+                    {s.tts && (s.ttsEngine || 'kokoro') === 'kokoro' && (
+                      <Row label="Default voice (Kokoro)" hint="Each character can override this with its own voice in the editor → Media & Voice.">
+                        <select value={s.kokoroVoice || 'af_heart'} onChange={(e) => set('kokoroVoice', e.target.value)} className={inputCls + ' min-w-52'}>
+                          {(kokoroVoices.length ? kokoroVoices : ['af_heart']).map((v) => <option key={v} value={v}>{v}</option>)}
+                        </select>
+                      </Row>
+                    )}
+                    {s.tts && (s.ttsEngine || 'kokoro') === 'kokoro' && (
+                      <Row label={`Voice speed: ${(s.ttsSpeed || 1).toFixed(2)}×`}>
+                        <input type="range" min="0.5" max="1.5" step="0.05" value={s.ttsSpeed || 1} onChange={(e) => set('ttsSpeed', parseFloat(e.target.value))} className="w-44 accent-em-accent" />
+                      </Row>
+                    )}
+                    {s.tts && (s.ttsEngine || 'kokoro') === 'browser' && ttsSupported() && (
+                      <Row label="Default voice (browser)" hint="Characters can override this with their own voice in the editor.">
                         <select value={s.ttsVoiceURI} onChange={(e) => set('ttsVoiceURI', e.target.value)} className={inputCls + ' min-w-52'}>
                           <option value="">(Browser default)</option>
                           {groupVoices(voices).map(([label, list]) => (
@@ -320,8 +342,6 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                       </select>
                     </Row>
                   </>
-                ) : (
-                  <p className="py-3 text-sm text-em-text-dim">Text-to-speech isn’t available in this browser.</p>
                 )}
               </div>
             )}

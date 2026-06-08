@@ -12,15 +12,16 @@ export default function useTts() {
   useEffect(() => () => cancelSpeech(), []);
 
   // Click a message's speaker button: start it, or stop if it's already playing.
-  function toggle(msg, voiceURI, dialogueOnly) {
+  // `opts` carries { engine, voice, speed, dialogueOnly }.
+  function toggle(msg, opts) {
     if (speakingId === msg.id) { cancelSpeech(); setSpeakingId(null); return; }
-    const ok = speak(getMessageText(msg), { voiceURI, dialogueOnly, onend: () => setSpeakingId(null) });
+    const ok = speak(getMessageText(msg), { ...(opts || {}), onend: () => setSpeakingId(null) });
     setSpeakingId(ok ? msg.id : null);
   }
 
   // Read a freshly finished reply aloud (auto-speak setting).
-  function autoSpeak(msg, voiceURI, dialogueOnly) {
-    const ok = speak(getMessageText(msg), { voiceURI, dialogueOnly, onend: () => setSpeakingId(null) });
+  function autoSpeak(msg, opts) {
+    const ok = speak(getMessageText(msg), { ...(opts || {}), onend: () => setSpeakingId(null) });
     if (ok) setSpeakingId(msg.id);
   }
 

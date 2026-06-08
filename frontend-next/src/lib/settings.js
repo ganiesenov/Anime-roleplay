@@ -26,8 +26,11 @@ export const DEFAULT_SETTINGS = {
   videoFps: 8,               // video-selfie playback fps
   videoMotion: 127,          // SVD motion_bucket_id (higher = more motion)
   photoSize: 768,            // generated selfie resolution (square): 512 | 768 | 1024
-  tts: false,                // speak AI replies via SpeechSynthesis
-  ttsVoiceURI: '',           // chosen voice (empty = browser default)
+  tts: false,                // speak AI replies via TTS
+  ttsEngine: 'kokoro',       // 'kokoro' (local neural, per-character voices) | 'browser' (SpeechSynthesis)
+  ttsVoiceURI: '',           // chosen BROWSER voice (empty = browser default)
+  kokoroVoice: 'af_heart',   // default Kokoro voice when a character has none set
+  ttsSpeed: 1.0,             // Kokoro playback speed
   ttsDialogueOnly: false,    // speak only the character's quoted dialogue, skip *actions*/narration
   sttLang: '',               // voice-call speech-recognition language ('' = browser default)
   autoSummarize: false,

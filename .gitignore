@@ -19,3 +19,6 @@ casual-character-chat-blueprint/
 # бэкапы
 *.bak
 script.js.backup
+
+# local TTS / model weights (large, download locally)
+backend/models/

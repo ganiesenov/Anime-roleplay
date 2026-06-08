@@ -6,7 +6,7 @@ import { TRAIT_DEFS, ARCHETYPES } from '../lib/personality.js';
 import { DEFAULT_SETTINGS, resolveModel } from '../lib/settings.js';
 import { generateCharacter, generateScenario, generateAppearance, formatGenError } from '../lib/aigen.js';
 import { searchShikimori, getShikimoriCharacter, cleanShikiDescription } from '../lib/shikimori.js';
-import { ttsSupported, getVoices, onVoicesChanged, groupVoices } from '../lib/tts.js';
+import { ttsSupported, getVoices, onVoicesChanged, groupVoices, fetchKokoroVoices, speak, cancelSpeech } from '../lib/tts.js';
 import { loadThemes } from '../lib/themes.js';
 import { User, MessageSquare, BookOpen, Clapperboard, SlidersHorizontal, Download, HeartHandshake } from 'lucide-react';
 
@@ -56,6 +56,8 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   const [danceUrl, setDanceUrl] = useState(char?.danceUrl || '');
   const [voiceURI, setVoiceURI] = useState(char?.voiceURI || '');
   const [voices, setVoices] = useState([]);
+  const [kokoroVoice, setKokoroVoice] = useState(char?.kokoroVoice || '');
+  const [kokoroVoices, setKokoroVoices] = useState([]);
   const [appearance, setAppearance] = useState(char?.appearance || '');
   const [tags, setTags] = useState(char?.tags || '');
   const [description, setDescription] = useState(char?.description || '');
@@ -109,6 +111,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
   useEffect(() => {
     if (!ttsSupported()) return undefined;
     setVoices(getVoices());
+    fetchKokoroVoices().then((r) => setKokoroVoices(r.voices || []));
     return onVoicesChanged(setVoices);
   }, []);
 
@@ -203,6 +206,7 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
       background,
       danceUrl: danceUrl.trim(),
       voiceURI,
+      kokoroVoice,
       appearance: appearance.trim(),
       description,
       lore,
@@ -520,8 +524,26 @@ export default function CharacterEditor({ char, onClose, onSaved, settings = DEF
                 </div>
               </Field>
 
+              {kokoroVoices.length > 0 && (
+                <Field label="Voice (Kokoro — local, natural)" hint="This character's own neural voice. Used when the TTS engine is Kokoro (Settings → Photos & Voice). Click ▶ to preview.">
+                  <div className="flex items-center gap-2">
+                    <select value={kokoroVoice} onChange={(e) => setKokoroVoice(e.target.value)} className={inputCls}>
+                      <option value="">(Use default voice)</option>
+                      {kokoroVoices.map((v) => <option key={v} value={v}>{v}</option>)}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => speak('Hi, this is how I sound. Nice to meet you.', { engine: 'kokoro', voice: kokoroVoice || 'af_heart' })}
+                      onMouseLeave={() => {}}
+                      title="Preview voice"
+                      className="shrink-0 rounded-lg border border-white/10 px-3 py-2 text-sm text-em-text-dim transition hover:border-em-accent/40 hover:text-em-accent"
+                    >▶</button>
+                  </div>
+                </Field>
+              )}
+
               {ttsSupported() && (
-                <Field label="Voice (TTS)" hint="This character's speaking voice. Overrides the default voice in Settings.">
+                <Field label="Voice (browser TTS)" hint="Fallback voice when the engine is set to Browser. Overrides the default voice in Settings.">
                   <select value={voiceURI} onChange={(e) => setVoiceURI(e.target.value)} className={inputCls}>
                     <option value="">(Use default voice)</option>
                     {groupVoices(voices).map(([label, list]) => (
