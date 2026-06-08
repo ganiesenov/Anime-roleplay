@@ -497,6 +497,15 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // ── Suggested replies ─────────────────────────────────────────────────────
   function pickSuggestion(text) {
+    // Story-mode choices read as actions — send straight away (as a *…* action) so
+    // the visual-novel branch advances on a single tap; plain replies drop into the
+    // composer for editing first.
+    if (sug.choiceMode) {
+      sug.clear();
+      const action = /^[*"]/.test(text) ? text : '*' + text + '*';
+      sendText(action);
+      return;
+    }
     setInput(text);
     sug.clear();
     if (inputRef.current) inputRef.current.focus();
@@ -1932,23 +1941,45 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
       {/* Composer */}
       <div className="border-t border-white/10 bg-em-bg/70 backdrop-blur-xl">
-        {settings.replyOptions && !streaming && chat && (sug.suggesting || sug.suggestions.length > 0) && (
-          <div style={{ maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full flex-wrap gap-2 px-4 pt-3">
-            {sug.suggesting && sug.suggestions.length === 0 ? (
-              <span className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-em-text-dim">💡 thinking of replies…</span>
-            ) : (
-              sug.suggestions.map((opt, i) => (
-                <button
-                  key={i}
-                  onClick={() => pickSuggestion(opt)}
-                  className="max-w-full truncate rounded-full border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-left text-sm text-em-text transition hover:border-em-accent/60 hover:bg-em-accent/20"
-                  title={opt}
-                >
-                  💬 {opt}
-                </button>
-              ))
-            )}
-          </div>
+        {(settings.replyOptions || settings.storyChoices) && !streaming && chat && (sug.suggesting || sug.suggestions.length > 0) && (
+          sug.choiceMode ? (
+            <div style={{ maxWidth: 'var(--chat-max-width)' }} className="mx-auto w-full px-4 pt-3">
+              {sug.suggesting && sug.suggestions.length === 0 ? (
+                <span className="text-sm text-em-text-dim">🎭 weighing your options…</span>
+              ) : (
+                <div className="grid gap-2 sm:grid-cols-2">
+                  {sug.suggestions.map((opt, i) => (
+                    <button
+                      key={i}
+                      onClick={() => pickSuggestion(opt)}
+                      className="group flex items-center gap-2.5 rounded-xl border border-em-accent/25 bg-em-accent/[0.07] px-3 py-2.5 text-left text-sm text-em-text transition hover:-translate-y-0.5 hover:border-em-accent/60 hover:bg-em-accent/15"
+                      title={opt}
+                    >
+                      <span className="grid h-5 w-5 shrink-0 place-items-center rounded-md bg-em-accent/20 text-[11px] font-bold text-em-accent">{i + 1}</span>
+                      <span className="min-w-0 flex-1">{opt}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div style={{ maxWidth: 'var(--chat-max-width)' }} className="mx-auto flex w-full flex-wrap gap-2 px-4 pt-3">
+              {sug.suggesting && sug.suggestions.length === 0 ? (
+                <span className="rounded-full border border-white/10 px-3 py-1.5 text-sm text-em-text-dim">💡 thinking of replies…</span>
+              ) : (
+                sug.suggestions.map((opt, i) => (
+                  <button
+                    key={i}
+                    onClick={() => pickSuggestion(opt)}
+                    className="max-w-full truncate rounded-full border border-em-accent/30 bg-em-accent/10 px-3 py-1.5 text-left text-sm text-em-text transition hover:border-em-accent/60 hover:bg-em-accent/20"
+                    title={opt}
+                  >
+                    💬 {opt}
+                  </button>
+                ))
+              )}
+            </div>
+          )
         )}
         <div style={{ maxWidth: 'var(--chat-max-width)' }} className="relative mx-auto w-full px-4 py-3">
           {/* Slash-command autocomplete */}

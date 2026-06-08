@@ -1,12 +1,14 @@
 import { useRef, useState } from 'react';
-import { suggestReplies } from '../lib/chat.js';
+import { suggestReplies, suggestStoryChoices } from '../lib/chat.js';
 import { resolveModel } from '../lib/settings.js';
 
-// Suggested-reply state: two quick user replies generated after an AI turn.
+// Suggested-reply state: quick user replies (2 chips) OR, when "Story choices"
+// (Mini-Theater) is on, 3-4 branching action choices generated after an AI turn.
 // Stale requests are invalidated by id so only the latest result lands.
 export default function useSuggestions(settings) {
   const [suggestions, setSuggestions] = useState([]);
   const [suggesting, setSuggesting] = useState(false);
+  const [choiceMode, setChoiceMode] = useState(false); // true → render as story choices
   const reqRef = useRef(0);
 
   function clear() {
@@ -16,12 +18,17 @@ export default function useSuggestions(settings) {
   }
 
   async function generate(char, chat, personas) {
-    if (!settings.replyOptions || !chat) return;
+    const story = !!settings.storyChoices;
+    if ((!settings.replyOptions && !story) || !chat) return;
     const reqId = ++reqRef.current;
+    setChoiceMode(story);
     setSuggestions([]);
     setSuggesting(true);
     try {
-      const opts = await suggestReplies(char, chat, personas, resolveModel(settings, settings.suggestionModelId || settings.model));
+      const model = resolveModel(settings, settings.suggestionModelId || settings.model);
+      const opts = story
+        ? await suggestStoryChoices(char, chat, personas, model)
+        : await suggestReplies(char, chat, personas, model);
       if (reqId !== reqRef.current) return;
       setSuggestions(opts || []);
     } catch (e) {
@@ -32,5 +39,5 @@ export default function useSuggestions(settings) {
     }
   }
 
-  return { suggestions, suggesting, generate, clear };
+  return { suggestions, suggesting, choiceMode, generate, clear };
 }

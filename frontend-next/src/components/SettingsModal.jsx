@@ -217,6 +217,9 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                 <Row label="Suggest replies" hint="Offer 2 quick user replies after each AI turn.">
                   <Toggle checked={s.replyOptions} onChange={(v) => set('replyOptions', v)} />
                 </Row>
+                <Row label="Story choices (Mini-Theater)" hint="After each turn, offer 3-4 branching actions to pick from — a visual-novel style way to drive the plot. Overrides reply suggestions when on.">
+                  <Toggle checked={s.storyChoices} onChange={(v) => set('storyChoices', v)} />
+                </Row>
                 <Row label="Living relationship" hint="Character tracks affection / trust / tension and acts on it over time.">
                   <Toggle checked={s.relationship} onChange={(v) => set('relationship', v)} />
                 </Row>

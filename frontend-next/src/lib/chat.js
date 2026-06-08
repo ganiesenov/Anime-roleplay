@@ -405,6 +405,49 @@ export async function suggestReplies(char, chat, personas, opts) {
   return parseReplyOptions(raw);
 }
 
+// Parse the model's story-choice output into up to 4 short strings (bracket-scan
+// tolerant, like parseReplyOptions but allowing more options).
+export function parseChoices(raw) {
+  let s = String(raw || '').replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+  try { const arr = JSON.parse(s); if (Array.isArray(arr)) return arr.slice(0, 4).map(String).filter(Boolean); } catch (e) { /* fallback */ }
+  const starts = [];
+  for (let i = 0; i < s.length; i++) if (s[i] === '[') starts.push(i);
+  for (const start of starts) {
+    for (let end = s.length; end > start; end--) {
+      if (s[end - 1] !== ']') continue;
+      try { const arr = JSON.parse(s.slice(start, end)); if (Array.isArray(arr) && arr.length) return arr.slice(0, 4).map(String).filter(Boolean); } catch (e) { /* keep scanning */ }
+    }
+  }
+  return [];
+}
+
+// Mini-Theater: 3-4 DISTINCT branching story actions the user could take next —
+// more directive than reply suggestions (a bold move, a cautious one, an emotional
+// one, a wildcard) to keep a visual-novel-style plot moving.
+export async function suggestStoryChoices(char, chat, personas, opts) {
+  opts = opts || {};
+  const lastAi = [...(chat.history || [])].reverse().find((m) => m.sender !== 'user' && !m.isStreaming);
+  if (!lastAi) return [];
+  const aiText = getMessageText(lastAi);
+  if (!aiText || aiText.length < 5) return [];
+  let personaCtx = '';
+  if (chat.activePersonaId && personas[chat.activePersonaId]) {
+    const p = personas[chat.activePersonaId];
+    personaCtx = '\nThe user is roleplaying as "' + (p.name || 'User') + '": ' + String(p.description || '').slice(0, 200);
+  }
+  const sys = 'You are a roleplay game master. Offer the player 3-4 DISTINCT next actions they could take, each a short '
+    + 'imperative phrase (3-8 words, e.g. "Confront her about the letter", "Slip out quietly", "Pull him closer"). '
+    + 'Make the directions genuinely different in tone (e.g. bold, cautious, emotional, unexpected) and specific to THIS moment.' + personaCtx
+    + '\nOutput strictly a JSON array of 3-4 strings.';
+  const user = 'Character: ' + displayName(char) + '\nLast message: ' + aiText.slice(0, 600)
+    + '\nGenerate the action choices now as a JSON array.';
+  const raw = await collectCompletion(
+    [{ role: 'system', content: sys }, { role: 'user', content: user }],
+    { model: opts.model, endpoint: opts.endpoint, apiKey: opts.apiKey, temperature: 0.85, signal: opts.signal },
+  );
+  return parseChoices(raw);
+}
+
 // "Impersonate" — write the USER's next message for them, in first person and in
 // character as their persona, fitting the scene. Returns a single turn to drop
 // into the composer for editing. Content-neutral; mirrors the scene's tone.

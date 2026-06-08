@@ -9,6 +9,7 @@ export const DEFAULT_SETTINGS = {
   style: 'default',          // writing style preset: default | novelistic | concise | dialogue | dramatic
   showThink: true,
   replyOptions: true,        // suggest 2 user replies after each AI turn
+  storyChoices: false,       // Mini-Theater: offer 3-4 branching story-action choices after each AI turn
   relationship: true,        // living relationship state (affection/trust/tension)
   autonomy: true,            // anti-sycophancy: character has its own will/boundaries
   presence: true,            // living time/presence + proactive "texts first" on return
