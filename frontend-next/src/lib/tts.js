@@ -28,9 +28,23 @@ function plain(text) {
     .trim();
 }
 
+// "Dialogue only" — speak just the character's quoted speech, skipping *actions*
+// and narration, so TTS sounds like the character talking rather than a narrator
+// reading prose. Falls back to the full clean text if no quotes are found.
+function dialogueOnly(text) {
+  const cleaned = String(text || '')
+    .replace(/<think>[\s\S]*?<\/think>/gi, '')
+    .replace(/\*[^*]*\*/g, ' ')          // drop *action* spans entirely
+    .replace(/<[^>]+>/g, '');
+  const quotes = cleaned.match(/[""«»"]([^""«»"]+)[""«»"]/g) || [];
+  if (!quotes.length) return plain(text);
+  const speech = quotes.map((q) => q.replace(/[""«»"]/g, '')).join(' … ');
+  return plain(speech);
+}
+
 export function speak(text, opts = {}) {
   if (!ttsSupported()) return false;
-  const content = plain(text);
+  const content = opts.dialogueOnly ? dialogueOnly(text) : plain(text);
   if (!content) return false;
   try { window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
   const utter = new SpeechSynthesisUtterance(content);

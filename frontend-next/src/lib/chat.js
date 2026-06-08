@@ -68,6 +68,13 @@ const PHOTO_DIRECTIVE = '--- SENDING PHOTOS ---\n'
   + 'Do NOT send photos on your own initiative — no greeting selfies, no unprompted shots when the scene changes. If the user did not ask for an image this turn, do NOT add the line. '
   + 'Never mention this line in your spoken text and do NOT wrap it in quotes.';
 
+// Auto-selfie variant: the character MAY send a photo unprompted when the moment
+// genuinely calls for it — used when the "Auto-selfie" setting is on.
+const PHOTO_DIRECTIVE_AUTO = PHOTO_DIRECTIVE.replace(
+  'Do NOT send photos on your own initiative — no greeting selfies, no unprompted shots when the scene changes. If the user did not ask for an image this turn, do NOT add the line. ',
+  'You MAY also send a photo on your OWN initiative — occasionally, only when the moment truly calls for it (a dramatic reveal, showing the user something, an intimate or striking beat, or when you genuinely feel like it given how close you two are). Do this sparingly — at most once in a while, never every turn, and never as a bland greeting selfie. When you do, add the same [IMAGE PROMPT: …] line. ',
+);
+
 // Does a plain user message ask the character for a photo/pic? If so we generate
 // one regardless of whether the model bothered to emit a [photo:] tag — so the user
 // can just ASK in chat ("show me your face", "пришли фото") instead of using /photo.
@@ -208,7 +215,7 @@ export function buildSystemPrompt(char, chat, personas, opts) {
   }
   if (char.instructions) sections.push('--- CHARACTER AI INSTRUCTIONS ---\n' + exp(char.instructions));
   if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
-  if (opts.aiPhotos) sections.push(PHOTO_DIRECTIVE);
+  if (opts.aiPhotos) sections.push(opts.autoSelfie ? PHOTO_DIRECTIVE_AUTO : PHOTO_DIRECTIVE);
   if (char.description) sections.push('--- CHARACTER DESCRIPTION ---\n' + exp(char.description));
   { const ps = personalitySection(char, uName); if (ps) sections.push(ps); }
   if (char.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(char.lore));
@@ -462,7 +469,7 @@ export function buildGroupSystemPrompt(speaker, participants, chat, personas, op
   if (speaker.instructions) sections.push('--- YOUR INSTRUCTIONS (' + sName + ') ---\n' + exp(speaker.instructions));
   { const ps = personalitySection(speaker, uName); if (ps) sections.push(ps); }
   if (opts.autonomy) sections.push(AUTONOMY_DIRECTIVE);
-  if (opts.aiPhotos) sections.push(PHOTO_DIRECTIVE);
+  if (opts.aiPhotos) sections.push(opts.autoSelfie ? PHOTO_DIRECTIVE_AUTO : PHOTO_DIRECTIVE);
   if (speaker.lore) sections.push('--- LORE / BACKGROUND KNOWLEDGE ---\n' + exp(speaker.lore));
   if (chat.mood) sections.push('--- CURRENT MOOD (IMPORTANT) ---\n' + sName + ' is currently feeling ' + chat.mood + '.');
   if (chat.memories && chat.memories.trim()) {

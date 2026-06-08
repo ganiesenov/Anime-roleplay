@@ -238,6 +238,11 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                   <Toggle checked={s.aiPhotos} onChange={(v) => set('aiPhotos', v)} />
                 </Row>
                 {s.aiPhotos && (
+                  <Row label="Auto-selfie" hint="Let the character send a photo on its OWN initiative now and then — not only when you ask.">
+                    <Toggle checked={s.autoSelfie} onChange={(v) => set('autoSelfie', v)} />
+                  </Row>
+                )}
+                {s.aiPhotos && (
                   <Row label="Photo provider" hint="Local ComfyUI / SD WebUI (free, uncensored) or Pollinations (hosted, needs a token).">
                     <select value={s.imageProvider || 'pollinations'} onChange={(e) => set('imageProvider', e.target.value)} className={inputCls + ' min-w-52'}>
                       <option value="comfy">Local ComfyUI</option>
@@ -290,6 +295,11 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                             </optgroup>
                           ))}
                         </select>
+                      </Row>
+                    )}
+                    {s.tts && (
+                      <Row label="Speak dialogue only" hint="Read only the character's quoted speech aloud, skipping *actions* and narration.">
+                        <Toggle checked={s.ttsDialogueOnly} onChange={(v) => set('ttsDialogueOnly', v)} />
                       </Row>
                     )}
                     <Row label="Voice call language" hint="Speech recognition language for the 📞 voice call.">

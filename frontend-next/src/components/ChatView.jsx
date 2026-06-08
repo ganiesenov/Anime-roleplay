@@ -517,7 +517,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     const spk = speakerOf(msg);
     return (spk && spk.voiceURI) || settings.ttsVoiceURI;
   }
-  function speakMessage(msg) { tts.toggle(msg, voiceFor(msg)); }
+  function speakMessage(msg) { tts.toggle(msg, voiceFor(msg), settings.ttsDialogueOnly); }
 
   // Ensure the chat has a relationship state so the header/prompt have something to show.
   useEffect(() => {
@@ -588,9 +588,10 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         // Always strip any emitted tag from the visible text, even if we won't render it.
         if (ip.prompt) v.main = ip.clean;
         else if (ex && ex.prompt) v.main = ex.clean;
-        // Generate a photo ONLY when the user explicitly asked this turn — no
-        // spontaneous/greeting selfies (the model is told the same in PHOTO_DIRECTIVE).
-        if (opts.forcePhoto) {
+        const modelEmitted = !!(ip.prompt || (ex && ex.prompt));
+        // Generate when the user explicitly asked this turn, OR — with "Auto-selfie"
+        // on — when the character chose to emit a photo tag on its own initiative.
+        if (opts.forcePhoto || (settings.autoSelfie && modelEmitted)) {
           if (ip.prompt) { photoPrompt = ip.prompt; rawImage = true; }   // [IMAGE PROMPT] → verbatim
           else if (ex && ex.prompt) { photoPrompt = ex.prompt; }          // legacy tag → scene-aware
           else { forcePhoto = true; }                                     // no tag → build from scene
@@ -609,7 +610,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
         maybeUpdateRelationship();
         sug.generate(char, chat, personas);
         if (settings.tts) {
-          tts.autoSpeak(aiMsg, voiceFor(aiMsg));
+          tts.autoSpeak(aiMsg, voiceFor(aiMsg), settings.ttsDialogueOnly);
         }
         if (photoPrompt || forcePhoto) {
           const speakerC = charsById[aiMsg.speakerId] || char;
@@ -1155,6 +1156,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       relationship: settings.relationship,
       autonomy: settings.autonomy,
       aiPhotos: settings.aiPhotos,
+      autoSelfie: settings.aiPhotos && settings.autoSelfie,
       pinned: chat ? chat.history.filter((m) => m.pinned).map((m) => getMessageText(m)).filter(Boolean) : [],
       presenceText: settings.presence ? buildPresenceText(displayName(spk), spk.id, new Date(), lastMsgTs()) : '',
     };
@@ -1247,6 +1249,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
             className="hidden items-center gap-1 rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-rose-300/40 hover:text-rose-300 sm:flex"
           >
             <span className="text-base leading-none">{stageFor(chat.relationship.affection).emoji}</span>
+            <span className="rounded bg-rose-400/15 px-1 text-[10px] font-bold text-rose-300">Lv.{REL_STAGES.indexOf(stageFor(chat.relationship.affection)) + 1}</span>
             <span className="text-rose-400"><HeartIcon /></span> {chat.relationship.affection}
           </button>
         )}
@@ -2168,12 +2171,35 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                           {xe && <div>⚡ {xe}</div>}
                         </div>
                       ) : null; })()}
-                      {next && (
-                        <div className="mt-2 border-t border-white/10 pt-2 text-[11px] text-em-text-dim">
-                          Next: {next.emoji} <span className="text-em-text">{next.label}</span> at {next.min} affection
-                          <span className="text-em-text-dim/70"> · {next.min - chat.relationship.affection} to go</span>
+                      {next ? (
+                        <div className="mt-2 border-t border-white/10 pt-2">
+                          <div className="mb-1 flex items-center justify-between text-[11px] text-em-text-dim">
+                            <span>Lv.{idx + 1} → Lv.{idx + 2} {next.emoji} {next.label}</span>
+                            <span className="text-em-text-dim/70">{next.min - chat.relationship.affection} to go</span>
+                          </div>
+                          <div className="h-1.5 overflow-hidden rounded-full bg-white/10">
+                            <div className="h-full rounded-full bg-gradient-to-r from-rose-400 to-em-accent transition-all" style={{ width: Math.max(4, Math.min(100, Math.round((chat.relationship.affection - st.min) / (next.min - st.min) * 100))) + '%' }} />
+                          </div>
                         </div>
+                      ) : (
+                        <div className="mt-2 border-t border-white/10 pt-2 text-[11px] font-semibold text-em-accent">★ Max level reached</div>
                       )}
+                    </div>
+                  );
+                })()}
+                {/* Stage ladder — visible progression: unlocked ✓ / current / locked 🔒 */}
+                {(() => {
+                  const cur = REL_STAGES.indexOf(stageFor(chat.relationship.affection));
+                  return (
+                    <div className="flex items-stretch gap-1">
+                      {REL_STAGES.map((s, i) => (
+                        <div key={s.key} title={`Lv.${i + 1} ${s.label} · ${s.min}+ affection`}
+                          className={'flex flex-1 flex-col items-center gap-0.5 rounded-lg border px-0.5 py-1.5 text-center transition ' +
+                            (i === cur ? 'border-em-accent/50 bg-em-accent/15' : i < cur ? 'border-white/10 bg-white/[0.04]' : 'border-white/5 bg-transparent opacity-50')}>
+                          <span className="text-base leading-none">{i <= cur ? s.emoji : '🔒'}</span>
+                          <span className={'text-[9px] leading-none ' + (i === cur ? 'font-bold text-em-accent' : 'text-em-text-dim')}>Lv.{i + 1}</span>
+                        </div>
+                      ))}
                     </div>
                   );
                 })()}

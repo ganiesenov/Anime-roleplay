@@ -14,6 +14,7 @@ export const DEFAULT_SETTINGS = {
   presence: true,            // living time/presence + proactive "texts first" on return
   offscreenLife: true,       // character "lives" between sessions; colours the return greeting
   aiPhotos: false,           // character can send AI-generated selfies via a [photo: …] tag
+  autoSelfie: false,         // character may send a selfie on its OWN initiative (not only when asked)
   imageProvider: 'pollinations', // 'pollinations' (hosted, token) | 'comfy' (local ComfyUI) | 'a1111' (local SD WebUI)
   imageToken: '',            // pollinations API token (free signup at pollinations.ai)
   sdUrl: 'http://127.0.0.1:7860', // local Automatic1111 base URL
@@ -22,6 +23,7 @@ export const DEFAULT_SETTINGS = {
   photoSize: 768,            // generated selfie resolution (square): 512 | 768 | 1024
   tts: false,                // speak AI replies via SpeechSynthesis
   ttsVoiceURI: '',           // chosen voice (empty = browser default)
+  ttsDialogueOnly: false,    // speak only the character's quoted dialogue, skip *actions*/narration
   sttLang: '',               // voice-call speech-recognition language ('' = browser default)
   autoSummarize: false,
   autoSummarizeEvery: 30,
