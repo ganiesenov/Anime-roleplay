@@ -208,6 +208,8 @@ export function buildVideoUrl(char, prompt, settings, opts) {
     + '&frames=' + frames + '&fps=' + fps + '&motion=' + (settings.videoMotion || 127);
   // Animate an already-rendered still (best likeness; no SDXL checkpoint needed).
   if (opts.image) u += '&image=' + encodeURIComponent(deproxyImage(opts.image));
+  // Swap the user's face into the still before animating (local ReActor).
+  if (opts.face) u += '&face=' + encodeURIComponent(opts.face);
   if (settings.comfyModel && settings.comfyModel.trim()) u += '&model=' + encodeURIComponent(settings.comfyModel.trim());
   if (settings.svdModel && settings.svdModel.trim()) u += '&svd=' + encodeURIComponent(settings.svdModel.trim());
   return u;

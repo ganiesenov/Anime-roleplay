@@ -13,9 +13,11 @@ Ollama на localhost).
 """
 import asyncio
 import base64
+import hashlib
 import ipaddress
 import socket
 import uuid
+from pathlib import Path
 from urllib.parse import urlparse
 
 import httpx
@@ -89,6 +91,10 @@ _NEG_DEFAULT = (
     "extra digit, fewer digits, text, error, signature, watermark, username, "
     "jpeg artifacts, blurry, deformed, ugly"
 )
+
+# Face-swap reference store: the user's face photo, registered once and reused by id
+# (the photo/video URLs are GET, so they can only carry a short token, not the bytes).
+_FACES_DIR = Path(__file__).resolve().parent.parent / "data" / "faces"
 
 # Кэш ответа в браузере — аватары меняются редко.
 _CACHE_CONTROL = "public, max-age=86400"
@@ -351,6 +357,52 @@ async def _comfy_img2vid_from_image(base, image_bytes, svd, width, height, steps
     return data
 
 
+def _reactor_workflow(scene_name, face_name, restore):
+    """ReActor face-swap graph: paste the `source` face onto the person in `scene`.
+    Matched to the ReActorFaceSwap node's real input schema (introspected)."""
+    return {
+        "40": {"class_type": "LoadImage", "inputs": {"image": scene_name}},
+        "41": {"class_type": "LoadImage", "inputs": {"image": face_name}},
+        "42": {"class_type": "ReActorFaceSwap", "inputs": {
+            "enabled": True,
+            "input_image": ["40", 0],
+            "source_image": ["41", 0],
+            "swap_model": "inswapper_128.onnx",
+            "facedetection": "retinaface_resnet50",
+            "face_restore_model": ("GFPGANv1.4.pth" if restore else "none"),
+            "face_restore_visibility": 1.0,
+            "codeformer_weight": 0.5,
+            "detect_gender_input": "no",
+            "detect_gender_source": "no",
+            "input_faces_index": "0",
+            "source_faces_index": "0",
+            "console_log_level": 1,
+        }},
+        "43": {"class_type": "SaveImage", "inputs": {"filename_prefix": "aria_swap", "images": ["42", 0]}},
+    }
+
+
+async def _comfy_faceswap(base, scene_bytes, face_bytes, restore=True):
+    """Swap the user's face (face_bytes) onto the person in scene_bytes via ReActor."""
+    scene_name = await _comfy_upload_image(base, scene_bytes)
+    face_name = await _comfy_upload_image(base, face_bytes)
+    graph = _reactor_workflow(scene_name, face_name, restore)
+    data, _ctype = await _comfy_run(base, graph)
+    return data
+
+
+def _face_path(face_id: str) -> Path:
+    fid = "".join(c for c in (face_id or "") if c.isalnum())[:32]
+    return _FACES_DIR / f"{fid}.png"
+
+
+def _read_face(face_id: str) -> bytes:
+    p = _face_path(face_id)
+    if not face_id or not p.exists():
+        raise HTTPException(404, "Face reference not found — re-upload your face in the persona.")
+    return p.read_bytes()
+
+
 async def _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model, svd, frames, motion, fps):
     async with httpx.AsyncClient(timeout=30.0) as client:
         if not model:
@@ -534,6 +586,7 @@ async def img2vid(
     prompt: str = Query(..., description="Positive prompt for the still frame"),
     provider: str = Query("comfy", description="'comfy' (local SVD) | 'hosted' (Replicate-compatible)"),
     image: str = Query("", description="Still to animate (URL/data:) — local SVD animates it directly"),
+    face: str = Query("", description="Registered face id — swap the user's face onto the still before animating"),
     token: str = Query("", description="API token for the hosted provider"),
     hostedModel: str = Query("", description="Hosted video model: owner/name slug or version hash"),
     url: str = Query("", description="ComfyUI base URL (local)"),
@@ -566,6 +619,9 @@ async def img2vid(
         if image.strip():
             # Animate an already-rendered selfie — best likeness, no SDXL checkpoint needed.
             img_bytes = await _fetch_image_bytes(image.strip(), str(request.base_url))
+            if face.strip():
+                # Put the user's real face into the scene first, then animate it.
+                img_bytes = await _comfy_faceswap(base, img_bytes, _read_face(face.strip()))
             data = await _comfy_img2vid_from_image(base, img_bytes, svd.strip(), width, height, steps, seed, frames, motion, fps)
         else:
             data = await _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model.strip(), svd.strip(), frames, motion, fps)
@@ -574,3 +630,41 @@ async def img2vid(
     except httpx.HTTPError as e:
         raise HTTPException(502, f"Could not reach ComfyUI at {base} — is it running? ({e})") from e
     return Response(content=data, media_type="image/webp", headers={"Cache-Control": _CACHE_CONTROL})
+
+
+@router.post("/api/face")
+async def register_face(request: Request):
+    """Register the user's face photo (data: URL or http URL) once; return a short id the
+    photo/video GET URLs can carry. Idempotent — same image → same id."""
+    body = await request.json()
+    src = (body or {}).get("data", "")
+    if not src:
+        raise HTTPException(400, "No image data")
+    data = await _fetch_image_bytes(src, str(request.base_url))
+    fid = hashlib.sha1(data).hexdigest()[:16]
+    _FACES_DIR.mkdir(parents=True, exist_ok=True)
+    _face_path(fid).write_bytes(data)
+    return JSONResponse({"id": fid})
+
+
+@router.get("/api/faceswap")
+async def faceswap(
+    request: Request,
+    image: str = Query(..., description="Scene image (URL/data:) to paste the face onto"),
+    face: str = Query(..., description="Registered face id (from POST /api/face)"),
+    url: str = Query("", description="ComfyUI base URL"),
+    restore: int = Query(1, ge=0, le=1),
+):
+    """Swap the user's registered face onto the person in `image` via local ReActor."""
+    base = (url or "http://127.0.0.1:8188").rstrip("/")
+    if urlparse(base).scheme not in ("http", "https"):
+        raise HTTPException(400, "Only http/https URLs are allowed")
+    scene = await _fetch_image_bytes(image.strip(), str(request.base_url))
+    face_bytes = _read_face(face.strip())
+    try:
+        data = await _comfy_faceswap(base, scene, face_bytes, restore=bool(restore))
+    except HTTPException:
+        raise
+    except httpx.HTTPError as e:
+        raise HTTPException(502, f"Could not reach ComfyUI at {base} — is it running? ({e})") from e
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": _CACHE_CONTROL})

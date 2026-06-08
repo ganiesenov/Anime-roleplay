@@ -13,11 +13,18 @@ export default function PersonaModal({ persona, onSave, onClose, onDelete }) {
   const [name, setName] = useState(persona?.name || '');
   const [avatar, setAvatar] = useState(persona?.avatar || '');
   const [description, setDescription] = useState(persona?.description || '');
+  const [faceRef, setFaceRef] = useState(persona?.faceRef || '');
 
   async function pickAvatar(e) {
     const file = e.target.files && e.target.files[0];
     if (!file) return;
     try { setAvatar(await fileToDataUrl(file)); } catch (err) { /* ignore */ }
+  }
+
+  async function pickFace(e) {
+    const file = e.target.files && e.target.files[0];
+    if (!file) return;
+    try { setFaceRef(await fileToDataUrl(file)); } catch (err) { /* ignore */ }
   }
 
   function save() {
@@ -27,6 +34,7 @@ export default function PersonaModal({ persona, onSave, onClose, onDelete }) {
       name: name.trim(),
       avatar,
       description: description.trim(),
+      faceRef,
     });
   }
 
@@ -73,6 +81,25 @@ export default function PersonaModal({ persona, onSave, onClose, onDelete }) {
           />
           <span className="mt-1 block text-xs text-em-text-dim">Fed to the model as your exact persona. {'{{user}}'} / {'{{char}}'} supported.</span>
         </label>
+
+        <div className="mt-4 flex items-center gap-3 rounded-xl border border-white/10 p-3">
+          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-xl border border-white/10 bg-em-bg">
+            {faceRef
+              ? <img src={faceRef} alt="face" className="h-full w-full object-cover" />
+              : <div className="flex h-full w-full items-center justify-center text-2xl">🙂</div>}
+          </div>
+          <div className="flex-1">
+            <div className="text-sm font-medium text-em-text">Your face <span className="font-normal text-em-text-dim">(for face-swap into scenes)</span></div>
+            <div className="mt-0.5 text-xs text-em-text-dim">A clear front-facing photo. Used locally (ReActor) to put your real face into generated photos/videos. Enable “Face-swap” in Settings → Photos.</div>
+            <div className="mt-1.5 flex items-center gap-2">
+              <label className="cursor-pointer rounded-lg border border-white/10 px-2 py-1 text-xs text-em-text-dim transition hover:border-em-accent/40 hover:text-em-text">
+                Upload face
+                <input type="file" accept="image/*" className="hidden" onChange={pickFace} />
+              </label>
+              {faceRef && <button onClick={() => setFaceRef('')} className="text-[11px] text-em-text-dim transition hover:text-red-400">Remove</button>}
+            </div>
+          </div>
+        </div>
 
         <div className="mt-6 flex items-center justify-end gap-2">
           {editing && onDelete && (

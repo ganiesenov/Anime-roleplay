@@ -298,6 +298,11 @@ export default function SettingsModal({ settings, onSave, onClose }) {
                   </Row>
                 )}
                 {s.aiPhotos && (
+                  <Row label="Put my face in scenes" hint="Face-swap YOUR photo (set it in the persona — 'You as') onto generated photos/videos. Runs locally via ReActor; needs ComfyUI.">
+                    <Toggle checked={s.faceSwap} onChange={(v) => set('faceSwap', v)} />
+                  </Row>
+                )}
+                {s.aiPhotos && (
                   <Row label="Video provider" hint="For the 🎞 'animate this moment' clips: local ComfyUI + Stable Video Diffusion, or a hosted Replicate-compatible text-to-video API (no local GPU).">
                     <select value={s.videoProvider || 'comfy'} onChange={(e) => set('videoProvider', e.target.value)} className={inputCls + ' min-w-52'}>
                       <option value="comfy">Local ComfyUI + SVD</option>

@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS = {
   videoFps: 8,               // video-selfie playback fps
   videoMotion: 127,          // SVD motion_bucket_id (higher = more motion)
   photoSize: 768,            // generated selfie resolution (square): 512 | 768 | 1024
+  faceSwap: false,           // put YOUR face (persona faceRef) into generated photos/videos via local ReActor
   tts: false,                // speak AI replies via TTS
   ttsEngine: 'kokoro',       // 'kokoro' (local neural, per-character voices) | 'browser' (SpeechSynthesis)
   ttsVoiceURI: '',           // chosen BROWSER voice (empty = browser default)

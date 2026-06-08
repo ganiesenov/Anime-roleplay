@@ -14,6 +14,7 @@ import { generateAppearance, tagsFromText, tagsFromScene } from '../lib/aigen.js
 import { fetchAsDataUrl } from '../lib/api.js';
 import { defaultRelationship, buildRelationshipUpdateMessages, parseRelationship, stageFor, REL_STAGES, trustEffect, tensionEffect } from '../lib/relationship.js';
 import { getEnergy, spendEnergy, earnEnergy, ENERGY_MAX, EARN_PER_REPLY, COST as ENERGY_COST } from '../lib/energy.js';
+import { registerFace, faceSwapPhotoUrl } from '../lib/face.js';
 import { buildFactsUpdateMessages, parseFacts } from '../lib/memory.js';
 import { archetypeRelationship } from '../lib/personality.js';
 import { presenceFor, buildPresenceText, formatElapsed } from '../lib/presence.js';
@@ -177,6 +178,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const [searchAll, setSearchAll] = useState(false);     // search scope: this chat vs all
   const [toast, setToast] = useState(null);              // transient bottom toast
   const [energy, setEnergy] = useState(() => getEnergy()); // gamified energy balance (opt-in)
+  const [faceId, setFaceId] = useState('');              // registered face-swap reference id
   const toastTimer = useRef(null);
   const [lightbox, setLightbox] = useState(null);        // full-size image overlay (src)
   const [showGallery, setShowGallery] = useState(false); // all chat images on one screen
@@ -732,9 +734,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   // (the LLM knows famous characters), cache it on the character, then set the image.
   async function generatePhoto(v, pchar, prompt, raw, scene) {
     if (!chargeEnergy('photo')) { v.imageLoading = false; rerender(); return; }
+    // Optionally paste the user's real face into the shot (local ReActor).
+    const withFace = (u) => (settings.faceSwap && faceId) ? faceSwapPhotoUrl(u, faceId, settings) : u;
     try {
       // raw → send the prompt verbatim (no identity/scene/quality added).
-      if (raw) { v.image = buildPhotoUrl(pchar, prompt, settings, { raw: true }); v.imagePrompt = prompt; return; }
+      if (raw) { v.image = withFace(buildPhotoUrl(pchar, prompt, settings, { raw: true })); v.imagePrompt = prompt; return; }
       // Ensure we have stable appearance tags for likeness (derive once, cache).
       if (!pchar.appearance || !pchar.appearance.trim()) {
         try {
@@ -755,7 +759,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           if (t) shot = t;
         } catch (e) { /* keep the model's own tag */ }
       }
-      v.image = buildPhotoUrl(pchar, shot, settings, {});
+      v.image = withFace(buildPhotoUrl(pchar, shot, settings, {}));
       v.imagePrompt = shot;   // surface the exact tag used (transparency / debug)
     } finally {
       v.imageLoading = false;
@@ -789,7 +793,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       // Local SVD animates an actual still → render the scene-accurate selfie first, then
       // hand it to ComfyUI to animate (keeps the exact look; no SDXL checkpoint needed).
       const opts = settings.videoProvider !== 'hosted'
-        ? { image: buildPhotoUrl(pchar, shot, settings, {}) }
+        ? { image: buildPhotoUrl(pchar, shot, settings, {}), face: (settings.faceSwap && faceId) ? faceId : undefined }
         : {};
       v.image = buildVideoUrl(pchar, shot, settings, opts);
       v.imagePrompt = shot;
@@ -898,6 +902,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
 
   // Tidy up the call on unmount.
   useEffect(() => () => { inCallRef.current = false; try { recognitionRef.current && recognitionRef.current.stop(); } catch (e) { /* */ } cancelSpeech(); }, []);
+
+  // Register the active persona's face once (cached) so photos/videos can swap it in.
+  useEffect(() => {
+    const persona = chat && chat.activePersonaId && personas[chat.activePersonaId];
+    const ref = persona && persona.faceRef;
+    if (!settings.faceSwap || !ref) { setFaceId(''); return; }
+    let alive = true;
+    registerFace(ref).then((id) => { if (alive) setFaceId(id || ''); });
+    return () => { alive = false; };
+  }, [settings.faceSwap, chat && chat.activePersonaId, personas]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Opt-in: distill old turns into chat.memories once the chat grows by N msgs.
   // Fire-and-forget; one at a time; preempted by nothing (runs after a reply).
