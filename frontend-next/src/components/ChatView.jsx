@@ -79,7 +79,7 @@ const DIRECTOR_ACTIONS = [
   { icon: '🌪', label: 'Plot twist', text: 'introduce an unexpected but fitting twist into the scene right now' },
   { icon: '🗺', label: 'Describe scene', text: 'pause and vividly describe the current surroundings, atmosphere and mood' },
   { icon: '🔥', label: 'Raise the stakes', text: 'raise the tension and stakes — make something happen that demands a reaction' },
-  { icon: '🌙', label: 'New scene', text: 'transition to a new scene or location; set it up in a sentence or two, then continue' },
+  { icon: '🌙', label: 'New scene', text: 'transition to a new scene or location; set it up in a sentence or two, then continue', backdrop: true },
   { icon: '🎬', label: 'Wrap up scene', text: 'bring the current scene to a natural, satisfying close' },
 ];
 
@@ -1089,6 +1089,24 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     }
   }
 
+  // Illustrate a specific AI message — generate a scene-aware image of that exact
+  // moment and attach it to the message (reuses the selfie pipeline, scene-derived).
+  async function illustrateMessage(m) {
+    if (!chat) return;
+    if (!settings.aiPhotos) { showToast('Enable AI photos in Settings first'); return; }
+    const v = m.variations ? m.variations[m.activeVariant || 0] : m;
+    if (!v) return;
+    const pchar = charsById[m.speakerId] || char;
+    v.imageLoading = true; rerender();
+    const uName = (chat.activePersonaId && personas[chat.activePersonaId] && personas[chat.activePersonaId].name) || 'User';
+    const idx = chat.history.indexOf(m);
+    const upTo = idx >= 0 ? chat.history.slice(Math.max(0, idx - 5), idx + 1) : chat.history.slice(-6);
+    const transcript = upTo.filter((x) => !x.isStreaming)
+      .map((x) => (x.sender === 'user' ? uName : displayName(speakerOf(x))) + ': ' + stripPhotoTag(getMessageText(x)))
+      .join('\n');
+    await generatePhoto(v, pchar, '', false, transcript);
+  }
+
   // Manual image: generate a photo of the speaker from tags the user types.
   // Non-Latin input (e.g. Russian) is auto-translated to English Danbooru tags first.
   async function manualPhoto(tags, raw) {
@@ -1898,6 +1916,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                 group={isGroup()}
                 onOpenImage={setLightbox}
                 onReact={(emoji) => reactMessage(m, emoji)}
+                onIllustrate={settings.aiPhotos ? () => illustrateMessage(m) : null}
               />
             </Fragment>
           );
@@ -2178,7 +2197,12 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
                       {DIRECTOR_ACTIONS.map((d) => (
                         <button
                           key={d.label}
-                          onClick={() => { setShowDirector(false); sendText('(Director note — act on this, do not quote it: ' + d.text + '.)'); }}
+                          onClick={async () => {
+                            setShowDirector(false);
+                            await sendText('(Director note — act on this, do not quote it: ' + d.text + '.)');
+                            // A new scene → repaint the backdrop to match it (if image gen is on).
+                            if (d.backdrop && settings.aiPhotos) setSceneBackdrop();
+                          }}
                           className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-sm text-em-text transition hover:bg-white/5"
                         >
                           <span className="w-5 text-center">{d.icon}</span>{d.label}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { motion } from 'framer-motion';
-import { SmilePlus, Dices } from 'lucide-react';
+import { SmilePlus, Dices, ImagePlus } from 'lucide-react';
 import { avatarUrl } from '../lib/media.js';
 import {
   displayName, getMessageText, getMessageThink, getMessageImage, getMessageImageLoading, getMessageImagePrompt, stripPhotoTag,
@@ -111,7 +111,7 @@ const REWRITE_OPTS = [
   { label: 'Different take', tweak: 'take a clearly different direction than before' },
 ];
 
-export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onRegenerateTweak, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage, onReact }) {
+export default function MessageBubble({ msg, char, ts, streaming, showThink: showThinkSetting = true, onRegenerate, onRegenerateTweak, onContinue, onSwipe, onEditSave, onDelete, onSpeak, speaking, onFork, onPin, pinned, speaker, group, anchorId, onOpenImage, onReact, onIllustrate }) {
   const [copied, setCopied] = useState(false);
   const [showThink, setShowThink] = useState(false);
   const [editing, setEditing] = useState(false);
@@ -252,6 +252,7 @@ export default function MessageBubble({ msg, char, ts, streaming, showThink: sho
             </div>
           )}
           {!isUser && <CtrlBtn onClick={onContinue} disabled={streaming} title="Continue this reply"><ContinueIcon /></CtrlBtn>}
+          {!isUser && onIllustrate && !image && <CtrlBtn onClick={onIllustrate} disabled={streaming} title="Illustrate this moment"><ImagePlus className="h-[18px] w-[18px]" /></CtrlBtn>}
           {!isUser && ttsSupported() && <CtrlBtn onClick={onSpeak} active={speaking} title={speaking ? 'Stop' : 'Read aloud'}>{speaking ? <StopIcon /> : <SpeakIcon />}</CtrlBtn>}
           <CtrlBtn onClick={beginEdit} disabled={streaming} title="Edit message"><PencilIcon /></CtrlBtn>
           <CtrlBtn onClick={doCopy} active={copied} title={copied ? 'Copied!' : 'Copy text'}>{copied ? <CheckIcon /> : <CopyIcon />}</CtrlBtn>
