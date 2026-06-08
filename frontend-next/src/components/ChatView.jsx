@@ -837,6 +837,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       const next = parseRelationship(raw, prev);
       if (next) {
         chat.relationship = next;
+        // Celebrate crossing into a new relationship stage (gamification payoff).
+        const prevStage = stageFor(prev.affection), nextStage = stageFor(next.affection);
+        const up = REL_STAGES.indexOf(nextStage) - REL_STAGES.indexOf(prevStage);
+        if (up > 0) showToast(`${nextStage.emoji} Level up — ${displayName(char)} is now ${nextStage.label}`);
+        else if (up < 0) showToast(`${nextStage.emoji} ${displayName(char)} has cooled to ${nextStage.label}`);
         // Stamp the change onto the AI turn that caused it, so the user can SEE the
         // scale move (e.g. +3 affection, −2 tension) instead of it shifting invisibly.
         const delta = {
