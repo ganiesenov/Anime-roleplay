@@ -117,6 +117,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const prevStreamingRef = useRef(false);
   const callTranscriptRef = useRef('');
   const callMutedRef = useRef(false);
+  const noSpeechCountRef = useRef(0);
   const [showScenarioPick, setShowScenarioPick] = useState(false); // greeting picker on + New chat
   const [undo, setUndo] = useState(null);              // { fromIndex, messages } after a delete
   const sug = useSuggestions(settings);                // suggested-reply state + helpers
@@ -687,8 +688,11 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     try { rec = new SpeechRec(); } catch (e) { setCallError('Mic/speech not available.'); return; }
     rec.lang = settings.sttLang || (typeof navigator !== 'undefined' && navigator.language) || 'en-US';
     rec.interimResults = true;
-    rec.continuous = false;
+    rec.continuous = true;          // stay open so the user can start talking after a beat
+    rec.onstart = () => { setCallStatus('listening'); };
+    rec.onspeechstart = () => { noSpeechCountRef.current = 0; setCallError(''); setCallStatus('hearing'); };
     rec.onresult = (e) => {
+      noSpeechCountRef.current = 0; setCallError('');
       let txt = '';
       for (let i = 0; i < e.results.length; i++) txt += e.results[i][0].transcript;
       callTranscriptRef.current = txt;
@@ -697,11 +701,16 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
     };
     rec.onerror = (ev) => {
       const err = ev && ev.error;
-      // no-speech/aborted are normal (silence / restart) — surface the real failures.
-      if (err && err !== 'no-speech' && err !== 'aborted') {
+      if (err === 'no-speech') {
+        // Mic produced no detectable speech — after a couple of tries, say so plainly.
+        noSpeechCountRef.current += 1;
+        if (noSpeechCountRef.current >= 2) setCallError("I can’t hear your mic — check the input device / OS mic level, and that the right mic is selected for this site.");
+        return;
+      }
+      if (err && err !== 'aborted') {
         setCallError(
-          err === 'network' ? 'Speech recognition needs internet — Chrome streams audio to Google’s servers.'
-          : err === 'not-allowed' || err === 'service-not-allowed' ? 'Microphone blocked — allow mic access for this site.'
+          err === 'network' ? 'Speech recognition needs internet — Chrome streams audio to Google’s servers (a VPN/firewall can block it).'
+          : err === 'not-allowed' || err === 'service-not-allowed' ? 'Microphone blocked — click the 🔒/mic icon in the address bar and allow it.'
           : err === 'audio-capture' ? 'No microphone found.'
           : 'Speech error: ' + err,
         );
@@ -719,7 +728,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
       }
     };
     recognitionRef.current = rec;
-    setCallStatus('listening'); setCallError('');
+    setCallStatus('listening');
     try { rec.start(); } catch (e) { /* already started */ }
   }
 
@@ -1304,6 +1313,17 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
   const slashQuery = (() => { const m = input.match(/^\/(\w*)$/); return m ? m[1].toLowerCase() : null; })();
   const slashMatches = slashQuery != null ? SLASH_COMMANDS.filter((c) => c.cmd.startsWith(slashQuery)) : [];
   const slashActive = Math.min(slashIdx, Math.max(0, slashMatches.length - 1));
+
+  // @mention autocomplete: matching characters from the library as you type "@name".
+  const mentionQuery = (() => { const m = input.match(/(?:^|\s)@([\p{L}][\p{L}\d_-]*)$/u); return m ? m[1].toLowerCase() : null; })();
+  const mentionMatches = mentionQuery != null
+    ? Object.values(charsById).filter((c) => { const n = displayName(c).toLowerCase(); return n.includes(mentionQuery) || n.replace(/\s+/g, '').includes(mentionQuery); }).slice(0, 6)
+    : [];
+  function pickMention(c) {
+    const name = displayName(c).split(/\s+/)[0];
+    setInput((v) => v.replace(/(^|\s)@([\p{L}][\p{L}\d_-]*)$/u, (mm, pre) => pre + '@' + name + ' '));
+    if (inputRef.current) inputRef.current.focus();
+  }
 
   return (
     <div className="relative isolate flex h-screen flex-col">
@@ -2038,6 +2058,26 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
           )
         )}
         <div style={{ maxWidth: 'var(--chat-max-width)' }} className="relative mx-auto w-full px-4 py-3">
+          {/* @mention autocomplete — pick a character to address / summon */}
+          {mentionMatches.length > 0 && (
+            <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl glass-panel p-1.5 shadow-2xl backdrop-blur">
+              <div className="px-2 py-1 text-[11px] font-semibold uppercase tracking-wide text-em-text-dim">Mention a character</div>
+              {mentionMatches.map((c) => {
+                const here = activeParticipants().some((p) => p.id === c.id);
+                return (
+                  <button
+                    key={c.id}
+                    onMouseDown={(e) => { e.preventDefault(); pickMention(c); }}
+                    className="flex w-full items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-left text-sm transition hover:bg-white/5"
+                  >
+                    <Avatar src={c.avatar} name={c.name} size={28} className="shrink-0" />
+                    <span className="font-medium text-em-text">{displayName(c)}</span>
+                    <span className="ml-auto text-[11px] text-em-text-dim">{here ? 'in scene' : 'summon'}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
           {/* Slash-command autocomplete */}
           {slashMatches.length > 0 && (
             <div className="absolute bottom-full left-4 right-4 mb-2 overflow-hidden rounded-xl glass-panel p-1.5 shadow-2xl backdrop-blur">
@@ -2214,7 +2254,7 @@ export default function ChatView({ character, onBack, onEdit, settings = DEFAULT
               ? <span className="text-red-400">{callError}</span>
               : <>
                   <span className="eq"><i /><i /><i /><i /></span>
-                  {callStatus === 'listening' ? 'Listening…' : callStatus === 'thinking' ? 'Thinking…' : callStatus === 'speaking' ? 'Speaking… (tap avatar to interrupt)' : 'On call'}
+                  {callStatus === 'listening' ? 'Listening…' : callStatus === 'hearing' ? 'Hearing you…' : callStatus === 'thinking' ? 'Thinking…' : callStatus === 'speaking' ? 'Speaking… (tap avatar to interrupt)' : 'On call'}
                 </>}
           </div>
           {callTranscript && <div className="max-w-md px-6 text-center text-em-text">{callTranscript}</div>}
