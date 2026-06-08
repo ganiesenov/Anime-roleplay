@@ -357,7 +357,7 @@ async def _comfy_img2vid_from_image(base, image_bytes, svd, width, height, steps
     return data
 
 
-def _reactor_workflow(scene_name, face_name, restore):
+def _reactor_workflow(scene_name, face_name, restore, gender="no"):
     """ReActor face-swap graph: paste the `source` face onto the person in `scene`.
     Matched to the ReActorFaceSwap node's real input schema (introspected)."""
     return {
@@ -372,7 +372,7 @@ def _reactor_workflow(scene_name, face_name, restore):
             "face_restore_model": ("GFPGANv1.4.pth" if restore else "none"),
             "face_restore_visibility": 1.0,
             "codeformer_weight": 0.5,
-            "detect_gender_input": "no",
+            "detect_gender_input": (gender if gender in ("male", "female") else "no"),
             "detect_gender_source": "no",
             "input_faces_index": "0",
             "source_faces_index": "0",
@@ -382,13 +382,18 @@ def _reactor_workflow(scene_name, face_name, restore):
     }
 
 
-async def _comfy_faceswap(base, scene_bytes, face_bytes, restore=True):
-    """Swap the user's face (face_bytes) onto the person in scene_bytes via ReActor."""
+async def _comfy_faceswap(base, scene_bytes, face_bytes, restore=True, gender="no"):
+    """Swap the user's face (face_bytes) onto the person in scene_bytes via ReActor.
+    Falls back to the original scene if no face is found / the swap errors, so callers
+    never hard-fail just because a frame had no swappable face."""
     scene_name = await _comfy_upload_image(base, scene_bytes)
     face_name = await _comfy_upload_image(base, face_bytes)
-    graph = _reactor_workflow(scene_name, face_name, restore)
-    data, _ctype = await _comfy_run(base, graph)
-    return data
+    graph = _reactor_workflow(scene_name, face_name, restore, gender)
+    try:
+        data, _ctype = await _comfy_run(base, graph)
+        return data
+    except HTTPException:
+        return scene_bytes
 
 
 def _face_path(face_id: str) -> Path:
@@ -587,6 +592,7 @@ async def img2vid(
     provider: str = Query("comfy", description="'comfy' (local SVD) | 'hosted' (Replicate-compatible)"),
     image: str = Query("", description="Still to animate (URL/data:) — local SVD animates it directly"),
     face: str = Query("", description="Registered face id — swap the user's face onto the still before animating"),
+    faceGender: str = Query("no", description="Only swap onto this gender's face: no | male | female"),
     token: str = Query("", description="API token for the hosted provider"),
     hostedModel: str = Query("", description="Hosted video model: owner/name slug or version hash"),
     url: str = Query("", description="ComfyUI base URL (local)"),
@@ -621,7 +627,7 @@ async def img2vid(
             img_bytes = await _fetch_image_bytes(image.strip(), str(request.base_url))
             if face.strip():
                 # Put the user's real face into the scene first, then animate it.
-                img_bytes = await _comfy_faceswap(base, img_bytes, _read_face(face.strip()))
+                img_bytes = await _comfy_faceswap(base, img_bytes, _read_face(face.strip()), gender=faceGender)
             data = await _comfy_img2vid_from_image(base, img_bytes, svd.strip(), width, height, steps, seed, frames, motion, fps)
         else:
             data = await _comfy_img2vid(base, prompt, negative, width, height, steps, seed, model.strip(), svd.strip(), frames, motion, fps)
@@ -653,6 +659,7 @@ async def faceswap(
     image: str = Query(..., description="Scene image (URL/data:) to paste the face onto"),
     face: str = Query(..., description="Registered face id (from POST /api/face)"),
     url: str = Query("", description="ComfyUI base URL"),
+    gender: str = Query("no", description="Only swap onto this gender's face: no | male | female"),
     restore: int = Query(1, ge=0, le=1),
 ):
     """Swap the user's registered face onto the person in `image` via local ReActor."""
@@ -662,7 +669,7 @@ async def faceswap(
     scene = await _fetch_image_bytes(image.strip(), str(request.base_url))
     face_bytes = _read_face(face.strip())
     try:
-        data = await _comfy_faceswap(base, scene, face_bytes, restore=bool(restore))
+        data = await _comfy_faceswap(base, scene, face_bytes, restore=bool(restore), gender=gender)
     except HTTPException:
         raise
     except httpx.HTTPError as e:
